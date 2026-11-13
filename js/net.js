@@ -281,7 +281,7 @@ export class Net {
   roomSummary(room) {
     const m = room.meta || {};
     const host = (room.players || {})[m.host];
-    return { code: room.code, mode: m.mode, level: m.level, status: m.status, host: host ? host.name : '?', players: Object.keys(room.players || {}).length };
+    return { code: room.code, mode: m.mode, level: m.level, status: m.status, autoStartAt: m.autoStartAt, host: host ? host.name : '?', players: Object.keys(room.players || {}).length };
   }
 
   // List open rooms (all rooms are public).
@@ -301,7 +301,7 @@ export class Net {
         if (!k.startsWith('hadal.room.')) continue;
         try {
           const meta = JSON.parse(localStorage.getItem(k));
-          if (meta && Date.now() - (meta.createdAt || 0) < 3 * 3600e3) out.push({ code: k.slice(11), mode: meta.mode, level: meta.level, status: meta.status, host: meta.hostName || '?', players: 0 });
+          if (meta && Date.now() - (meta.createdAt || 0) < 3 * 3600e3) out.push({ code: k.slice(11), mode: meta.mode, level: meta.level, status: meta.status, autoStartAt: meta.autoStartAt, host: meta.hostName || '?', players: 0 });
         } catch (e) {
           /* ignore */
         }
@@ -361,10 +361,11 @@ export class Net {
     return found;
   }
 
-  async createRoom({ mode, level, name, sub }) {
+  async createRoom({ mode, level, name, sub, autoStartAt = 40000 }) {
     const info = { name, sub: sub || 'hummel' };
+    const wait = autoStartAt;
     let code = PUBLIC_CODES[Math.floor(Math.random() * PUBLIC_CODES.length)];
-    const meta = { mode, level, host: this.uid, status: 'lobby', seed: Math.floor(Math.random() * 1e9), createdAt: Date.now() };
+    const meta = { mode, level, host: this.uid, status: 'lobby', seed: Math.floor(Math.random() * 1e9), createdAt: Date.now(), autoStartAt: this.now() + wait };
     if (this.mode === 'firebase') {
       const { ref, get, set } = this.fb;
       const codes = [...shuffled(PUBLIC_CODES), randomCode(4), randomCode(4)];
@@ -466,7 +467,7 @@ export class Net {
 
   async resetRoom() {
     if (!this.room || !this.isHost()) return;
-    const upd = { status: 'lobby', seed: Math.floor(Math.random() * 1e9) };
+    const upd = { status: 'lobby', seed: Math.floor(Math.random() * 1e9), autoStartAt: this.now() + 40000 };
     if (this.mode === 'firebase') {
       const { ref, update } = this.fb;
       await update(ref(this.rtdb, `rooms/${this.room.code}/meta`), upd);

@@ -622,3 +622,29 @@ body.touch #skipHint { bottom: calc(50% - 20px); }
 .room .btn[disabled] { opacity: 0.4; pointer-events: none; }
 @media (max-width: 500px) { .subcard { flex-basis: 140px; } .subcard img { height: 74px; } }
 #menu > * { flex-shrink: 0; }
+
+/* ---------- passers-by in front of the menu ---------- */
+#passers { position: fixed; inset: 0; pointer-events: none; z-index: 6; overflow: hidden; }
+.passer { position: absolute; left: 0; animation-timing-function: linear; animation-fill-mode: forwards; will-change: transform; }
+.passer img { display: block; width: 100%; height: auto; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.45)); }
+.passer::after { content: ''; }
+@keyframes passL { from { transform: translate(105vw, 0); } 50% { transform: translate(35vw, -14px); } to { transform: translate(-45vw, 6px); } }
+@keyframes passR { from { transform: translate(-45vw, 0); } 50% { transform: translate(35vw, 12px); } to { transform: translate(105vw, -6px); } }
+
+/* ---------- results: debrief choice ---------- */
+.debrief-ask { display: flex; flex-direction: column; gap: 2px; background: rgba(56, 232, 255, 0.08); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin-top: 12px; }
+.debrief-ask span { font-size: 13px; color: var(--muted); }
+
+/* ---------- multiplayer lobby ---------- */
+.mp-quick { width: 100%; margin-top: 4px; }
+.lobby-wait { background: rgba(56, 232, 255, 0.08); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin: 6px 0 8px; }
+.lobby-wait > div:first-child { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.lb-count { font-size: 18px; }
+.lb-count b { color: var(--cyan); font-size: 24px; font-variant-numeric: tabular-nums; }
+.lb-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.08); margin-top: 10px; overflow: hidden; }
+.lb-bar div { height: 100%; background: linear-gradient(90deg, #38e8ff, #7dffe9); transition: width 0.5s linear; }
+.dots::after { content: ''; animation: dots 1.5s steps(4) infinite; }
+@keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+.rstatus.run { color: #7dff8a; }
+.room .btn.small { flex-shrink: 0; }
+#mpHint { color: #8fb3c7; font-size: 12px; margin-top: 6px; }

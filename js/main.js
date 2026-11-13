@@ -3,7 +3,7 @@
 import * as THREE from './vendor/three.min.js';
 import { World, SCALE, axisZ } from './world.js';
 import { Sub, RemoteSub, SUB_MODELS, subModelById, buildSubModel } from './sub.js';
-import { CreatureManager } from './creatures.js';
+import { CreatureManager, buildModel } from './creatures.js';
 import { FishSchools } from './schools.js';
 import { Launch } from './launch.js';
 import { Aquarium } from './intro.js';
@@ -90,6 +90,7 @@ function showIntro(onDone) {
   introDone = onDone || introDone || (() => renderMenu());
   closeModal();
   $('#menu').classList.add('hidden');
+  $('#passers').innerHTML = '';
   $('#menuBg').classList.add('hidden');
   $('#c').style.visibility = 'visible';
   if (aquarium) aquarium.setMode('intro');
@@ -302,30 +303,28 @@ function showWelcome(onDone) {
   });
 }
 
-// ======================= sub thumbnails (rendered once) =======================
-const thumbCache = {};
-function subThumb(id) {
-  if (thumbCache[id]) return thumbCache[id];
+// ======================= model images (rendered once with the game renderer) =======================
+const imgCache = {};
+// Render a 3D model into a transparent PNG data URL.
+function renderModelImage(key, make, { w = 320, h = 200, yaw = -2.35, dist = 1.12, lift = 0.32 } = {}) {
+  if (imgCache[key]) return imgCache[key];
   try {
-    const W = 320, H = 200;
     const scene = new THREE.Scene();
     scene.add(new THREE.HemisphereLight(0xd8f6ff, 0x0a2030, 1.7));
     const sun = new THREE.DirectionalLight(0xffffff, 2.2);
     sun.position.set(3, 5, 4);
     scene.add(sun);
-    const m = buildSubModel(id, null, false);
-    m.remove(m.userData.beam);
-    m.userData.glowMat.opacity = 0.5;
-    m.rotation.y = -2.35;
+    const m = make();
+    m.rotation.y = yaw;
     scene.add(m);
     m.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(m);
     const c = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3()).length();
-    const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
-    cam.position.set(c.x + size * 0.1, c.y + size * 0.32, c.z + size * 1.12);
+    const cam = new THREE.PerspectiveCamera(30, w / h, 0.1, 200);
+    cam.position.set(c.x + size * 0.1, c.y + size * lift, c.z + size * dist);
     cam.lookAt(c);
-    const rt = new THREE.WebGLRenderTarget(W, H);
+    const rt = new THREE.WebGLRenderTarget(w, h);
     rt.texture.colorSpace = THREE.SRGBColorSpace;
     const prevColor = renderer.getClearColor(new THREE.Color());
     const prevAlpha = renderer.getClearAlpha();
@@ -333,25 +332,69 @@ function subThumb(id) {
     renderer.setClearColor(0x000000, 0);
     renderer.clear();
     renderer.render(scene, cam);
-    const buf = new Uint8Array(W * H * 4);
-    renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+    const buf = new Uint8Array(w * h * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, w, h, buf);
     renderer.setRenderTarget(null);
     renderer.setClearColor(prevColor, prevAlpha);
     const cv = document.createElement('canvas');
-    cv.width = W;
-    cv.height = H;
+    cv.width = w;
+    cv.height = h;
     const ctx = cv.getContext('2d');
-    const img = ctx.createImageData(W, H);
-    for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    const img = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y++) img.data.set(buf.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
     ctx.putImageData(img, 0, 0);
-    thumbCache[id] = cv.toDataURL('image/png');
+    imgCache[key] = cv.toDataURL('image/png');
     rt.dispose();
-    m.traverse((o) => o.geometry && o.geometry.dispose());
   } catch (e) {
-    console.warn('thumbnail failed', e);
-    thumbCache[id] = 'favicon.svg';
+    console.warn('model image failed', e);
+    imgCache[key] = 'favicon.svg';
   }
-  return thumbCache[id];
+  return imgCache[key];
+}
+
+function subModelNoBeam(id) {
+  const m = buildSubModel(id, null, false);
+  m.remove(m.userData.beam);
+  m.userData.glowMat.opacity = 0.5;
+  return m;
+}
+
+function subThumb(id) {
+  return renderModelImage('thumb-' + id, () => subModelNoBeam(id));
+}
+
+// ======================= passers-by in front of the main menu =======================
+// Now and then a single fish or sub glides across the menu (in front of the text).
+const PASSERS = [
+  ['sub', 'hummel', 220], ['sub', 'puffer', 170], ['sub', 'narwhal', 250], ['sub', 'octopus', 170], ['sub', 'rocket', 230], ['sub', 'ufo', 220],
+  ['ani', 'turtle', 150], ['ani', 'manta', 230], ['ani', 'dolphin', 190], ['ani', 'tuna', 120], ['ani', 'sunfish', 150],
+  ['ani', 'whaleshark', 300], ['ani', 'angler', 120], ['ani', 'jellyphant', 150], ['ani', 'duckangler', 130], ['ani', 'toaster', 140],
+];
+let passerTimer = null;
+function schedulePasser(first = false) {
+  clearTimeout(passerTimer);
+  passerTimer = setTimeout(spawnPasser, first ? 2500 + Math.random() * 3000 : 6000 + Math.random() * 9000);
+}
+function spawnPasser() {
+  const box = $('#passers');
+  const menuOn = !$('#menu').classList.contains('hidden') && !game;
+  if (!menuOn) return; // renderMenu starts it again
+  if (box.childElementCount < 2 && !document.hidden) {
+    const [kind, id, width] = PASSERS[Math.floor(Math.random() * PASSERS.length)];
+    const src = renderModelImage(`side-${kind}-${id}`, () => (kind === 'sub' ? subModelNoBeam(id) : buildModel(id)), { w: 360, h: 220, yaw: Math.PI / 2 - 0.35, dist: 1.0, lift: 0.18 });
+    const right = Math.random() < 0.5;
+    const scale = 0.75 + Math.random() * 0.5;
+    const el = document.createElement('div');
+    el.className = 'passer';
+    el.style.top = `${10 + Math.random() * 70}%`;
+    el.style.width = `${Math.round(width * 1.3 * scale * (window.innerWidth < 600 ? 0.7 : 1))}px`;
+    el.style.animationName = right ? 'passR' : 'passL';
+    el.style.animationDuration = `${(10 + Math.random() * 6) * (kind === 'sub' ? 0.85 : 1)}s`;
+    el.innerHTML = `<img alt="" src="${src}" style="${right ? 'transform:scaleX(-1)' : ''}">`;
+    el.addEventListener('animationend', (e) => e.target === el && el.remove());
+    box.appendChild(el);
+  }
+  schedulePasser();
 }
 
 // ======================= info window after the title screen =======================
@@ -427,7 +470,6 @@ function renderMenu() {
     </div>
     <div class="menu-actions">
       <button class="btn big" id="mStart">${t('start')}</button>
-      <button class="chip toggle ${profile.debrief === false ? '' : 'on'}" id="mDebrief" title="${t('debriefToggleHint')}">💬 ${t('debriefToggle')}: <b>${profile.debrief === false ? t('off') : t('on')}</b></button>
       <button class="btn secondary" id="mMulti">👥 ${t('multiplayer')}</button>
       <button class="btn secondary" id="mHangar">🔧 ${t('hangar')}</button>
       <button class="btn secondary" id="mLog">📖 ${t('logbook')}</button>
@@ -435,6 +477,7 @@ function renderMenu() {
     </div>
     <div class="menu-foot">${t('credit').replace('www.pilotFilm.at', '<a href="https://www.pilotfilm.at" target="_blank" rel="noopener">www.pilotFilm.at</a>')} · v${GAME_VERSION}</div>`;
   $('#menu').classList.remove('hidden');
+  schedulePasser(true);
   const selCard = $('#menu .trench.sel');
   if (selCard) selCard.scrollIntoView({ block: 'nearest', inline: 'center' });
   $('#menu').querySelectorAll('.trench').forEach((b) => {
@@ -471,14 +514,7 @@ function renderMenu() {
       audio.click();
     };
   });
-  $('#mDebrief').onclick = () => {
-    profile.debrief = profile.debrief === false;
-    saveProfile();
-    const b = $('#mDebrief');
-    b.classList.toggle('on', profile.debrief);
-    b.querySelector('b').textContent = profile.debrief ? t('on') : t('off');
-    audio.click();
-  };
+
   $('#mLang').onclick = () => {
     profile.lang = getLang() === 'de' ? 'en' : 'de';
     setLang(profile.lang);
@@ -616,6 +652,43 @@ function colorFor(uid, players) {
 }
 const hexColor = (c) => '#' + new THREE.Color(c).getHexString();
 
+// All rooms are public and have no visible code: you either jump into an open
+// room ("play now") or open your own. A room waits a short while for others
+// (countdown, the host can start earlier) – latecomers simply join the running dive.
+const LOBBY_WAIT = 40000;
+let lobbyTimer = null;
+let lobbyStarting = false;
+let mpRefreshTimer = null;
+let mpMode = 'coop';
+
+function fmtCountdown(ms) {
+  const s = Math.max(0, Math.ceil(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+}
+
+function roomJoinable(r) {
+  return r.players < 4;
+}
+
+function roomStatusText(r) {
+  if (r.status === 'running') return t('mpRunningJoin');
+  if (r.autoStartAt) return t('mpLobbyWait', { t: fmtCountdown(r.autoStartAt - Date.now()) });
+  return t('mpWaiting');
+}
+
+// best room for "play now": waiting rooms with the most players first, then running ones
+function pickRoom(rooms) {
+  const open = rooms.filter(roomJoinable);
+  const waiting = open.filter((r) => r.status !== 'running').sort((a, b) => b.players - a.players);
+  const running = open.filter((r) => r.status === 'running').sort((a, b) => (a.mode === 'race') - (b.mode === 'race') || b.players - a.players);
+  return waiting[0] || running[0] || null;
+}
+
+function stopMpRefresh() {
+  clearInterval(mpRefreshTimer);
+  mpRefreshTimer = null;
+}
+
 function showMultiplayer() {
   audio.init();
   if (!net.mpAvailable) {
@@ -626,107 +699,155 @@ function showMultiplayer() {
   }
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === selLevel ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
   showModal(`<h1>👥 ${t('mpTitle')}</h1>
-    <h2>${t('mpOpenRooms')}</h2>
+    <p style="margin-top:0;color:#bfe9f7">${t('mpPublicNote')}</p>
+    <button class="btn big mp-quick" id="mpQuick">⚡ ${t('mpQuickPlay')}</button>
+    <div class="hint" id="mpHint" style="text-align:center">${t('mpQuickPlayDesc')}</div>
+    <h2 style="margin-top:16px">${t('mpOpenRooms')} <button class="btn small secondary" id="mpRefresh" style="margin-left:8px">🔄</button></h2>
     <div class="rooms" id="mpRooms"><div class="hint">${t('mpSearching')}</div></div>
-    <div class="row-end" style="justify-content:flex-start;margin-top:8px">
-      <button class="btn" id="mpQuick">⚡ ${t('mpQuick')}</button>
-      <button class="btn secondary" id="mpRefresh">🔄 ${t('mpRefresh')}</button>
-    </div>
-    <h2 style="margin-top:18px">${t('mpCreate')}</h2>
-    <p style="font-size:13px;color:#8fb3c7;margin:0 0 8px">${t('mpPublicNote')}</p>
+    <h2 style="margin-top:16px">${t('mpOpenOwn')}</h2>
     <div class="modes">
-      <button class="mode sel" data-mm="coop"><b>🤝 ${t('mpCoop')}</b><span>${t('mpCoopDesc')}</span></button>
-      <button class="mode" data-mm="race"><b>🏁 ${t('mpRace')}</b><span>${t('mpRaceDesc')}</span></button>
+      <button class="mode ${mpMode === 'coop' ? 'sel' : ''}" data-mm="coop"><b>🤝 ${t('mpCoop')}</b><span>${t('mpCoopDesc')}</span></button>
+      <button class="mode ${mpMode === 'race' ? 'sel' : ''}" data-mm="race"><b>🏁 ${t('mpRace')}</b><span>${t('mpRaceDesc')}</span></button>
     </div>
-    <div class="field"><select id="mpLevel">${levelOpts}</select></div>
-    <button class="btn" id="mpCreate">${t('mpCreate')}</button>
-    <h2 style="margin-top:18px">${t('mpJoin')}</h2>
-    <div class="askrow"><input id="mpCode" type="text" maxlength="4" placeholder="${t('mpCode')}" style="text-transform:uppercase"><button class="btn" id="mpJoin">${t('mpJoin')}</button></div>
-    <div class="hint" id="mpHint"></div>
+    <div class="askrow" style="margin-top:8px"><select id="mpLevel">${levelOpts}</select><button class="btn" id="mpCreate">${t('mpOpenBtn')}</button></div>
     ${net.mode === 'p2p' ? `<p style="font-size:12px;color:#8fb3c7;margin-top:10px">${t('mpP2PNote')}</p>` : ''}
     <div class="row-end"><button class="btn secondary" id="mpClose">${t('close')}</button></div>`, (root) => {
-    let mm = 'coop';
+    const hint = root.querySelector('#mpHint');
     root.querySelectorAll('[data-mm]').forEach((b) => {
       b.onclick = () => {
-        mm = b.dataset.mm;
+        mpMode = b.dataset.mm;
         root.querySelectorAll('[data-mm]').forEach((x) => x.classList.toggle('sel', x === b));
       };
     });
-    root.querySelector('#mpClose').onclick = closeModal;
-    root.querySelector('#mpCreate').onclick = async () => {
-      root.querySelector('#mpHint').textContent = t('mpConnecting');
+    root.querySelector('#mpClose').onclick = () => {
+      stopMpRefresh();
+      closeModal();
+    };
+    const create = async (mode, level) => {
+      hint.textContent = t('mpConnecting');
       try {
-        await net.createRoom({ mode: mm, level: root.querySelector('#mpLevel').value, name: profile.name, sub: profile.sub });
+        stopMpRefresh();
+        await net.createRoom({ mode, level, name: profile.name, sub: profile.sub, autoStartAt: LOBBY_WAIT });
         openLobby();
       } catch (e) {
-        root.querySelector('#mpHint').textContent = e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
+        hint.textContent = e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
       }
     };
-    root.querySelector('#mpJoin').onclick = () => joinByCode(root.querySelector('#mpCode').value, root.querySelector('#mpHint'));
+    root.querySelector('#mpCreate').onclick = () => create(mpMode, root.querySelector('#mpLevel').value);
     let rooms = [];
+    let busy = false;
     const box = root.querySelector('#mpRooms');
-    const canJoin = (r) => r.players < 4 && (r.status !== 'running' || r.mode !== 'race');
-    const refresh = async () => {
-      box.innerHTML = `<div class="hint">${t('mpSearching')}</div>`;
-      try {
-        rooms = await net.listRooms();
-      } catch (e) {
-        rooms = [];
-      }
-      if (!box.isConnected) return;
-      rooms.sort((a, b) => (a.status === 'lobby' ? 0 : 1) - (b.status === 'lobby' ? 0 : 1));
+    const draw = () => {
+      if (!box.isConnected) return stopMpRefresh();
       box.innerHTML = rooms.length
         ? rooms
             .map((r) => {
               const lv = levelById(r.level);
               return `<div class="room"><div><b>${r.mode === 'race' ? '🏁' : '🤝'} ${escapeHtml(lv ? L(lv.name) : r.level || '')}</b>
-                <small>${escapeHtml(r.host || '?')} · ${r.players ? r.players + '/4' : ''} ${r.status === 'running' ? '· ' + t('mpRunning') : ''}</small></div>
-                <button class="btn small" data-code="${escapeHtml(r.code)}" ${canJoin(r) ? '' : 'disabled'}>${t('mpJoin')}</button></div>`;
+                <small>${escapeHtml(r.host || '?')} · 👥 ${r.players || 1}/4 · <span class="rstatus ${r.status === 'running' ? 'run' : ''}">${roomStatusText(r)}</span></small></div>
+                <button class="btn small" data-code="${escapeHtml(r.code)}" ${roomJoinable(r) ? '' : 'disabled'}>${t('mpJoin')}</button></div>`;
             })
             .join('')
         : `<div class="hint">${t('mpNoRooms')}</div>`;
-      box.querySelectorAll('[data-code]').forEach((b) => (b.onclick = () => joinByCode(b.dataset.code, root.querySelector('#mpHint'))));
+      box.querySelectorAll('[data-code]').forEach((b) => (b.onclick = () => joinRoomCode(b.dataset.code, hint)));
+    };
+    const refresh = async () => {
+      if (busy || !box.isConnected) return;
+      busy = true;
+      try {
+        rooms = await net.listRooms();
+      } catch (e) {
+        rooms = [];
+      }
+      busy = false;
+      rooms.sort((a, b) => (a.status === 'running') - (b.status === 'running') || b.players - a.players);
+      draw();
     };
     root.querySelector('#mpRefresh').onclick = refresh;
     root.querySelector('#mpQuick').onclick = async () => {
-      if (!rooms.length) await refresh();
-      const open = rooms.filter((r) => r.status === 'lobby' && r.players < 4).concat(rooms.filter((r) => r.status === 'running' && r.mode !== 'race' && r.players < 4));
-      if (open.length) joinByCode(open[0].code, root.querySelector('#mpHint'));
-      else root.querySelector('#mpHint').textContent = t('mpNoRoomsCreate');
+      hint.textContent = t('mpSearching');
+      await refresh();
+      const r = pickRoom(rooms);
+      if (r) joinRoomCode(r.code, hint);
+      else create('coop', selLevel);
     };
     refresh();
+    stopMpRefresh();
+    // keep the list fresh while the window is open (countdowns tick every second)
+    let n = 0;
+    mpRefreshTimer = setInterval(() => {
+      if (!box.isConnected) return stopMpRefresh();
+      if (++n % 8 === 0) refresh();
+      else draw();
+    }, 1000);
   });
 }
 
-async function joinByCode(code, hintEl) {
+async function joinRoomCode(code, hintEl) {
   if (hintEl) hintEl.textContent = t('mpConnecting');
   else toast(t('mpConnecting'));
   try {
+    stopMpRefresh();
     await net.joinRoom(code, { name: profile.name, sub: profile.sub });
-    openLobby();
+    openLobby(true);
   } catch (e) {
     const msg = e.message === 'notfound' ? t('mpNotFound') : e.message === 'full' ? t('mpFull') : e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
     if (hintEl) hintEl.textContent = msg;
     else toast(msg);
   }
 }
+const joinByCode = joinRoomCode; // ?room= links still work
 
-function roomLink() {
-  return `${location.origin}${location.pathname}?room=${net.room.code}`;
+function closeLobby() {
+  lobbyOpen = false;
+  clearInterval(lobbyTimer);
+  lobbyTimer = null;
 }
 
-function openLobby() {
+function openLobby(autoJoin = false) {
   lobbyOpen = true;
   net.on('meta', onRoomMeta);
   net.on('players', onRoomPlayers);
   net.on('event', (ev) => game && game.onNetEvent(ev));
   net.on('closed', () => {
-    lobbyOpen = false;
+    closeLobby();
     net.leaveRoom();
     toast(t('mpHostLeft'));
     if (!game) closeModal();
   });
+  history.replaceState(null, '', location.pathname);
+  // joining a room whose dive is already running: jump straight in
+  if (autoJoin && net.room && net.room.meta && net.room.meta.status === 'running') return joinRunningDive();
   renderLobby();
+  clearInterval(lobbyTimer);
+  // countdown display + automatic start by the host
+  lobbyTimer = setInterval(() => {
+    if (!lobbyOpen || !net.room || game) return;
+    const meta = net.room.meta || {};
+    const el = $('#lbCountdown');
+    if (meta.status === 'running') return;
+    const left = (meta.autoStartAt || 0) - net.now();
+    if (el) el.textContent = fmtCountdown(left);
+    const bar = $('#lbBar');
+    if (bar) bar.style.width = `${clamp(1 - left / LOBBY_WAIT, 0, 1) * 100}%`;
+    if (net.isHost() && meta.autoStartAt && left <= 0 && !lobbyStarting) {
+      lobbyStarting = true;
+      net.startRoom({ seed: Math.floor(Math.random() * 1e9) });
+    }
+  }, 500);
+}
+
+function joinRunningDive() {
+  const meta = net.room && net.room.meta;
+  if (!meta || meta.status !== 'running' || game) return;
+  closeLobby();
+  closeModal();
+  startDive({
+    level: levelById(meta.level),
+    mode: meta.mode === 'race' ? 'race' : 'expedition',
+    seed: meta.seed,
+    multi: { coop: meta.mode !== 'race', startAt: meta.startAt },
+  });
 }
 
 function renderLobby() {
@@ -734,58 +855,57 @@ function renderLobby() {
   const meta = net.room.meta || {};
   const host = net.isHost();
   const players = Object.entries(net.room.players || {});
-  const plist = players.map(([u, p]) => `<div><i style="background:${hexColor(colorFor(u, net.room.players))}"></i>${escapeHtml(p.name || '?')}${meta.host === u ? ` <small style="color:#8fb3c7">(${t('mpHost')})</small>` : ''}${u === net.uid ? ' ←' : ''}</div>`).join('');
+  const plist = players.map(([u, p]) => `<div><i style="background:${hexColor(colorFor(u, net.room.players))}"></i>${escapeHtml(p.name || '?')} <small style="color:#8fb3c7">${escapeHtml(L(subModelById(p.sub).name))}</small>${meta.host === u ? ` <small style="color:#8fb3c7">(${t('mpHost')})</small>` : ''}${u === net.uid ? ' ←' : ''}</div>`).join('');
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === meta.level ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
   const lv = levelById(meta.level);
-  showModal(`<h1>${t('mpLobby', { code: '' })}<span class="code">${net.room.code}</span></h1>
-    <p>${t('mpShare')}</p><div class="link" id="lbLink">${escapeHtml(roomLink())}</div>
-    <div class="row-end" style="justify-content:flex-start"><button class="btn small secondary" id="lbCopy">${t('mpCopy')}</button></div>
-    <h2>${meta.mode === 'race' ? '🏁 ' + t('mpRace') : '🤝 ' + t('mpCoop')} · ${escapeHtml(L(lv.name))}</h2>
-    ${host ? `<div class="field"><div class="seg" id="lbMode"><button data-m="coop" class="${meta.mode !== 'race' ? 'on' : ''}">${t('mpCoop')}</button><button data-m="race" class="${meta.mode === 'race' ? 'on' : ''}">${t('mpRace')}</button></div></div><div class="field"><select id="lbLevelSel">${levelOpts}</select></div>` : ''}
+  const running = meta.status === 'running';
+  const left = (meta.autoStartAt || 0) - net.now();
+  showModal(`<h1>${meta.mode === 'race' ? '🏁 ' + t('mpRace') : '🤝 ' + t('mpCoop')} · ${escapeHtml(L(lv.name))}</h1>
+    ${running
+      ? `<div class="lobby-wait"><b>${t('mpRunningInfo')}</b></div>`
+      : `<div class="lobby-wait"><div><span class="dots">${t('mpWaiting')}</span><span class="lb-count">${t('mpStartsIn', { t: `<b id="lbCountdown">${fmtCountdown(left)}</b>` })}</span></div>
+         <div class="lb-bar"><div id="lbBar" style="width:${clamp(1 - left / LOBBY_WAIT, 0, 1) * 100}%"></div></div></div>`}
+    <p style="font-size:13px;color:#bfe9f7">${t('mpLobbyNote')}</p>
+    ${host && !running ? `<div class="field"><div class="seg" id="lbMode"><button data-m="coop" class="${meta.mode !== 'race' ? 'on' : ''}">${t('mpCoop')}</button><button data-m="race" class="${meta.mode === 'race' ? 'on' : ''}">${t('mpRace')}</button></div></div><div class="field"><select id="lbLevelSel">${levelOpts}</select></div>` : ''}
     <h2>${t('mpPlayers')} (${players.length}/4)</h2><div class="players">${plist}</div>
     <div class="row-end">
       <button class="btn secondary" id="lbLeave">${t('mpLeave')}</button>
-      ${host ? `<button class="btn big" id="lbStart">${t('mpStart')}</button>` : `<span style="color:#8fb3c7">${t('mpWaitHost')}</span>`}
+      ${running ? `<button class="btn big" id="lbJoinRun">⚡ ${t('mpJoinRunning')}</button>` : host ? `<button class="btn secondary" id="lbMore">${t('mpWaitMore')}</button><button class="btn big" id="lbStart">${t('mpStartNow')}</button>` : `<span style="color:#8fb3c7">${t('mpAutoStart')}</span>`}
     </div>`, (root) => {
-    root.querySelector('#lbCopy').onclick = async () => {
-      try {
-        await navigator.clipboard.writeText(roomLink());
-        root.querySelector('#lbCopy').textContent = t('mpCopied');
-      } catch (e) {
-        /* clipboard not available */
-      }
-    };
     root.querySelector('#lbLeave').onclick = () => {
-      lobbyOpen = false;
+      closeLobby();
       net.leaveRoom();
       closeModal();
-      history.replaceState(null, '', location.pathname);
     };
-    if (host) {
+    if (running) root.querySelector('#lbJoinRun').onclick = joinRunningDive;
+    else if (host) {
       root.querySelectorAll('#lbMode button').forEach((b) => (b.onclick = () => net.updateMeta({ mode: b.dataset.m })));
       root.querySelector('#lbLevelSel').onchange = (e) => net.updateMeta({ level: e.target.value });
       root.querySelector('#lbStart').onclick = () => net.startRoom({ seed: Math.floor(Math.random() * 1e9) });
+      root.querySelector('#lbMore').onclick = () => net.updateMeta({ autoStartAt: Math.max(meta.autoStartAt || 0, net.now()) + 30000 });
     }
   });
 }
 
 function onRoomMeta(meta) {
   if (!meta) return;
-  if (meta.status === 'running' && !game) {
-    lobbyOpen = false;
-    closeModal();
-    startDive({
-      level: levelById(meta.level),
-      mode: meta.mode === 'race' ? 'race' : 'expedition',
-      seed: meta.seed,
-      multi: { coop: meta.mode !== 'race', startAt: meta.startAt },
-    });
-  } else if (lobbyOpen && !game) renderLobby();
+  if (meta.status === 'running' && !game && lobbyOpen) joinRunningDive();
+  else if (lobbyOpen && !game) {
+    lobbyStarting = false;
+    renderLobby();
+  }
 }
 
 function onRoomPlayers(players) {
   if (game) game.syncPlayers(players);
-  else if (lobbyOpen) renderLobby();
+  else if (lobbyOpen) {
+    // somebody new arrived shortly before the start: give them a few seconds
+    const meta = net.room && net.room.meta;
+    if (net.isHost() && meta && meta.status === 'lobby' && meta.autoStartAt && meta.autoStartAt - net.now() < 10000 && Object.keys(players || {}).length > 1) {
+      net.updateMeta({ autoStartAt: net.now() + 10000 });
+    }
+    renderLobby();
+  }
   if (resultsRace) renderRaceStandings();
 }
 
@@ -921,6 +1041,11 @@ class Dive {
     }
     this.ringIndex = 0;
     this.raceStartLocal = this.multi && this.multi.startAt ? this.multi.startAt - net.offset : Date.now() + 8200;
+    if (this.raceStartLocal < Date.now() + 1500) {
+      // joined a race that is already under way: your own clock starts after your launch
+      this.raceStartLocal = Date.now() + 8200;
+      setTimeout(() => echoSay(t('raceLateStart'), { now: true }), 1200);
+    }
     this.raceFinished = null;
     $('#race').classList.remove('hidden');
     this.highlightRing();
@@ -1671,6 +1796,7 @@ function startDive(opts) {
   $('#menu').classList.add('hidden');
   $('#menuBg').classList.add('hidden');
   $('#intro').classList.add('hidden');
+  $('#passers').innerHTML = '';
   $('#c').style.visibility = 'visible';
   audio.music('dive');
   game = new Dive(opts);
@@ -1723,9 +1849,13 @@ function showResults(g) {
       ${emergency ? `<span>× 0.5</span><span></span>` : ''}
       <span class="tot">${t('total')}</span><span class="tot">${fmtNum(sc.total)}</span>
     </div>
-    <div class="row-end">${profile.debrief === false ? `<button class="btn big" id="rNext">▶ ${t('continue')}</button>` : `<button class="btn big" id="rQuiz">💬 ${t('debriefTitle')}</button>`}</div>`, (root) => {
-    if (root.querySelector('#rQuiz')) root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
-    if (root.querySelector('#rNext')) root.querySelector('#rNext').onclick = () => finishQuiz(g, sc, 0);
+    <div class="debrief-ask"><b>💬 ${t('debriefTitle')}?</b><span>${t('debriefAsk')}</span></div>
+    <div class="row-end">
+      <button class="btn secondary" id="rNext">⏭ ${t('debriefSkip')}</button>
+      <button class="btn big" id="rQuiz">💬 ${t('debriefDo')}</button>
+    </div>`, (root) => {
+    root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
+    root.querySelector('#rNext').onclick = () => finishQuiz(g, sc, 0);
   });
 }
 
