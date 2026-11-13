@@ -90,8 +90,8 @@ export class Aquarium {
     this.textU = {
       map: { value: titleTexture() },
       uTime: { value: 0 },
-      uSpot: { value: new THREE.Vector2(99, 99) },
-      uSpotI: { value: 0 },
+      uSpot: { value: [new THREE.Vector2(99, 99), new THREE.Vector2(99, 99), new THREE.Vector2(99, 99)] },
+      uSpotI: { value: [0, 0, 0] },
       uFade: { value: 1 },
     };
     const textMat = new THREE.ShaderMaterial({
@@ -102,7 +102,7 @@ export class Aquarium {
         uniform float uTime;
         void main(){ vUv = uv; vec3 p = position; p.z += sin(p.x*0.5 + uTime*1.4)*0.25 + sin(p.y*0.9 + uTime*1.1)*0.12; vP = p.xy;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0); }`,
-      fragmentShader: `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot; uniform float uSpotI; uniform float uFade;
+      fragmentShader: `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot[3]; uniform float uSpotI[3]; uniform float uFade;
         varying vec2 vUv; varying vec2 vP;
         float caust(vec2 p){
           float a = sin(p.x*2.1 + uTime*1.1 + sin(p.y*1.7 + uTime*0.6)*1.6);
@@ -117,9 +117,10 @@ export class Aquarium {
           vec4 tex = texture2D(map, uv);
           float cs = caust(vP*0.8);
           vec3 col = tex.rgb * (0.7 + 0.75*cs);
-          float d2 = dot(vP - uSpot, vP - uSpot);
-          float spot = uSpotI * exp(-d2 / 5.0);
-          col += vec3(1.0, 0.95, 0.78) * spot * 1.3 * tex.a;
+          float spot = 0.0;
+          for (int k = 0; k < 3; k++) { vec2 d = vP - uSpot[k]; spot += uSpotI[k] * exp(-dot(d, d) / 7.0); }
+          col += vec3(1.0, 0.95, 0.8) * spot * 1.9 * tex.a;
+          col += vec3(0.6, 0.9, 1.0) * spot * 0.25 * (1.0 - tex.a) * 0.0;
           float band = smoothstep(0.035, 0.0, abs(fract(vUv.x*0.6 - vUv.y*0.25 - uTime*0.09) - 0.5));
           col += vec3(0.75, 1.0, 1.0) * band * 0.35 * tex.a;
           gl_FragColor = vec4(col, tex.a * uFade);
@@ -209,11 +210,29 @@ export class Aquarium {
       this.schools.push({ mesh, offs, rx: 14 + i * 3, rz: 9 + i * 2, h: -6 + i * 3.2, speed: (i % 2 ? -1 : 1) * (0.16 + i * 0.03), ph: i * 1.3 });
     });
 
-    // the sub
-    this.sub = buildSubModel(0xffc21a, true);
-    this.sub.userData.beam.material.uniforms.opacity.value = 0.09;
-    this.sub.scale.setScalar(1.15);
-    this.scene.add(this.sub);
+    // a whole fleet of subs with strong lights
+    const FLEET = [
+      ['hummel', 15.5, 10, 0, 0.19, 0, true],
+      ['rocket', 20, 13, 5.5, -0.14, 2.1, true],
+      ['ufo', 12, 8, -5.2, 0.11, 4.2, false],
+      ['octopus', 22, 9, -1.8, -0.09, 1.0, false],
+      ['narwhal', 18, 15, 8.6, 0.16, 3.3, false],
+      ['puffer', 10.5, 12, 4.2, -0.21, 5.2, false],
+    ];
+    this.subs = FLEET.map(([model, R, Rz, h, speed, ph, light]) => {
+      const g = buildSubModel(model, null, light);
+      g.userData.beam.material.uniforms.opacity.value = 0.2;
+      g.userData.beam.scale.set(1.25, 1.25, 1.7);
+      g.userData.glowMat.opacity = 1;
+      if (g.userData.spot) {
+        g.userData.spot.intensity = 140;
+        g.userData.spot.distance = 70;
+      }
+      g.scale.setScalar(model === 'hummel' ? 1.15 : 1);
+      this.scene.add(g);
+      return { g, R, Rz, h, speed, ph };
+    });
+    this.sub = this.subs[0].g;
     this.subLightDir = new THREE.Vector3(0, -7, -20).normalize();
     this._m = new THREE.Matrix4();
     this._q = new THREE.Quaternion();
@@ -316,33 +335,37 @@ export class Aquarium {
       sc.mesh.instanceMatrix.needsUpdate = true;
     }
 
-    // the sub circles the letters and sweeps them with its lamp
-    const th = t * 0.19;
-    const R = 15.5, Rz = 10;
-    const sp = this.sub.position;
-    sp.set(Math.cos(th) * R, TEXT_Y - 0.4 + Math.sin(th * 2) * 1.6, Math.sin(th) * Rz);
-    const tx = -Math.sin(th) * R, tz = Math.cos(th) * Rz;
-    const tangentYaw = Math.atan2(-tx, -tz);
-    // turn the nose a bit towards the letters
-    const toCenter = Math.atan2(sp.x, sp.z);
-    let d = toCenter - tangentYaw;
-    while (d > Math.PI) d -= Math.PI * 2;
-    while (d < -Math.PI) d += Math.PI * 2;
-    this.sub.rotation.order = 'YXZ';
-    this.sub.rotation.y = tangentYaw + d * 0.45;
-    this.sub.rotation.z = Math.sin(t * 0.7) * 0.08;
-    animateSubModel(this.sub, dt, t, 4, true);
-    // where the light beam hits the text plane (z = 0)
-    const dir = this.subLightDir.clone().applyQuaternion(this.sub.quaternion);
-    let spot = 0;
-    if (Math.abs(dir.z) > 0.05) {
-      const s = -sp.z / dir.z;
-      if (s > 0 && s < 40) {
-        const hx = sp.x + dir.x * s, hy = sp.y + dir.y * s - TEXT_Y;
-        this.textU.uSpot.value.set(hx, hy);
-        spot = clamp(1.2 - s / 30, 0, 1) * (sp.z > 0 ? 1 : 0.5);
+    // the fleet circles the letters and sweeps them with their lamps
+    const hits = [null, null, null];
+    this.subs.forEach((s, idx) => {
+      const th = s.ph + t * s.speed;
+      const sg = Math.sign(s.speed) || 1;
+      const sp = s.g.position;
+      sp.set(Math.cos(th) * s.R, TEXT_Y - 0.4 + s.h + Math.sin(th * 2) * 1.4, Math.sin(th) * s.Rz);
+      const tx = -Math.sin(th) * s.R * sg, tz = Math.cos(th) * s.Rz * sg;
+      const tangentYaw = Math.atan2(-tx, -tz);
+      const toCenter = Math.atan2(sp.x, sp.z);
+      let d = toCenter - tangentYaw;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      s.g.rotation.order = 'YXZ';
+      s.g.rotation.y = tangentYaw + d * 0.45;
+      s.g.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.08;
+      animateSubModel(s.g, dt, t + s.ph, 4, true);
+      // where the light beam hits the text plane (z = 0)
+      const dir = this.subLightDir.clone().applyQuaternion(s.g.quaternion);
+      if (Math.abs(dir.z) > 0.05) {
+        const k = -sp.z / dir.z;
+        if (k > 0 && k < 45) {
+          const hx = sp.x + dir.x * k, hy = sp.y + dir.y * k - TEXT_Y;
+          if (idx < 3 && Math.abs(hx) < TEXT_W * 0.6 && Math.abs(hy) < TEXT_H) hits[idx] = { x: hx, y: hy, i: clamp(1.3 - k / 32, 0, 1) * (sp.z > 0 ? 1 : 0.55) };
+        }
       }
+    });
+    for (let k = 0; k < 3; k++) {
+      const h = hits[k];
+      if (h) this.textU.uSpot.value[k].set(h.x, h.y);
+      this.textU.uSpotI.value[k] = lerp(this.textU.uSpotI.value[k], h ? h.i : 0, 1 - Math.exp(-dt * 6));
     }
-    this.textU.uSpotI.value = lerp(this.textU.uSpotI.value, spot, 1 - Math.exp(-dt * 6));
   }
 }

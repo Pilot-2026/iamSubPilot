@@ -41,7 +41,7 @@ export class Launch {
     const [a, b] = this.world.sheaves();
     const mid = a.clone().add(b).multiplyScalar(0.5);
     const swing = Math.sin(this.t * 2.2) * 0.35 * Math.exp(-Math.max(0, this.t - this.T.lift) * 0.6) * (this.t > this.T.lift ? 1 : 0);
-    this.sub.pos.set(mid.x, mid.y - this.L - 1.1, mid.z + swing);
+    this.sub.pos.set(mid.x, mid.y - this.L - (this.sub.group.userData.top || 1.05), mid.z + swing);
     this.sub.group.rotation.set(0, 0, 0);
     this.sub.group.rotation.order = 'YXZ';
     this.sub.group.rotation.y = this.sub.yaw;
@@ -53,7 +53,9 @@ export class Launch {
   drawChains(drop = 0) {
     const s = this.sub.pos;
     // sub-local attach points (front at +x because the sub faces +x)
-    const ends = [new THREE.Vector3(s.x - 1.1, s.y + 1.05, s.z), new THREE.Vector3(s.x + 1.0, s.y + 1.05, s.z)];
+    const u = this.sub.group.userData;
+    const top = u.top || 1.05, [af, ab] = u.attach || [1.0, 1.1];
+    const ends = [new THREE.Vector3(s.x - ab, s.y + top, s.z), new THREE.Vector3(s.x + af, s.y + top, s.z)];
     const tops = [this.sheaveA, this.sheaveB];
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), dir = new THREE.Vector3(), p = new THREE.Vector3();
     const one = new THREE.Vector3(1, 1, 1);

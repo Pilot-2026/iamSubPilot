@@ -2,7 +2,7 @@
 
 import * as THREE from './vendor/three.min.js';
 import { World, SCALE, axisZ } from './world.js';
-import { Sub, RemoteSub } from './sub.js';
+import { Sub, RemoteSub, SUB_MODELS, subModelById, buildSubModel } from './sub.js';
 import { CreatureManager } from './creatures.js';
 import { FishSchools } from './schools.js';
 import { Launch } from './launch.js';
@@ -38,6 +38,8 @@ const DEFAULT_PROFILE = () => ({
   dives: 0,
   lastLevel: 'java',
   lastMode: 'expedition',
+  sub: 'hummel',
+  debrief: true,
 });
 let profile = loadProfile();
 function loadProfile() {
@@ -100,7 +102,8 @@ function showIntro(onDone) {
     <div class="intro-bottom">
       <p class="intro-claim">${t('introClaim')}</p>
       <p class="intro-dedic">${t('introDedication')}</p>
-      <p class="intro-by">${t('introBy')}</p>
+      <p class="intro-by">${t('introBy', { author: '<a href="https://www.pilotFilm.at" target="_blank" rel="noopener">Andreas Schmölzer</a>' })}
+        <br><a class="intro-link" href="https://www.pilotFilm.at" target="_blank" rel="noopener">www.pilotFilm.at</a></p>
       <button class="btn big" id="iGo">${t('introGo')}</button>
       <div class="intro-hint" id="iHint">${audio.ctx && audio.ctx.state === 'running' ? '' : t('introSoundHint')}</div>
     </div>`;
@@ -112,7 +115,7 @@ function showIntro(onDone) {
     if (h) h.textContent = '';
   };
   el.onclick = (e) => {
-    if (e.target.closest('button')) return;
+    if (e.target.closest('button, a')) return;
     startMusic();
   };
   $('#iSound').onclick = () => {
@@ -180,9 +183,10 @@ function toast(text, sub = '') {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
 }
 
-function showModal(html, onMount) {
+function showModal(html, onMount, cls = '') {
   $('#sheet').innerHTML = html;
-  $('#sheet').className = 'sheet' + (html.includes('data-wide') ? ' wide' : '');
+  $('#sheet').className = 'sheet' + (html.includes('data-wide') ? ' wide' : '') + (cls ? ' ' + cls : '');
+  $('#modal').classList.toggle('glassbg', cls === 'glass');
   $('#modal').classList.remove('hidden');
   onMount && onMount($('#sheet'));
 }
@@ -298,6 +302,83 @@ function showWelcome(onDone) {
   });
 }
 
+// ======================= sub thumbnails (rendered once) =======================
+const thumbCache = {};
+function subThumb(id) {
+  if (thumbCache[id]) return thumbCache[id];
+  try {
+    const W = 320, H = 200;
+    const scene = new THREE.Scene();
+    scene.add(new THREE.HemisphereLight(0xd8f6ff, 0x0a2030, 1.7));
+    const sun = new THREE.DirectionalLight(0xffffff, 2.2);
+    sun.position.set(3, 5, 4);
+    scene.add(sun);
+    const m = buildSubModel(id, null, false);
+    m.remove(m.userData.beam);
+    m.userData.glowMat.opacity = 0.5;
+    m.rotation.y = -2.35;
+    scene.add(m);
+    m.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(m);
+    const c = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3()).length();
+    const cam = new THREE.PerspectiveCamera(30, W / H, 0.1, 100);
+    cam.position.set(c.x + size * 0.1, c.y + size * 0.32, c.z + size * 1.12);
+    cam.lookAt(c);
+    const rt = new THREE.WebGLRenderTarget(W, H);
+    rt.texture.colorSpace = THREE.SRGBColorSpace;
+    const prevColor = renderer.getClearColor(new THREE.Color());
+    const prevAlpha = renderer.getClearAlpha();
+    renderer.setRenderTarget(rt);
+    renderer.setClearColor(0x000000, 0);
+    renderer.clear();
+    renderer.render(scene, cam);
+    const buf = new Uint8Array(W * H * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+    renderer.setRenderTarget(null);
+    renderer.setClearColor(prevColor, prevAlpha);
+    const cv = document.createElement('canvas');
+    cv.width = W;
+    cv.height = H;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(W, H);
+    for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    ctx.putImageData(img, 0, 0);
+    thumbCache[id] = cv.toDataURL('image/png');
+    rt.dispose();
+    m.traverse((o) => o.geometry && o.geometry.dispose());
+  } catch (e) {
+    console.warn('thumbnail failed', e);
+    thumbCache[id] = 'favicon.svg';
+  }
+  return thumbCache[id];
+}
+
+// ======================= info window after the title screen =======================
+function showInfo(onDone) {
+  const src = [
+    ['Science Advances 2025 (Ocean Discovery League)', 'https://www.science.org/doi/10.1126/sciadv.adp8602'],
+    ['Seabed 2030 (2025)', 'https://seabed2030.org/?p=2903'],
+    ['NOAA Ocean Exploration', 'https://oceanexplorer.noaa.gov/okeanos/explorations/ex2102/features/hadalzone/hadalzone.html'],
+    ['WHOI', 'https://www.whoi.edu/know-your-ocean/ocean-topics/seafloor-below/ocean-trenches/'],
+    ['University of New Hampshire', 'https://www.eurekalert.org/news-releases/1082877'],
+  ];
+  showModal(`<div class="info-kicker">${t('infoKicker')}</div>
+    <h1>${t('infoTitle')}</h1>
+    <p>${t('infoP1')}</p>
+    <p>${t('infoP2')}</p>
+    <div class="info-hadal"><b>${t('infoNameTitle')}</b><p>${t('infoP3')}</p></div>
+    <p class="info-go">${t('infoP4')}</p>
+    <div class="row-end"><button class="btn big" id="infoGo">${t('infoButton')}</button></div>
+    <p class="info-src">${t('infoSources')}: ${src.map(([l, u]) => `<a href="${u}" target="_blank" rel="noopener">${l}</a>`).join(' · ')}</p>`, (root) => {
+    root.querySelector('#infoGo').onclick = () => {
+      audio.click();
+      closeModal();
+      onDone && onDone();
+    };
+  }, 'glass');
+}
+
 // ======================= menu =======================
 let selLevel = profile.lastLevel;
 let selMode = profile.lastMode;
@@ -337,12 +418,16 @@ function renderMenu() {
     </div>
     <h2>${t('chooseTrench')}</h2>
     <div class="trenches">${cards}</div>
+    <h2>${t('chooseSub')}</h2>
+    <div class="subs">${SUB_MODELS.map((m) => `<button class="subcard ${m.id === subModelById(profile.sub).id ? 'sel' : ''}" data-sub="${m.id}">
+      <img alt="" src="${subThumb(m.id)}"><b>${escapeHtml(L(m.name))}</b><span>${escapeHtml(L(m.desc))}</span></button>`).join('')}</div>
     <div class="modes">
       <button class="mode ${selMode === 'expedition' ? 'sel' : ''}" data-mode="expedition"><b>🔦 ${t('modeExpedition')}</b><span>${t('modeExpeditionDesc')}</span></button>
       <button class="mode ${selMode === 'race' ? 'sel' : ''}" data-mode="race"><b>🏁 ${t('modeRace')}</b><span>${t('modeRaceDesc')}</span></button>
     </div>
     <div class="menu-actions">
       <button class="btn big" id="mStart">${t('start')}</button>
+      <button class="chip toggle ${profile.debrief === false ? '' : 'on'}" id="mDebrief" title="${t('debriefToggleHint')}">💬 ${t('debriefToggle')}: <b>${profile.debrief === false ? t('off') : t('on')}</b></button>
       <button class="btn secondary" id="mMulti">👥 ${t('multiplayer')}</button>
       <button class="btn secondary" id="mHangar">🔧 ${t('hangar')}</button>
       <button class="btn secondary" id="mLog">📖 ${t('logbook')}</button>
@@ -377,6 +462,23 @@ function renderMenu() {
     startDive({ level: levelById(selLevel), mode: selMode, seed: Math.floor(Math.random() * 1e9) });
   };
   $('#mProfile').onclick = () => showWelcome(renderMenu);
+  $('#menu').querySelectorAll('.subcard').forEach((b) => {
+    b.onclick = () => {
+      profile.sub = b.dataset.sub;
+      saveProfile();
+      $('#menu').querySelectorAll('.subcard').forEach((x) => x.classList.toggle('sel', x === b));
+      audio.init();
+      audio.click();
+    };
+  });
+  $('#mDebrief').onclick = () => {
+    profile.debrief = profile.debrief === false;
+    saveProfile();
+    const b = $('#mDebrief');
+    b.classList.toggle('on', profile.debrief);
+    b.querySelector('b').textContent = profile.debrief ? t('on') : t('off');
+    audio.click();
+  };
   $('#mLang').onclick = () => {
     profile.lang = getLang() === 'de' ? 'en' : 'de';
     setLang(profile.lang);
@@ -388,7 +490,11 @@ function renderMenu() {
     audio.cycleMode();
     $('#mSound').textContent = soundLabel();
   };
-  $('#mLogo').onclick = () => showIntro(renderMenu);
+  $('#mLogo').onclick = () =>
+    showIntro(() => {
+      renderMenu();
+      showInfo();
+    });
   $('#mHangar').onclick = showHangar;
   $('#mLog').onclick = () => showLogbook('real');
   $('#mLb').onclick = () => showLeaderboard('exp', selLevel);
@@ -520,7 +626,14 @@ function showMultiplayer() {
   }
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === selLevel ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
   showModal(`<h1>👥 ${t('mpTitle')}</h1>
-    <h2>${t('mpCreate')}</h2>
+    <h2>${t('mpOpenRooms')}</h2>
+    <div class="rooms" id="mpRooms"><div class="hint">${t('mpSearching')}</div></div>
+    <div class="row-end" style="justify-content:flex-start;margin-top:8px">
+      <button class="btn" id="mpQuick">⚡ ${t('mpQuick')}</button>
+      <button class="btn secondary" id="mpRefresh">🔄 ${t('mpRefresh')}</button>
+    </div>
+    <h2 style="margin-top:18px">${t('mpCreate')}</h2>
+    <p style="font-size:13px;color:#8fb3c7;margin:0 0 8px">${t('mpPublicNote')}</p>
     <div class="modes">
       <button class="mode sel" data-mm="coop"><b>🤝 ${t('mpCoop')}</b><span>${t('mpCoopDesc')}</span></button>
       <button class="mode" data-mm="race"><b>🏁 ${t('mpRace')}</b><span>${t('mpRaceDesc')}</span></button>
@@ -543,13 +656,45 @@ function showMultiplayer() {
     root.querySelector('#mpCreate').onclick = async () => {
       root.querySelector('#mpHint').textContent = t('mpConnecting');
       try {
-        await net.createRoom({ mode: mm, level: root.querySelector('#mpLevel').value, name: profile.name });
+        await net.createRoom({ mode: mm, level: root.querySelector('#mpLevel').value, name: profile.name, sub: profile.sub });
         openLobby();
       } catch (e) {
         root.querySelector('#mpHint').textContent = e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
       }
     };
     root.querySelector('#mpJoin').onclick = () => joinByCode(root.querySelector('#mpCode').value, root.querySelector('#mpHint'));
+    let rooms = [];
+    const box = root.querySelector('#mpRooms');
+    const canJoin = (r) => r.players < 4 && (r.status !== 'running' || r.mode !== 'race');
+    const refresh = async () => {
+      box.innerHTML = `<div class="hint">${t('mpSearching')}</div>`;
+      try {
+        rooms = await net.listRooms();
+      } catch (e) {
+        rooms = [];
+      }
+      if (!box.isConnected) return;
+      rooms.sort((a, b) => (a.status === 'lobby' ? 0 : 1) - (b.status === 'lobby' ? 0 : 1));
+      box.innerHTML = rooms.length
+        ? rooms
+            .map((r) => {
+              const lv = levelById(r.level);
+              return `<div class="room"><div><b>${r.mode === 'race' ? '🏁' : '🤝'} ${escapeHtml(lv ? L(lv.name) : r.level || '')}</b>
+                <small>${escapeHtml(r.host || '?')} · ${r.players ? r.players + '/4' : ''} ${r.status === 'running' ? '· ' + t('mpRunning') : ''}</small></div>
+                <button class="btn small" data-code="${escapeHtml(r.code)}" ${canJoin(r) ? '' : 'disabled'}>${t('mpJoin')}</button></div>`;
+            })
+            .join('')
+        : `<div class="hint">${t('mpNoRooms')}</div>`;
+      box.querySelectorAll('[data-code]').forEach((b) => (b.onclick = () => joinByCode(b.dataset.code, root.querySelector('#mpHint'))));
+    };
+    root.querySelector('#mpRefresh').onclick = refresh;
+    root.querySelector('#mpQuick').onclick = async () => {
+      if (!rooms.length) await refresh();
+      const open = rooms.filter((r) => r.status === 'lobby' && r.players < 4).concat(rooms.filter((r) => r.status === 'running' && r.mode !== 'race' && r.players < 4));
+      if (open.length) joinByCode(open[0].code, root.querySelector('#mpHint'));
+      else root.querySelector('#mpHint').textContent = t('mpNoRoomsCreate');
+    };
+    refresh();
   });
 }
 
@@ -557,7 +702,7 @@ async function joinByCode(code, hintEl) {
   if (hintEl) hintEl.textContent = t('mpConnecting');
   else toast(t('mpConnecting'));
   try {
-    await net.joinRoom(code, { name: profile.name });
+    await net.joinRoom(code, { name: profile.name, sub: profile.sub });
     openLobby();
   } catch (e) {
     const msg = e.message === 'notfound' ? t('mpNotFound') : e.message === 'full' ? t('mpFull') : e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
@@ -655,8 +800,9 @@ class Dive {
     this.seed = seed;
     this.scene = new THREE.Scene();
     this.world = new World(this.scene, level);
-    const myColor = this.multi && net.room ? colorFor(net.uid, net.room.players) : PLAYER_COLORS[0];
-    this.sub = new Sub(this.scene, this.world, profile.upgrades, myColor);
+    const model = subModelById(profile.sub).id;
+    const myColor = model !== 'hummel' ? null : this.multi && net.room ? colorFor(net.uid, net.room.players) : PLAYER_COLORS[0];
+    this.sub = new Sub(this.scene, this.world, profile.upgrades, myColor, model);
     const sp = this.world.shipPos;
     let slot = 0;
     if (this.multi && net.room) {
@@ -981,7 +1127,7 @@ class Dive {
       ids.add(uid);
       let r = this.remote.get(uid);
       if (!r) {
-        r = new RemoteSub(this.scene, colorFor(uid, players), p.name || '?');
+        r = new RemoteSub(this.scene, colorFor(uid, players), p.name || '?', subModelById(p.sub).id);
         this.remote.set(uid, r);
       }
       r.data = p;
@@ -1153,6 +1299,7 @@ class Dive {
     // environment
     this.world.updateEnvironment(depth, camera.position, light);
     this.sub.group.userData.beam.material.uniforms.opacity.value = 0.06 * clamp((depth - 150) / 600, 0, 1);
+    this.sub.group.userData.glowMat.opacity = 0.75 * clamp((depth - 100) / 500, 0, 1);
     this.world.update(dt);
     this.schools.update(dt, this.sub, camera.position);
     const launchCam = this.launch ? this.launch.update(dt, camera) : false;
@@ -1576,8 +1723,9 @@ function showResults(g) {
       ${emergency ? `<span>× 0.5</span><span></span>` : ''}
       <span class="tot">${t('total')}</span><span class="tot">${fmtNum(sc.total)}</span>
     </div>
-    <div class="row-end"><button class="btn big" id="rQuiz">💬 ${t('debriefTitle')}</button></div>`, (root) => {
-    root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
+    <div class="row-end">${profile.debrief === false ? `<button class="btn big" id="rNext">▶ ${t('continue')}</button>` : `<button class="btn big" id="rQuiz">💬 ${t('debriefTitle')}</button>`}</div>`, (root) => {
+    if (root.querySelector('#rQuiz')) root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
+    if (root.querySelector('#rNext')) root.querySelector('#rNext').onclick = () => finishQuiz(g, sc, 0);
   });
 }
 
@@ -1941,8 +2089,13 @@ async function boot() {
     }
   };
   const afterIntro = () => {
-    if (!profile.name || !profile.age) showWelcome(afterProfile);
-    else afterProfile();
+    if (!profile.name || !profile.age) {
+      if (aquarium) aquarium.setMode('menu');
+      showInfo(() => showWelcome(afterProfile));
+    } else {
+      renderMenu();
+      showInfo(afterProfile);
+    }
   };
   if (params.get('nointro') === '1') afterIntro();
   else showIntro(afterIntro);

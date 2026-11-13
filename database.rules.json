@@ -17,7 +17,8 @@
             ".write": "auth != null && !data.exists()"
           }
         }
-      }
+      },
+      ".read": "auth != null"
     }
   }
 }

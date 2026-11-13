@@ -460,8 +460,8 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
     const extrude = (inset, depth) => new THREE.ExtrudeGeometry(outline(inset), { depth, bevelEnabled: false }).rotateX(-Math.PI / 2);
     B.add(M.bottom, extrude(0.25, 1.8), { p: [0, -1.6, 0] });
     B.add(M.hull, extrude(0, 2.3), { p: [0, 0.2, 0] });
-    B.add(M.white, extrude(-0.05, 0.3), { p: [0, 2.4, 0] });
-    B.add(M.deck, extrude(0.35, 0.1), { p: [0, 2.6, 0] });
+    B.add(M.white, extrude(-0.05, 0.25), { p: [0, 2.4, 0] });
+    B.add(M.deck, extrude(0.35, 0.12), { p: [0, 2.6, 0] });
     // railings
     for (let z = -16; z <= 12; z += 2) {
       for (const sx of [-1, 1]) {
@@ -518,13 +518,6 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
       pl.rotation.y = sx * Math.PI / 2;
       g.add(pl);
     }
-    // stern flag
-    const flag = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1), new THREE.MeshStandardMaterial({ color: 0x2fd3e8, side: THREE.DoubleSide }));
-    flag.position.set(0, 5.6, 17.6);
-    flag.rotation.y = Math.PI / 2;
-    B.add(M.steel, new THREE.CylinderGeometry(0.05, 0.05, 3.2, 6), { p: [0, 4.4, 17.6] });
-    g.add(flag);
-    this.shipFlag = flag;
     B.build(g);
 
     // rotating radar
@@ -842,7 +835,6 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
     }
     this.waterUniforms.uTime.value = this.time;
     if (this.radar) this.radar.rotation.y += dt * 1.6;
-    if (this.shipFlag) this.shipFlag.rotation.y = Math.PI / 2 + Math.sin(this.time * 3) * 0.2;
     this.ship.position.y = Math.sin(this.time * 0.7) * 0.12;
     this.updateSplashes(dt);
   }

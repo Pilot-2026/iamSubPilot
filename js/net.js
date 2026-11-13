@@ -7,6 +7,11 @@ import { FIREBASE_CONFIG } from './config.js';
 import { randomCode } from './util.js';
 
 const LB_PREFIX = 'hadal.lb.';
+// All rooms are public: codes come from this fixed pool, so anybody can find
+// open rooms without a server (just ask every code in the pool).
+export const PUBLIC_CODES = ['AQUA', 'BOJE', 'DELF', 'ECHO', 'FLUT', 'GRAB', 'HAIE', 'KRAB', 'LUKE', 'MANT', 'PERL', 'QUAL', 'RIFF', 'SAND', 'TANG', 'WALE', 'WOGE', 'ZONE', 'KORA', 'MOLA', 'PULS', 'SONA', 'TIEF', 'BLAU'];
+const shuffled = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
+const PEER_PREFIX = 'hadal-v1-';
 
 function localTop(board, asc, n) {
   const list = JSON.parse(localStorage.getItem(LB_PREFIX + board) || '[]');
@@ -80,11 +85,7 @@ export class Net {
       const Peer = await this.peerLib();
       const peer = id ? new Peer(id, { debug: 0 }) : new Peer({ debug: 0 });
       const to = setTimeout(() => reject(new Error('timeout')), 12000);
-      peer.once('open', () => {
-        clearTimeout(to);
-        resolve(peer);
-      });
-      peer.once('error', (e) => {
+      const onErr = (e) => {
         clearTimeout(to);
         try {
           peer.destroy();
@@ -92,6 +93,12 @@ export class Net {
           /* ignore */
         }
         reject(new Error(e.type === 'unavailable-id' ? 'taken' : e.type === 'peer-unavailable' ? 'notfound' : 'p2p'));
+      };
+      peer.once('error', onErr);
+      peer.once('open', () => {
+        clearTimeout(to);
+        peer.off('error', onErr); // later errors are handled by the caller
+        resolve(peer);
       });
     });
   }
@@ -139,6 +146,8 @@ export class Net {
       room.synced && room.synced();
       room.handlers.meta && room.handlers.meta(room.meta);
       room.handlers.players && room.handlers.players(room.players);
+    } else if (m.type === 'info' && room.p2pHost && fromConn) {
+      fromConn.send({ type: 'roominfo', room: this.roomSummary(room) });
     } else if (m.type === 'ping' && room.p2pHost && fromConn) {
       fromConn.send({ type: 'pong', t0: m.t0, th: Date.now() });
     } else if (m.type === 'pong') {
@@ -156,20 +165,21 @@ export class Net {
     }
   }
 
-  async createP2PRoom(meta, name) {
+  async createP2PRoom(meta, info) {
     let peer = null;
     let code;
-    for (let i = 0; i < 4 && !peer; i++) {
-      code = randomCode(4);
+    const codes = [...shuffled(PUBLIC_CODES), randomCode(4), randomCode(4)];
+    for (let i = 0; i < codes.length && !peer; i++) {
+      code = codes[i];
       try {
-        peer = await this.openPeer('hadal-v1-' + code);
+        peer = await this.openPeer(PEER_PREFIX + code);
       } catch (e) {
         if (e.message !== 'taken') throw e;
       }
     }
     if (!peer) throw new Error('p2p');
     this.leaveRoom();
-    const room = { code, meta, players: { [this.uid]: { name, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), peer, p2pHost: true, conns: new Map() };
+    const room = { code, meta, players: { [this.uid]: { ...info, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), peer, p2pHost: true, conns: new Map() };
     this.room = room;
     this.offset = 0;
     peer.on('connection', (conn) => {
@@ -194,7 +204,7 @@ export class Net {
     return code;
   }
 
-  async joinP2PRoom(code, name) {
+  async joinP2PRoom(code, info) {
     const peer = await this.openPeer(null);
     this.leaveRoom();
     const room = { code, meta: null, players: {}, handlers: {}, joinedAt: Date.now(), peer, p2pHost: false };
@@ -205,7 +215,7 @@ export class Net {
         clearTimeout(to);
         reject(new Error(e.type === 'peer-unavailable' ? 'notfound' : 'p2p'));
       });
-      const conn = peer.connect('hadal-v1-' + code, { reliable: true });
+      const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
       room.hostConn = conn;
       room.synced = () => {
         clearTimeout(to);
@@ -216,7 +226,7 @@ export class Net {
         reject(new Error('full'));
       };
       conn.on('open', () => {
-        conn.send({ type: 'player', uid: this.uid, data: { name }, hello: true });
+        conn.send({ type: 'player', uid: this.uid, data: { ...info }, hello: true });
         // clock sync with the host (several pings, best one wins)
         for (let i = 0; i < 5; i++) setTimeout(() => conn.open && conn.send({ type: 'ping', t0: Date.now() }), 200 + i * 400);
       });
@@ -268,29 +278,116 @@ export class Net {
   }
 
   // ---------------- rooms ----------------
-  async createRoom({ mode, level, name }) {
-    let code = randomCode(4);
+  roomSummary(room) {
+    const m = room.meta || {};
+    const host = (room.players || {})[m.host];
+    return { code: room.code, mode: m.mode, level: m.level, status: m.status, host: host ? host.name : '?', players: Object.keys(room.players || {}).length };
+  }
+
+  // List open rooms (all rooms are public).
+  async listRooms() {
+    if (this.mode === 'firebase') {
+      const { ref, get } = this.fb;
+      const snap = await get(ref(this.rtdb, 'rooms'));
+      const all = snap.val() || {};
+      return Object.entries(all)
+        .filter(([, r]) => r && r.meta && r.players)
+        .map(([code, r]) => this.roomSummary({ code, meta: r.meta, players: r.players }));
+    }
+    if (this.mode === 'local') {
+      const out = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k.startsWith('hadal.room.')) continue;
+        try {
+          const meta = JSON.parse(localStorage.getItem(k));
+          if (meta && Date.now() - (meta.createdAt || 0) < 3 * 3600e3) out.push({ code: k.slice(11), mode: meta.mode, level: meta.level, status: meta.status, host: meta.hostName || '?', players: 0 });
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      return out;
+    }
+    if (this.mode !== 'p2p') return [];
+    // ask every public code; existing rooms answer with a short summary
+    const peer = await this.openPeer(null);
+    const found = [];
+    await new Promise((resolve) => {
+      let pending = PUBLIC_CODES.length;
+      const done = () => {
+        if (--pending <= 0) resolve();
+      };
+      const timer = setTimeout(resolve, 6000);
+      peer.on('error', (e) => {
+        if (e.type === 'peer-unavailable') done();
+      });
+      for (const code of PUBLIC_CODES) {
+        if (this.room && this.room.code === code) {
+          done();
+          continue;
+        }
+        const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
+        let answered = false;
+        conn.on('open', () => conn.send({ type: 'info' }));
+        conn.on('data', (m) => {
+          if (m.type === 'roominfo' && !answered) {
+            answered = true;
+            found.push(m.room);
+            try {
+              conn.close();
+            } catch (x) {
+              /* ignore */
+            }
+            done();
+          }
+        });
+      }
+      const check = setInterval(() => {
+        if (pending <= 0) {
+          clearInterval(check);
+          clearTimeout(timer);
+          resolve();
+        }
+      }, 100);
+      setTimeout(() => clearInterval(check), 6500);
+    });
+    setTimeout(() => {
+      try {
+        peer.destroy();
+      } catch (e) {
+        /* ignore */
+      }
+    }, 300);
+    return found;
+  }
+
+  async createRoom({ mode, level, name, sub }) {
+    const info = { name, sub: sub || 'hummel' };
+    let code = PUBLIC_CODES[Math.floor(Math.random() * PUBLIC_CODES.length)];
     const meta = { mode, level, host: this.uid, status: 'lobby', seed: Math.floor(Math.random() * 1e9), createdAt: Date.now() };
     if (this.mode === 'firebase') {
       const { ref, get, set } = this.fb;
-      for (let i = 0; i < 5; i++) {
+      const codes = [...shuffled(PUBLIC_CODES), randomCode(4), randomCode(4)];
+      for (const c of codes) {
+        code = c;
         const snap = await get(ref(this.rtdb, `rooms/${code}/meta`));
         if (!snap.exists()) break;
-        code = randomCode(4);
       }
       await set(ref(this.rtdb, `rooms/${code}/meta`), meta);
     } else if (this.mode === 'local') {
-      localStorage.setItem(`hadal.room.${code}`, JSON.stringify(meta));
+      code = shuffled(PUBLIC_CODES).find((c) => !localStorage.getItem(`hadal.room.${c}`)) || randomCode(4);
+      localStorage.setItem(`hadal.room.${code}`, JSON.stringify({ ...meta, hostName: name }));
     } else if (this.mode === 'p2p') {
-      return this.createP2PRoom(meta, name);
+      return this.createP2PRoom(meta, info);
     } else throw new Error('offline');
-    await this.joinRoom(code, { name });
+    await this.joinRoom(code, info);
     return code;
   }
 
-  async joinRoom(code, { name }) {
+  async joinRoom(code, { name, sub }) {
+    const info = { name, sub: sub || 'hummel' };
     code = code.toUpperCase().trim();
-    if (this.mode === 'p2p') return this.joinP2PRoom(code, name);
+    if (this.mode === 'p2p') return this.joinP2PRoom(code, info);
     this.leaveRoom();
     const room = { code, meta: null, players: {}, handlers: {}, joinedAt: Date.now() };
     this.room = room;
@@ -309,7 +406,7 @@ export class Net {
         throw new Error('full');
       }
       const pRef = ref(this.rtdb, `rooms/${code}/players/${this.uid}`);
-      await set(pRef, { name, joined: Date.now() });
+      await set(pRef, { ...info, joined: Date.now() });
       onDisconnect(pRef).remove();
       this.unsubs.push(
         onValue(ref(this.rtdb, `rooms/${code}/meta`), (s) => {
@@ -338,7 +435,7 @@ export class Net {
       }
       room.meta = meta;
       room.channel = new BroadcastChannel(`hadal-${code}`);
-      room.players[this.uid] = { name, joined: Date.now() };
+      room.players[this.uid] = { ...info, joined: Date.now() };
       room.channel.onmessage = (e) => this.handleMsg(room, e.data);
       room.channel.postMessage({ type: 'player', uid: this.uid, data: room.players[this.uid], hello: true });
       setTimeout(() => {
@@ -452,6 +549,7 @@ export class Net {
     } else if (room.channel) {
       room.channel.postMessage({ type: 'leave', uid: this.uid });
       room.channel.close();
+      if (room.meta && room.meta.host === this.uid) localStorage.removeItem(`hadal.room.${room.code}`);
     } else if (room.peer) {
       this.room = null;
       try {

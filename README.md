@@ -1,6 +1,6 @@
 # HADAL – Expedition into the deep-sea trenches
 
-A 3D browser game about the deepest places on Earth. Your crazy bumblebee sub HUMMEL-1 is lowered from the research ship on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles and huge fish schools near the surface, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
+A 3D browser game about the deepest places on Earth. Pick one of six crazy subs (bumblebee HUMMEL-1, pufferfish ball, narwhal with drill horn, octopus, retro rocket or deep-sea UFO). It is lowered from the research ship on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles and huge fish schools near the surface, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
 
 **A game by Andreas Schmölzer · [www.pilotFilm.at](https://www.pilotfilm.at)**
 
@@ -23,9 +23,9 @@ A 3D browser game about the deepest places on Earth. Your crazy bumblebee sub HU
 | Sound (Music + FX / FX only / Music only / Silent) | M | sound button |
 | Pause | Esc | ❚❚ |
 
-- **Expedition:** explore, photograph, complete the missions (the first one is done within seconds), map the trench with sonar and surface before energy, hull or oxygen run out.
+- **Expedition:** explore, photograph, complete the missions (the first one is done within seconds), optional debrief quiz afterwards (can be switched off in the menu), map the trench with sonar and surface before energy, hull or oxygen run out.
 - **Abyss Race:** fly through 14 rings down to the deepest point as fast as you can.
-- **Multiplayer:** dive together (discoveries count for everyone) or race each other. Create a room and share the link or the 4-letter code. Works without any setup: browsers connect directly (peer-to-peer via WebRTC/PeerJS), the host's browser keeps the room open.
+- **Multiplayer:** dive together (discoveries count for everyone) or race each other. All rooms are public: open rooms are listed, “Quick join” jumps into one, or share the link / 4-letter code. Works without any setup: browsers connect directly (peer-to-peer via WebRTC/PeerJS), the host's browser keeps the room open.
 
 Real animals carry a blue **REAL** badge and a source. Fantasy creatures carry a rainbow **FANTASY** badge – each fantasy card also hides one real fact.
 
