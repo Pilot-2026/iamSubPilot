@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#020d1a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>HADAL – Expedition into the deep-sea trenches</title>
+  <meta name="description" content="Steer a research submersible into the deepest trenches on Earth. A 3D browser game about the deep sea by Andreas Schmölzer (pilotFilm).">
+  <meta property="og:title" content="HADAL – Expedition into the deep-sea trenches">
+  <meta property="og:description" content="Dive into the deepest trenches on Earth, discover real deep-sea life (and a few crazy fantasy creatures) – alone or with friends.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="menuBg"></div>
+  <canvas id="c"></canvas>
+
+  <div id="loading" class="screen">
+    <div class="logo">HADAL</div>
+    <div id="loadingText" style="color:#8fb3c7">Loading…</div>
+  </div>
+
+  <div id="menu" class="screen hidden"></div>
+
+  <div id="hud" class="hidden">
+    <div id="hudTL" class="panel">
+      <div class="depth"><span id="hDepth">0</span><small> m</small></div>
+      <div id="hZone"></div>
+      <div class="row"><span id="hPressure"></span> · <span id="hTemp"></span></div>
+    </div>
+    <div id="hudTR" class="panel">
+      <div class="bar"><span id="lEnergy">Energy</span><div class="track"><div class="fill" id="bEnergy"></div></div><span class="val" id="vEnergy"></span></div>
+      <div class="bar"><span id="lHull">Hull</span><div class="track"><div class="fill" id="bHull"></div></div><span class="val" id="vHull"></span></div>
+      <div class="bar"><span id="lLife">Life</span><div class="track"><div class="fill" id="bLife"></div></div><span class="val" id="vLife"></span></div>
+    </div>
+    <div id="gauge"><div id="gaugeMax"></div><div id="gaugeHull"></div><div id="gaugeSub"></div></div>
+    <div id="missions" class="panel"></div>
+    <div id="race" class="panel hidden"><div id="raceTime">0:00.0</div><div id="raceRing"></div></div>
+    <div id="team" class="panel hidden"></div>
+    <div id="echo"><div class="avatar"><span></span><span></span><span></span></div><div id="echoText"></div></div>
+    <div id="toast"></div>
+    <div id="reticle"><div class="corners"></div><div id="reticleLabel"></div></div>
+    <div id="grabHint"></div>
+    <div id="warn"></div>
+    <div id="ringArrow">➤</div>
+    <div id="countdown"></div>
+    <div id="controls">
+      <div id="joystick"><div id="joyKnob"></div></div>
+      <div id="vbtns">
+        <button class="cbtn" id="btnUp">▲<small id="tUp">Up</small></button>
+        <button class="cbtn" id="btnDown">▼<small id="tDown">Down</small></button>
+      </div>
+      <div id="abtns">
+        <button class="cbtn on" data-action="light" id="bLight">💡<small id="tLight">Light</small></button>
+        <button class="cbtn" data-action="sonar" id="bSonar">📡<small id="tSonar">Sonar</small></button>
+        <button class="cbtn" data-action="photo" id="bPhoto">📷<small id="tPhoto">Photo</small></button>
+        <button class="cbtn" data-action="grab" id="bGrab">✋<small id="tGrab">Grab</small></button>
+        <button class="cbtn" data-action="ask" id="bAsk">💬<small id="tAsk">Ask</small></button>
+        <button class="cbtn" data-action="surface" id="bSurface">⤒<small id="tSurface">Surface</small></button>
+      </div>
+    </div>
+    <button id="btnPause" data-action="escape" aria-label="Pause">❚❚</button>
+    <div id="keysHint"></div>
+  </div>
+
+  <div id="card"></div>
+  <div id="modal" class="modal hidden"><div class="sheet" id="sheet"></div></div>
+  <div id="ask" class="modal hidden"><div class="sheet" id="askSheet"></div></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
