@@ -94,10 +94,321 @@ function tube(points, radius, mat, seg = 20) {
   return new THREE.Mesh(new THREE.TubeGeometry(curve, seg, radius, 6, false), mat);
 }
 
+function scaled(mesh, x, y, z) {
+  mesh.scale.set(x, y, z);
+  return mesh;
+}
+const SPH = new THREE.SphereGeometry(1, 14, 10);
+
 const RAINBOW = ['#ff5e7e', '#ffb347', '#fff275', '#7dff8a', '#5ee7ff', '#b98bff'];
 
 // ---------------- model builders ----------------
 const BUILD = {
+  // ---------- upper ocean ----------
+  dolphin() {
+    const g = new THREE.Group();
+    const top = std(0x75879a, { roughness: 0.35 });
+    const belly = std(0xdfe5ea, { roughness: 0.4 });
+    g.add(scaled(new THREE.Mesh(SPH, top), 0.42, 0.46, 1.35));
+    g.add(at(scaled(new THREE.Mesh(SPH, belly), 0.36, 0.34, 1.15), 0, -0.13, -0.05));
+    const beak = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 0.5, 8), belly);
+    beak.rotation.x = Math.PI / 2;
+    g.add(at(beak, 0, -0.1, -1.5));
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.6, 4), top);
+    fin.scale.z = 0.25;
+    fin.rotation.x = -0.6;
+    g.add(at(fin, 0, 0.5, 0.15));
+    for (const s of [-1, 1]) {
+      const fl = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.22), top);
+      fl.rotation.z = s * -0.5;
+      g.add(at(fl, s * 0.48, -0.22, -0.45));
+      g.add(at(scaled(new THREE.Mesh(SPH, basic(0x111111)), 0.05, 0.05, 0.05), s * 0.25, 0.02, -1.05));
+    }
+    const fluke = new THREE.Group();
+    fluke.add(new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.3), top));
+    g.add(at(fluke, 0, 0, 1.4));
+    g.userData.fluke = fluke;
+    return g;
+  },
+  humpback() {
+    const g = new THREE.Group();
+    const dark = std(0x26303b, { roughness: 0.5 });
+    const pale = std(0xcdd3d8, { roughness: 0.6 });
+    g.add(scaled(new THREE.Mesh(SPH, dark), 1.15, 1.05, 4.6));
+    g.add(at(scaled(new THREE.Mesh(SPH, pale), 0.95, 0.7, 3.6), 0, -0.45, -0.6));
+    for (let i = 0; i < 6; i++) g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 3), basic(0x6b747c)), (i - 2.5) * 0.24, -1.12, -1.2));
+    for (let i = 0; i < 7; i++) g.add(at(scaled(new THREE.Mesh(SPH, dark), 0.09, 0.09, 0.09), (i % 2 ? 0.25 : -0.25), 0.95, -3.8 + i * 0.32));
+    for (const s of [-1, 1]) {
+      const fl = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.12, 0.6), pale);
+      fl.geometry.translate(1.7 * s, 0, 0);
+      fl.rotation.set(0, s * 0.5, s * -0.45);
+      g.add(at(fl, s * 0.95, -0.55, -1.6));
+    }
+    const hump = new THREE.Mesh(new THREE.ConeGeometry(0.35, 0.5, 6), dark);
+    g.add(at(hump, 0, 1.05, 1.9));
+    const fluke = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const lobe = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.1, 0.7), dark);
+      lobe.rotation.y = s * -0.35;
+      fluke.add(at(lobe, s * 0.8, 0, 0.25));
+    }
+    g.add(at(fluke, 0, 0, 4.5));
+    g.userData.fluke = fluke;
+    return g;
+  },
+  spermwhale() {
+    const g = new THREE.Group();
+    const skin = std(0x4a4f58, { roughness: 0.75 });
+    g.add(at(scaled(new THREE.Mesh(new THREE.BoxGeometry(2, 2, 2, 2, 2, 2), skin), 0.95, 1.05, 1.7), 0, 0.1, -2.2));
+    g.add(at(scaled(new THREE.Mesh(SPH, skin), 1.05, 1.1, 3.6), 0, 0, 0.6));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.18, 2.6), std(0xd8d8d0)), 0, -1.05, -2.3));
+    g.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.45, 5), skin), 0, 1.05, 1.6));
+    for (let i = 0; i < 4; i++) g.add(at(scaled(new THREE.Mesh(SPH, skin), 0.2, 0.12, 0.18), 0, 0.85 - i * 0.02, 2.2 + i * 0.4));
+    const fluke = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const lobe = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 0.6), skin);
+      lobe.rotation.y = s * -0.3;
+      fluke.add(at(lobe, s * 0.7, 0, 0.2));
+    }
+    g.add(at(fluke, 0, 0, 4.1));
+    g.userData.fluke = fluke;
+    return g;
+  },
+  whaleshark() {
+    const g = new THREE.Group();
+    const skin = std(0x34506e, { roughness: 0.55 });
+    g.add(scaled(new THREE.Mesh(SPH, skin), 1.25, 0.85, 4.0));
+    g.add(at(scaled(new THREE.Mesh(SPH, std(0xd9dde0)), 1.05, 0.5, 3.4), 0, -0.35, -0.3));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.22, 0.25), basic(0x0b0f14)), 0, -0.15, -3.85));
+    const spot = basic(0xf2f4f6);
+    const rnd = mulberry32(7);
+    for (let i = 0; i < 46; i++) {
+      const a = (rnd() - 0.5) * 2.2, z = (rnd() - 0.5) * 6.4;
+      const r = Math.sqrt(Math.max(0.05, 1 - (z / 4) ** 2));
+      const sp = new THREE.Mesh(SPH, spot);
+      sp.scale.setScalar(0.07 + rnd() * 0.05);
+      g.add(at(sp, Math.sin(a) * 1.25 * r, Math.cos(a) * 0.85 * r, z));
+    }
+    const dors = new THREE.Mesh(new THREE.ConeGeometry(0.4, 1.1, 4), skin);
+    dors.scale.z = 0.25;
+    dors.rotation.x = -0.5;
+    g.add(at(dors, 0, 0.95, 0.8));
+    for (const s of [-1, 1]) {
+      const pf = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.08, 0.6), skin);
+      pf.rotation.set(0, s * 0.5, s * -0.35);
+      g.add(at(pf, s * 1.4, -0.4, -1.0));
+    }
+    const tail = new THREE.Group();
+    const up = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.9, 0.6), skin);
+    up.rotation.x = -0.6;
+    tail.add(at(up, 0, 0.75, 0.4));
+    const lo = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.1, 0.5), skin);
+    lo.rotation.x = 0.6;
+    tail.add(at(lo, 0, -0.45, 0.3));
+    g.add(at(tail, 0, 0, 3.9));
+    g.userData.tail = tail;
+    return g;
+  },
+  turtle() {
+    const g = new THREE.Group();
+    const shell = std(0x5e6a35, { roughness: 0.6 });
+    const skin = std(0x8f9a6b, { roughness: 0.7 });
+    g.add(scaled(new THREE.Mesh(SPH, shell), 0.75, 0.28, 0.95));
+    g.add(at(scaled(new THREE.Mesh(SPH, std(0xe0d29a)), 0.68, 0.16, 0.86), 0, -0.1, 0));
+    const scute = std(0x3e4722);
+    for (let i = 0; i < 9; i++) g.add(at(scaled(new THREE.Mesh(SPH, scute), 0.16, 0.06, 0.18), ((i % 3) - 1) * 0.32, 0.24 - Math.abs((i % 3) - 1) * 0.06, (Math.floor(i / 3) - 1) * 0.42));
+    g.add(at(scaled(new THREE.Mesh(SPH, skin), 0.2, 0.18, 0.26), 0, 0.02, -1.08));
+    const flips = [];
+    for (const s of [-1, 1]) {
+      for (const [z, len] of [[-0.45, 0.95], [0.6, 0.45]]) {
+        const piv = new THREE.Group();
+        const f = new THREE.Mesh(new THREE.BoxGeometry(len, 0.05, 0.28), skin);
+        f.position.x = (s * len) / 2;
+        f.rotation.y = s * 0.4;
+        piv.add(f);
+        g.add(at(piv, s * 0.62, -0.05, z));
+        flips.push(piv);
+      }
+    }
+    g.userData.flips = flips;
+    return g;
+  },
+  manta() {
+    const g = new THREE.Group();
+    const dark = std(0x1c222a, { roughness: 0.5, side: THREE.DoubleSide });
+    g.add(scaled(new THREE.Mesh(SPH, dark), 0.8, 0.3, 1.25));
+    g.add(at(scaled(new THREE.Mesh(SPH, std(0xe9edf0)), 0.7, 0.2, 1.05), 0, -0.1, 0));
+    const shape = new THREE.Shape();
+    shape.moveTo(0, -0.95);
+    shape.quadraticCurveTo(1.6, -0.6, 2.7, 0.35);
+    shape.quadraticCurveTo(1.3, 0.55, 0, 0.9);
+    shape.closePath();
+    const wgeo = new THREE.ShapeGeometry(shape);
+    wgeo.rotateX(Math.PI / 2);
+    const wings = [];
+    for (const s of [-1, 1]) {
+      const piv = new THREE.Group();
+      const w = new THREE.Mesh(wgeo, dark);
+      w.scale.x = s;
+      piv.add(w);
+      g.add(at(piv, s * 0.55, 0, 0));
+      wings.push(piv);
+      const lobe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.5), dark);
+      lobe.rotation.y = s * 0.2;
+      g.add(at(lobe, s * 0.38, 0, -1.25));
+    }
+    const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.05, 1.6, 5), dark);
+    tail.rotation.x = Math.PI / 2;
+    g.add(at(tail, 0, 0, 1.9));
+    g.userData.wings = wings;
+    return g;
+  },
+  tuna() {
+    const g = new THREE.Group();
+    const top = std(0x2a5292, { metalness: 0.2, roughness: 0.35 });
+    const silver = std(0xd9e1e8, { metalness: 0.25, roughness: 0.35 });
+    const yellow = std(0xffc928, { roughness: 0.4 });
+    g.add(scaled(new THREE.Mesh(SPH, top), 0.3, 0.36, 0.95));
+    g.add(at(scaled(new THREE.Mesh(SPH, silver), 0.27, 0.28, 0.86), 0, -0.08, 0));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.9), yellow), 0.27, 0, 0));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.1, 0.9), yellow), -0.27, 0, 0));
+    const fin = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.55, 3), yellow);
+    fin.rotation.x = -0.9;
+    g.add(at(fin, 0, 0.38, 0.1));
+    const fin2 = fin.clone();
+    fin2.rotation.x = Math.PI + 0.9;
+    g.add(at(fin2, 0, -0.36, 0.15));
+    const tail = new THREE.Group();
+    for (const s of [-1, 1]) {
+      const t = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.5, 0.12), yellow);
+      t.rotation.x = s * 0.7;
+      tail.add(at(t, 0, s * 0.18, 0.1));
+    }
+    g.add(at(tail, 0, 0, 0.95));
+    g.userData.tail = tail;
+    return g;
+  },
+  moonjelly() {
+    const g = new THREE.Group();
+    const bellMat = std(0xdcecff, { transparent: true, opacity: 0.42, roughness: 0.15, side: THREE.DoubleSide, depthWrite: false });
+    const bell = new THREE.Mesh(new THREE.SphereGeometry(0.8, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), bellMat);
+    bell.scale.y = 0.55;
+    g.add(bell);
+    const gon = std(0xc8a0f0, { transparent: true, opacity: 0.8, emissive: 0x402060 });
+    for (let i = 0; i < 4; i++) {
+      const r = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.035, 5, 12, Math.PI * 1.4), gon);
+      r.rotation.set(Math.PI / 2, 0, (i * Math.PI) / 2);
+      g.add(at(r, Math.cos((i * Math.PI) / 2) * 0.28, 0.1, Math.sin((i * Math.PI) / 2) * 0.28));
+    }
+    const arm = std(0xeef6ff, { transparent: true, opacity: 0.5, depthWrite: false });
+    for (let i = 0; i < 4; i++) {
+      const a = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.9, 5), arm);
+      a.rotation.x = Math.PI;
+      g.add(at(a, Math.cos(i * 1.57 + 0.78) * 0.12, -0.45, Math.sin(i * 1.57 + 0.78) * 0.12));
+    }
+    g.userData.bell = bell;
+    return g;
+  },
+  sunfish() {
+    const g = new THREE.Group();
+    const skin = std(0x97a3ad, { roughness: 0.55, metalness: 0.15 });
+    g.add(scaled(new THREE.Mesh(SPH, skin), 0.32, 1.2, 1.05));
+    const fins = [];
+    for (const s of [-1, 1]) {
+      const piv = new THREE.Group();
+      const f = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.5, 4), skin);
+      f.scale.z = 0.3;
+      f.position.y = s * 0.75;
+      if (s < 0) f.rotation.x = Math.PI;
+      piv.add(f);
+      g.add(at(piv, 0, s * 0.95, 0.55));
+      fins.push(piv);
+    }
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.2, 1.5, 0.25), skin), 0, 0, 1.05));
+    for (const s of [-1, 1]) g.add(at(scaled(new THREE.Mesh(SPH, basic(0x111111)), 0.08, 0.08, 0.08), s * 0.27, 0.3, -0.7));
+    g.add(at(scaled(new THREE.Mesh(SPH, basic(0x3a2a2a)), 0.08, 0.06, 0.05), 0, 0, -1.05));
+    g.userData.fins = fins;
+    return g;
+  },
+  hatchetfish() {
+    const g = new THREE.Group();
+    const silver = std(0xd5dee6, { metalness: 0.5, roughness: 0.3 });
+    const shape = new THREE.Shape();
+    shape.moveTo(-0.35, 0.12);
+    shape.lineTo(0.3, 0.1);
+    shape.lineTo(0.42, 0.0);
+    shape.lineTo(0.3, -0.05);
+    shape.quadraticCurveTo(0.0, -0.48, -0.3, -0.32);
+    shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 0.08, bevelEnabled: false });
+    geo.translate(0, 0, -0.04);
+    geo.rotateY(Math.PI / 2);
+    g.add(new THREE.Mesh(geo, silver));
+    const glow = basic(0x5fd0ff);
+    for (let i = 0; i < 6; i++) g.add(at(scaled(new THREE.Mesh(SPH, glow), 0.025, 0.025, 0.025), 0, -0.28 + Math.abs(i - 2.5) * 0.03, -0.25 + i * 0.09));
+    for (const s of [-1, 1]) g.add(at(scaled(new THREE.Mesh(SPH, basic(0x0a0a0a)), 0.05, 0.05, 0.05), s * 0.045, 0.06, 0.28));
+    g.rotation.y = Math.PI;
+    const wrap = new THREE.Group();
+    wrap.add(g);
+    return wrap;
+  },
+  barreleye() {
+    const g = new THREE.Group();
+    const body = std(0x3a2c27, { roughness: 0.5 });
+    g.add(at(scaled(new THREE.Mesh(SPH, body), 0.22, 0.26, 0.62), 0, 0, 0.15));
+    const dome = new THREE.Mesh(SPH, std(0xd8f6ff, { transparent: true, opacity: 0.3, roughness: 0.05, depthWrite: false }));
+    dome.scale.set(0.2, 0.2, 0.3);
+    g.add(at(dome, 0, 0.16, -0.25));
+    const eyes = [];
+    for (const s of [-1, 1]) {
+      const piv = new THREE.Group();
+      const e = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.05, 0.14, 8), basic(0x6dff9a));
+      e.position.y = 0.06;
+      piv.add(e);
+      g.add(at(piv, s * 0.06, 0.13, -0.24));
+      eyes.push(piv);
+      g.add(at(scaled(new THREE.Mesh(SPH, basic(0x0c0c0c)), 0.035, 0.035, 0.035), s * 0.07, 0.02, -0.5));
+    }
+    for (const s of [-1, 1]) {
+      const f = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.02, 0.22), std(0x5a4038, { transparent: true, opacity: 0.7 }));
+      f.rotation.z = s * -0.3;
+      g.add(at(f, s * 0.3, -0.05, 0.05));
+    }
+    g.userData.eyes = eyes;
+    return g;
+  },
+  bristlemouth() {
+    const g = new THREE.Group();
+    g.add(scaled(new THREE.Mesh(SPH, std(0x15171c, { roughness: 0.4 })), 0.07, 0.09, 0.32));
+    g.add(at(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.03, 0.12), basic(0x050505)), 0, -0.03, -0.3));
+    const glow = basic(0x7dffb0);
+    for (let i = 0; i < 4; i++) for (const s of [-1, 1]) g.add(at(scaled(new THREE.Mesh(SPH, glow), 0.018, 0.018, 0.018), s * 0.05, -0.05, -0.18 + i * 0.11));
+    return g;
+  },
+  seacucumber() {
+    const g = new THREE.Group();
+    const skin = std(0xe08aa6, { transparent: true, opacity: 0.82, roughness: 0.35, emissive: 0x401020, emissiveIntensity: 0.3 });
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.9, 4, 10), skin);
+    body.rotation.x = Math.PI / 2;
+    body.scale.set(1, 1, 0.75);
+    g.add(body);
+    for (let i = 0; i < 4; i++) {
+      const p = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.3, 5), skin);
+      g.add(at(p, 0, 0.32, -0.35 + i * 0.22));
+    }
+    for (let i = 0; i < 5; i++) {
+      const tnt = new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.22, 4), skin);
+      tnt.rotation.x = -Math.PI / 2 - 0.4;
+      g.add(at(tnt, (i - 2) * 0.07, 0.05, -0.75));
+    }
+    for (let i = 0; i < 8; i++) {
+      const leg = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), skin);
+      leg.rotation.x = Math.PI;
+      g.add(at(leg, (i % 2 ? 0.16 : -0.16), -0.22, -0.4 + Math.floor(i / 2) * 0.27));
+    }
+    return g;
+  },
+
   lanternfish() {
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 8), std(0x3a4a5a, { metalness: 0.4, roughness: 0.35 }));
@@ -742,13 +1053,31 @@ const BUILD = {
 };
 
 // Which models glow by themselves (visible without our lights).
-const SELF_GLOW = new Set(['lanternfish', 'angler', 'gulper', 'lander', 'trieste', 'seep']);
+const SELF_GLOW = new Set(['lanternfish', 'angler', 'gulper', 'lander', 'trieste', 'seep', 'bristlemouth', 'hatchetfish', 'barreleye']);
 
-const SPEED = { lanternfish: 2.4, combjelly: 0.6, vampire: 0.9, gulper: 1.2, angler: 0.7, seapig: 0.25, grenadier: 1.4, dumbo: 0.8, supergiant: 0.6, amphipod: 1.5, snailfish: 1.0 };
-const HOVER = { seapig: 0, grenadier: 1.6, dumbo: 1.8, supergiant: 0.5, amphipod: 0.9, snailfish: 1.0, xeno: 0, sockopus: 0, spaghetti: 0, sheep: 0.6, pancake: 0 };
-const RADIUS = { lanternfish: 2.2, combjelly: 1, vampire: 1.3, gulper: 2.6, angler: 1.3, seapig: 2.2, grenadier: 2, dumbo: 1.4, supergiant: 1.6, amphipod: 2.2, snailfish: 1.6, xeno: 1, tubeworm: 3, clam: 2.5, nodule: 0.6, litter: 1, whale: 10, seep: 5, lander: 2, trieste: 3, jellyphant: 2.5, sockopus: 2.4, toaster: 2.2, grumpus: 2, duckangler: 2, spaghetti: 2.5, sheep: 1.8, pancake: 2 };
+const SPEED = { dolphin: 4.5, humpback: 1.3, spermwhale: 1.2, whaleshark: 1.1, turtle: 1.0, manta: 1.6, tuna: 4, moonjelly: 0.25, sunfish: 0.5, hatchetfish: 1.0, barreleye: 0.3, bristlemouth: 1.2, seacucumber: 0.08, lanternfish: 2.4, combjelly: 0.6, vampire: 0.9, gulper: 1.2, angler: 0.7, seapig: 0.25, grenadier: 1.4, dumbo: 0.8, supergiant: 0.6, amphipod: 1.5, snailfish: 1.0 };
+const HOVER = { seacucumber: 0.25, seapig: 0, grenadier: 1.6, dumbo: 1.8, supergiant: 0.5, amphipod: 0.9, snailfish: 1.0, xeno: 0, sockopus: 0, spaghetti: 0, sheep: 0.6, pancake: 0 };
+const RADIUS = { dolphin: 3, humpback: 7, spermwhale: 6, whaleshark: 6, turtle: 1.6, manta: 3.5, tuna: 2.5, moonjelly: 2, sunfish: 2, hatchetfish: 1.6, barreleye: 1.1, bristlemouth: 1.8, seacucumber: 1.6, lanternfish: 2.2, combjelly: 1, vampire: 1.3, gulper: 2.6, angler: 1.3, seapig: 2.2, grenadier: 2, dumbo: 1.4, supergiant: 1.6, amphipod: 2.2, snailfish: 1.6, xeno: 1, tubeworm: 3, clam: 2.5, nodule: 0.6, litter: 1, whale: 10, seep: 5, lander: 2, trieste: 3, jellyphant: 2.5, sockopus: 2.4, toaster: 2.2, grumpus: 2, duckangler: 2, spaghetti: 2.5, sheep: 1.8, pancake: 2 };
 const STATIC = new Set(['xeno', 'tubeworm', 'clam', 'nodule', 'litter', 'whale', 'seep', 'lander', 'trieste']);
 
+
+// Swimming animation for the upper-ocean animals.
+function animUpper(o, m, ph) {
+  const u = o.userData;
+  if (u.fluke) u.fluke.rotation.x = Math.sin(ph * (m === 'dolphin' ? 5 : 1.6)) * 0.35;
+  if (u.tail) u.tail.rotation.y = Math.sin(ph * (m === 'tuna' ? 9 : 2)) * 0.3;
+  if (u.flips) u.flips.forEach((f, i) => (f.rotation.z = Math.sin(ph * 1.6 + (i % 2) * 0.8) * 0.45 * (i < 2 ? -1 : 1)));
+  if (u.wings) u.wings.forEach((w, i) => (w.rotation.z = Math.sin(ph * 1.3) * 0.38 * (i ? 1 : -1)));
+  if (u.bell) {
+    const s = Math.sin(ph * 2.4);
+    u.bell.scale.set(1 + s * 0.1, 0.55 * (1 - s * 0.15), 1 + s * 0.1);
+  }
+  if (u.fins) u.fins.forEach((f) => (f.rotation.z = Math.sin(ph * 2) * 0.45));
+  if (u.eyes) {
+    const look = Math.sin(ph * 0.35) > 0 ? 0 : -1.2;
+    u.eyes.forEach((e) => (e.rotation.x += (look - e.rotation.x) * 0.05));
+  }
+}
 
 export class CreatureManager {
   constructor(scene, world, level, seed) {
@@ -844,7 +1173,8 @@ export class CreatureManager {
       if (def.depth[0] > L.maxDepth - 50) continue;
       for (let i = 0; i < def.count; i++) {
         let p = null;
-        if (def.habitat === 'mid') p = this.midPos(def.depth[0], def.depth[1]);
+        if (def.spawn === 'drop') p = this.dropPos(def.depth[0], def.depth[1], i);
+        else if (def.habitat === 'mid') p = this.midPos(def.depth[0], def.depth[1]);
         else {
           const hadal = def.depth[0] >= 6000;
           p = W.randomFloorPoint(this.rng, def.depth[0], def.depth[1], hadal ? { nearAxis: W.halfW * 0.7 } : {});
@@ -855,6 +1185,7 @@ export class CreatureManager {
     }
     const byId = (id) => CREATURES.find((c) => c.id === id);
     const F = L.features;
+    const gardenFantasy = this.spawnGarden();
     // nodule fields
     for (let f = 0; f < 3 && F.nodules; f++) {
       const c = W.randomFloorPoint(this.rng, 4000, 6500);
@@ -902,7 +1233,7 @@ export class CreatureManager {
       this.trieste = this.add(byId('trieste'), p);
     }
     // fantasy creatures: three per dive
-    const fantasy = CREATURES.filter((c) => c.kind === 'fantasy' && c.depth[0] < L.maxDepth - 200);
+    const fantasy = CREATURES.filter((c) => c.kind === 'fantasy' && c.depth[0] < L.maxDepth - 200 && c !== gardenFantasy);
     const chosen = [];
     while (chosen.length < Math.min(3, fantasy.length)) {
       const f = fantasy[Math.floor(this.rng() * fantasy.length)];
@@ -919,6 +1250,64 @@ export class CreatureManager {
     }
   }
 
+  // Close to where the sub dives in, so the first minutes are full of animals.
+  dropPos(minD, maxD, i = 0) {
+    const sp = this.world.shipPos;
+    for (let k = 0; k < 30; k++) {
+      const a = this.rng() * Math.PI * 2;
+      const near = i === 0 && minD < 8;
+      const r = near ? 9 + this.rng() * 14 : 12 + this.rng() * (maxD < 250 ? 38 : 30);
+      const x = sp.x + 12 + Math.cos(a) * r;
+      const z = sp.z + Math.sin(a) * r;
+      const floorD = this.world.depthAt(x, z);
+      const hi = Math.min(maxD, floorD - 80);
+      if (hi <= minD) continue;
+      const top = near ? Math.min(hi, minD + 35) : hi;
+      const d = minD + this.rng() * (top - minD);
+      return new THREE.Vector3(x, -d / SCALE, z);
+    }
+    return null;
+  }
+
+  // "Arrival garden": a lively patch of seafloor right below the drop point.
+  spawnGarden() {
+    const W = this.world;
+    const cx = W.shipPos.x + 14;
+    const cz = axisZ(cx);
+    const landD = W.depthAt(cx, cz);
+    this.landing = new THREE.Vector3(cx, W.heightAt(cx, cz), cz);
+    const ok = (c) => landD >= c.depth[0] - 150 && landD <= c.depth[1] + 150;
+    const pool = CREATURES.filter((c) => c.kind === 'real' && c.habitat === 'floor' && c.count > 0 && ok(c));
+    const ring = (rMin, rMax) => {
+      const a = this.rng() * Math.PI * 2;
+      const r = rMin + this.rng() * (rMax - rMin);
+      const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      return new THREE.Vector3(x, W.heightAt(x, z), z);
+    };
+    for (const def of pool) {
+      for (let i = 0; i < 2; i++) {
+        const p = ring(5, 19);
+        p.y += HOVER[def.model] ?? 0;
+        this.add(def, p);
+      }
+    }
+    const nod = CREATURES.find((c) => c.id === 'nodule');
+    if (this.level.features.nodules && ok(nod)) {
+      const c = ring(10, 18);
+      for (let i = 0; i < 4; i++) {
+        const x = c.x + (this.rng() - 0.5) * 8, z = c.z + (this.rng() - 0.5) * 8;
+        this.add(nod, new THREE.Vector3(x, W.heightAt(x, z), z));
+      }
+    }
+    const fans = CREATURES.filter((c) => c.kind === 'fantasy' && c.habitat === 'floor' && landD >= c.depth[0] && landD <= c.depth[1]);
+    if (!fans.length) return null;
+    const f = fans[Math.floor(this.rng() * fans.length)];
+    const p = ring(9, 16);
+    p.y += HOVER[f.model] ?? 0;
+    this.add(f, p);
+    return f;
+  }
+
   remove(item) {
     item.collected = true;
     this.scene.remove(item.group);
@@ -929,6 +1318,8 @@ export class CreatureManager {
     const p = item.group.position;
     const d = p.distanceTo(subPos);
     if (item.glow && d < 70) return { visible: true, d };
+    const amb = p.y > -25 ? 50 : p.y > -60 ? 26 : 0; // sunlight near the surface
+    if (d < amb) return { visible: true, d };
     if (!light.on) return { visible: d < 6, d };
     if (d > light.range + item.radius) return { visible: false, d };
     const dir = p.clone().sub(light.pos).normalize();
@@ -971,6 +1362,7 @@ export class CreatureManager {
         } else {
           const fy = this.world.heightAt(g.position.x, g.position.z) + 4;
           if (g.position.y < fy) g.position.y = fy;
+          if (g.position.y > -1.8) g.position.y = -1.8;
         }
         if (it.vel.lengthSq() > 0.01) {
           const yaw = Math.atan2(-it.vel.x, -it.vel.z);
@@ -991,6 +1383,8 @@ export class CreatureManager {
           mm.rotation.y = Math.sin(p2 * 2) * 0.15;
         }
       }
+      if (it.members) it.members.forEach((mm) => animUpper(mm, m, mm.userData.phase + T));
+      else animUpper(g, m, ph);
       if (m === 'combjelly') {
         g.position.y += Math.sin(ph) * dt * 0.3;
         const lit = light.on && dist < light.range;
@@ -1062,7 +1456,7 @@ export class CreatureManager {
       const p = it.group.position;
       const to = p.clone().sub(sub.pos);
       const d = to.length();
-      const maxD = it.def.model === 'whale' ? 40 : 30;
+      const maxD = ['whale', 'humpback', 'whaleshark', 'spermwhale'].includes(it.def.model) ? 45 : 30;
       if (d > maxD) continue;
       const flat = new THREE.Vector3(to.x, to.y * 0.6, to.z).normalize();
       const ang = Math.acos(clamp(flat.dot(fwd), -1, 1));
@@ -1097,3 +1491,9 @@ export class CreatureManager {
     return this.items.find((i) => i.id === id);
   }
 }
+
+// For the intro aquarium: build any model by name and animate it.
+export function buildModel(name) {
+  return BUILD[name]();
+}
+export { animUpper };

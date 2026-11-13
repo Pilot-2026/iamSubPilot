@@ -537,3 +537,51 @@ select option { background: var(--panel-solid); }
 .contact.fan::before { border-color: #ff7ad9; box-shadow: 0 0 10px #ff7ad9; }
 .ripple { position: absolute; left: 50%; top: 55%; width: 40px; height: 40px; margin: -20px 0 0 -20px; border: 2px solid var(--cyan); border-radius: 50%; animation: ripple 1.3s ease-out forwards; pointer-events: none; }
 @keyframes ripple { to { transform: scale(18); opacity: 0; } }
+
+/* ---------- intro / title screen ---------- */
+#intro { position: fixed; inset: 0; z-index: 6; display: flex; flex-direction: column; justify-content: space-between; pointer-events: auto; cursor: pointer;
+  padding: calc(12px + var(--safe-t)) 16px calc(22px + var(--safe-b)); background: radial-gradient(ellipse at 50% 120%, rgba(1, 8, 16, 0.75), rgba(1, 8, 16, 0) 55%); }
+#intro.hidden { display: none; }
+.intro-top { display: flex; justify-content: flex-end; gap: 8px; }
+.intro-bottom { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; cursor: default; }
+.intro-claim { font-size: clamp(17px, 2.6vw, 26px); font-weight: 700; color: #e6fbff; margin: 0; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
+  animation: introIn 1.4s ease-out both 0.3s; }
+.intro-dedic { margin: 4px 0 0; color: #bfe9f7; font-size: clamp(13px, 1.8vw, 17px); text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8); animation: introIn 1.4s ease-out both 0.9s; }
+.intro-by { margin: 0 0 10px; color: #8fd8ee; font-size: clamp(12px, 1.6vw, 15px); letter-spacing: 0.06em; animation: introIn 1.4s ease-out both 1.3s; }
+.intro-bottom .btn { animation: introIn 1s ease-out both 1.8s, pulse 2.4s ease-in-out infinite 3s; }
+.intro-hint { color: #8fb3c7; font-size: 13px; min-height: 18px; margin-top: 4px; }
+@keyframes introIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(56, 232, 255, 0.5); } 50% { box-shadow: 0 0 0 12px rgba(56, 232, 255, 0); } }
+.logo-btn { background-color: transparent; border: 0; cursor: pointer; text-align: left; font-family: inherit; line-height: 1.05; }
+.logo-btn:hover { filter: brightness(1.2); }
+@media (max-height: 500px) { .intro-claim { font-size: 15px; } .intro-dedic { font-size: 12px; margin-top: 0; } .intro-by { margin-bottom: 4px; font-size: 11px; } .intro-hint { display: none; } .intro-bottom { gap: 2px; } .intro-bottom .btn.big { padding: 10px 26px; font-size: 17px; } }
+
+/* ---------- underwater transition ---------- */
+#diveFx { position: fixed; inset: 0; pointer-events: none; z-index: 14; overflow: hidden; }
+#diveFx.hidden { display: none; }
+#diveFx .dfx-flash { position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 40%, rgba(200, 248, 255, 0.85), rgba(40, 150, 200, 0.6) 55%, rgba(4, 40, 70, 0.85));
+  animation: dfxFlash 1.6s ease-out forwards; }
+#diveFx .dfx-line { position: absolute; left: 0; right: 0; height: 26%; top: -30%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0), rgba(220, 250, 255, 0.85) 45%, rgba(120, 220, 255, 0.4) 60%, rgba(255, 255, 255, 0));
+  animation: dfxLine 0.7s ease-in forwards; }
+#diveFx span { position: absolute; bottom: -60px; border-radius: 50%; border: 2px solid rgba(230, 252, 255, 0.85);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.7), rgba(180, 240, 255, 0.12) 40%, rgba(255, 255, 255, 0) 70%);
+  animation-name: dfxBubble; animation-timing-function: cubic-bezier(.3, .1, .5, 1); animation-fill-mode: forwards; }
+@keyframes dfxFlash { 0% { opacity: 0; } 12% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes dfxLine { from { top: -30%; } to { top: 110%; } }
+@keyframes dfxBubble { 0% { transform: translate(0, 0) scale(0.6); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(30px, -120vh) scale(1.1); opacity: 0; } }
+
+/* ---------- race ring flash ---------- */
+#ringFlash { position: fixed; inset: 0; pointer-events: none; z-index: 13; opacity: 0;
+  background: radial-gradient(ellipse at center, rgba(125, 255, 233, 0) 35%, rgba(125, 255, 233, 0.45) 100%); }
+#ringFlash.go { animation: ringFlash 0.6s ease-out; }
+#ringFlash.big { background: radial-gradient(ellipse at center, rgba(255, 242, 122, 0.25), rgba(255, 158, 232, 0.55)); animation: ringFlash 1.4s ease-out; }
+@keyframes ringFlash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+/* ---------- launch skip hint ---------- */
+#skipHint { position: fixed; left: 50%; bottom: calc(18px + var(--safe-b)); transform: translateX(-50%); z-index: 12; pointer-events: none;
+  background: rgba(2, 13, 26, 0.6); border: 1px solid var(--line); border-radius: 999px; padding: 8px 16px; font-size: 14px; color: #cfeefa; animation: introIn 0.6s ease-out both 1s; }
+#skipHint.hidden { display: none; }
+body.touch #skipHint { bottom: calc(50% - 20px); }
+#pSound { display: flex; flex-wrap: wrap; border-radius: 16px; justify-content: center; }
+#pSound button { padding: 7px 10px; font-size: 13px; }

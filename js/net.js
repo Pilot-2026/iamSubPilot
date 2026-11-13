@@ -1,6 +1,7 @@
-// Online features: leaderboard (Firestore) and realtime rooms (Realtime Database).
-// Without a Firebase config the game uses a local leaderboard, and multiplayer is off.
-// For testing, ?local=1 enables "rooms" between browser tabs on the same device.
+// Online features: leaderboard (Firestore) and realtime rooms.
+// Rooms: Firebase Realtime Database if configured, otherwise peer-to-peer
+// (WebRTC via PeerJS – works without any setup). The host's browser relays
+// all messages. For testing, ?local=1 uses tabs on the same device instead.
 
 import { FIREBASE_CONFIG } from './config.js';
 import { randomCode } from './util.js';
@@ -24,7 +25,7 @@ function localSubmit(board, entry) {
 
 export class Net {
   constructor() {
-    this.mode = 'none'; // 'firebase' | 'local' | 'none'
+    this.mode = 'none'; // 'firebase' | 'local' | 'p2p' | 'none'
     this.lbOnline = false;
     this.mpAvailable = false;
     this.uid = 'u' + Math.random().toString(36).slice(2, 10);
@@ -61,7 +62,178 @@ export class Net {
     if (params.get('local') === '1') {
       this.mode = 'local';
       this.mpAvailable = true;
+    } else if (window.RTCPeerConnection) {
+      this.mode = 'p2p';
+      this.mpAvailable = true;
     }
+  }
+
+  // ---------------- peer-to-peer transport ----------------
+  async peerLib() {
+    // window.__FAKE_PEER__ lets automated tests run rooms without a network
+    if (!this.PeerCls) this.PeerCls = window.__FAKE_PEER__ || (await import('./vendor/peerjs.min.js')).Peer;
+    return this.PeerCls;
+  }
+
+  openPeer(id) {
+    return new Promise(async (resolve, reject) => {
+      const Peer = await this.peerLib();
+      const peer = id ? new Peer(id, { debug: 0 }) : new Peer({ debug: 0 });
+      const to = setTimeout(() => reject(new Error('timeout')), 12000);
+      peer.once('open', () => {
+        clearTimeout(to);
+        resolve(peer);
+      });
+      peer.once('error', (e) => {
+        clearTimeout(to);
+        try {
+          peer.destroy();
+        } catch (x) {
+          /* ignore */
+        }
+        reject(new Error(e.type === 'unavailable-id' ? 'taken' : e.type === 'peer-unavailable' ? 'notfound' : 'p2p'));
+      });
+    });
+  }
+
+  p2pSend(msg, except = null) {
+    const room = this.room;
+    if (!room || !room.peer) return;
+    if (room.p2pHost) {
+      for (const c of room.conns.values()) if (c !== except && c.open) c.send(msg);
+    } else if (room.hostConn && room.hostConn.open) room.hostConn.send(msg);
+  }
+
+  // Apply a room message (shared by local and p2p mode).
+  handleMsg(room, m, fromConn = null) {
+    if (m.type === 'player') {
+      if (room.p2pHost && fromConn) {
+        if (m.hello) {
+          if (Object.keys(room.players).length >= 4 && !room.players[m.uid]) {
+            fromConn.send({ type: 'full' });
+            setTimeout(() => fromConn.close(), 300);
+            return;
+          }
+          fromConn.uid = m.uid;
+          m.data = { ...m.data, joined: Date.now() };
+        }
+        room.players[m.uid] = { ...(room.players[m.uid] || {}), ...m.data };
+        if (m.hello) fromConn.send({ type: 'sync', meta: room.meta, players: room.players });
+        this.p2pSend({ type: 'player', uid: m.uid, data: room.players[m.uid] }, fromConn);
+      } else room.players[m.uid] = { ...(room.players[m.uid] || {}), ...m.data };
+      room.handlers.players && room.handlers.players(room.players);
+      if (m.hello && room.channel) room.channel.postMessage({ type: 'player', uid: this.uid, data: room.players[this.uid] });
+    } else if (m.type === 'leave') {
+      delete room.players[m.uid];
+      if (room.p2pHost) this.p2pSend(m, fromConn);
+      room.handlers.players && room.handlers.players(room.players);
+    } else if (m.type === 'meta') {
+      room.meta = m.meta;
+      room.handlers.meta && room.handlers.meta(room.meta);
+    } else if (m.type === 'event') {
+      if (room.p2pHost && fromConn) this.p2pSend(m, fromConn);
+      room.handlers.event && room.handlers.event(m.ev);
+    } else if (m.type === 'sync') {
+      room.meta = m.meta;
+      room.players = m.players;
+      room.synced && room.synced();
+      room.handlers.meta && room.handlers.meta(room.meta);
+      room.handlers.players && room.handlers.players(room.players);
+    } else if (m.type === 'ping' && room.p2pHost && fromConn) {
+      fromConn.send({ type: 'pong', t0: m.t0, th: Date.now() });
+    } else if (m.type === 'pong') {
+      const t1 = Date.now();
+      const est = m.th - (m.t0 + t1) / 2;
+      // keep the estimate from the fastest round trip
+      if (!room.bestRtt || t1 - m.t0 < room.bestRtt) {
+        room.bestRtt = t1 - m.t0;
+        this.offset = est;
+      }
+    } else if (m.type === 'full') {
+      room.fullErr && room.fullErr();
+    } else if (m.type === 'closed') {
+      room.handlers.closed && room.handlers.closed();
+    }
+  }
+
+  async createP2PRoom(meta, name) {
+    let peer = null;
+    let code;
+    for (let i = 0; i < 4 && !peer; i++) {
+      code = randomCode(4);
+      try {
+        peer = await this.openPeer('hadal-v1-' + code);
+      } catch (e) {
+        if (e.message !== 'taken') throw e;
+      }
+    }
+    if (!peer) throw new Error('p2p');
+    this.leaveRoom();
+    const room = { code, meta, players: { [this.uid]: { name, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), peer, p2pHost: true, conns: new Map() };
+    this.room = room;
+    this.offset = 0;
+    peer.on('connection', (conn) => {
+      conn.on('open', () => room.conns.set(conn.peer, conn));
+      conn.on('data', (m) => this.handleMsg(room, m, conn));
+      conn.on('close', () => {
+        room.conns.delete(conn.peer);
+        if (conn.uid && room.players[conn.uid]) this.handleMsg(room, { type: 'leave', uid: conn.uid }, conn);
+      });
+    });
+    peer.on('disconnected', () => {
+      try {
+        peer.reconnect();
+      } catch (e) {
+        /* ignore */
+      }
+    });
+    setTimeout(() => {
+      room.handlers.meta && room.handlers.meta(room.meta);
+      room.handlers.players && room.handlers.players(room.players);
+    }, 30);
+    return code;
+  }
+
+  async joinP2PRoom(code, name) {
+    const peer = await this.openPeer(null);
+    this.leaveRoom();
+    const room = { code, meta: null, players: {}, handlers: {}, joinedAt: Date.now(), peer, p2pHost: false };
+    this.room = room;
+    await new Promise((resolve, reject) => {
+      const to = setTimeout(() => reject(new Error('notfound')), 12000);
+      peer.on('error', (e) => {
+        clearTimeout(to);
+        reject(new Error(e.type === 'peer-unavailable' ? 'notfound' : 'p2p'));
+      });
+      const conn = peer.connect('hadal-v1-' + code, { reliable: true });
+      room.hostConn = conn;
+      room.synced = () => {
+        clearTimeout(to);
+        resolve();
+      };
+      room.fullErr = () => {
+        clearTimeout(to);
+        reject(new Error('full'));
+      };
+      conn.on('open', () => {
+        conn.send({ type: 'player', uid: this.uid, data: { name }, hello: true });
+        // clock sync with the host (several pings, best one wins)
+        for (let i = 0; i < 5; i++) setTimeout(() => conn.open && conn.send({ type: 'ping', t0: Date.now() }), 200 + i * 400);
+      });
+      conn.on('data', (m) => this.handleMsg(room, m, null));
+      conn.on('close', () => {
+        if (this.room === room) room.handlers.closed && room.handlers.closed();
+      });
+    }).catch((e) => {
+      this.room = null;
+      try {
+        peer.destroy();
+      } catch (x) {
+        /* ignore */
+      }
+      throw e;
+    });
+    return room;
   }
 
   now() {
@@ -109,6 +281,8 @@ export class Net {
       await set(ref(this.rtdb, `rooms/${code}/meta`), meta);
     } else if (this.mode === 'local') {
       localStorage.setItem(`hadal.room.${code}`, JSON.stringify(meta));
+    } else if (this.mode === 'p2p') {
+      return this.createP2PRoom(meta, name);
     } else throw new Error('offline');
     await this.joinRoom(code, { name });
     return code;
@@ -116,6 +290,7 @@ export class Net {
 
   async joinRoom(code, { name }) {
     code = code.toUpperCase().trim();
+    if (this.mode === 'p2p') return this.joinP2PRoom(code, name);
     this.leaveRoom();
     const room = { code, meta: null, players: {}, handlers: {}, joinedAt: Date.now() };
     this.room = room;
@@ -164,22 +339,7 @@ export class Net {
       room.meta = meta;
       room.channel = new BroadcastChannel(`hadal-${code}`);
       room.players[this.uid] = { name, joined: Date.now() };
-      room.channel.onmessage = (e) => {
-        const m = e.data;
-        if (m.type === 'player') {
-          room.players[m.uid] = { ...(room.players[m.uid] || {}), ...m.data };
-          room.handlers.players && room.handlers.players(room.players);
-          if (m.hello) room.channel.postMessage({ type: 'player', uid: this.uid, data: room.players[this.uid] });
-        } else if (m.type === 'leave') {
-          delete room.players[m.uid];
-          room.handlers.players && room.handlers.players(room.players);
-        } else if (m.type === 'meta') {
-          room.meta = m.meta;
-          room.handlers.meta && room.handlers.meta(room.meta);
-        } else if (m.type === 'event') {
-          room.handlers.event && room.handlers.event(m.ev);
-        }
-      };
+      room.channel.onmessage = (e) => this.handleMsg(room, e.data);
       room.channel.postMessage({ type: 'player', uid: this.uid, data: room.players[this.uid], hello: true });
       setTimeout(() => {
         room.handlers.meta && room.handlers.meta(room.meta);
@@ -200,16 +360,11 @@ export class Net {
 
   async startRoom(extra = {}) {
     if (!this.room) return;
-    const upd = { status: 'running', startAt: this.now() + 4000, ...extra };
+    const upd = { status: 'running', startAt: this.now() + 8500, ...extra };
     if (this.mode === 'firebase') {
       const { ref, update } = this.fb;
       await update(ref(this.rtdb, `rooms/${this.room.code}/meta`), upd);
-    } else {
-      this.room.meta = { ...this.room.meta, ...upd };
-      localStorage.setItem(`hadal.room.${this.room.code}`, JSON.stringify(this.room.meta));
-      this.room.channel.postMessage({ type: 'meta', meta: this.room.meta });
-      this.room.handlers.meta && this.room.handlers.meta(this.room.meta);
-    }
+    } else this.localMeta(upd);
   }
 
   async resetRoom() {
@@ -218,11 +373,7 @@ export class Net {
     if (this.mode === 'firebase') {
       const { ref, update } = this.fb;
       await update(ref(this.rtdb, `rooms/${this.room.code}/meta`), upd);
-    } else {
-      this.room.meta = { ...this.room.meta, ...upd };
-      this.room.channel.postMessage({ type: 'meta', meta: this.room.meta });
-      this.room.handlers.meta && this.room.handlers.meta(this.room.meta);
-    }
+    } else this.localMeta(upd);
   }
 
   async updateMeta(upd) {
@@ -230,12 +381,24 @@ export class Net {
     if (this.mode === 'firebase') {
       const { ref, update } = this.fb;
       await update(ref(this.rtdb, `rooms/${this.room.code}/meta`), upd);
-    } else {
-      this.room.meta = { ...this.room.meta, ...upd };
-      localStorage.setItem(`hadal.room.${this.room.code}`, JSON.stringify(this.room.meta));
-      this.room.channel.postMessage({ type: 'meta', meta: this.room.meta });
-      this.room.handlers.meta && this.room.handlers.meta(this.room.meta);
-    }
+    } else this.localMeta(upd);
+  }
+
+  localMeta(upd) {
+    const room = this.room;
+    room.meta = { ...room.meta, ...upd };
+    if (room.channel) {
+      localStorage.setItem(`hadal.room.${room.code}`, JSON.stringify(room.meta));
+      room.channel.postMessage({ type: 'meta', meta: room.meta });
+    } else this.p2pSend({ type: 'meta', meta: room.meta });
+    room.handlers.meta && room.handlers.meta(room.meta);
+  }
+
+  // send to the others (local tabs or peers)
+  post(msg) {
+    if (!this.room) return;
+    if (this.room.channel) this.room.channel.postMessage(msg);
+    else this.p2pSend(msg);
   }
 
   sendState(s) {
@@ -243,9 +406,9 @@ export class Net {
     if (this.mode === 'firebase') {
       const { ref, set } = this.fb;
       set(ref(this.rtdb, `rooms/${this.room.code}/players/${this.uid}/s`), s).catch(() => {});
-    } else if (this.room.channel) {
+    } else {
       this.room.players[this.uid] = { ...this.room.players[this.uid], s };
-      this.room.channel.postMessage({ type: 'player', uid: this.uid, data: { s } });
+      this.post({ type: 'player', uid: this.uid, data: { s } });
     }
   }
 
@@ -254,9 +417,9 @@ export class Net {
     if (this.mode === 'firebase') {
       const { ref, update } = this.fb;
       update(ref(this.rtdb, `rooms/${this.room.code}/players/${this.uid}`), fields).catch(() => {});
-    } else if (this.room.channel) {
+    } else {
       this.room.players[this.uid] = { ...this.room.players[this.uid], ...fields };
-      this.room.channel.postMessage({ type: 'player', uid: this.uid, data: fields });
+      this.post({ type: 'player', uid: this.uid, data: fields });
       this.room.handlers.players && this.room.handlers.players(this.room.players);
     }
   }
@@ -267,9 +430,7 @@ export class Net {
     if (this.mode === 'firebase') {
       const { ref, push } = this.fb;
       push(ref(this.rtdb, `rooms/${this.room.code}/events`), full).catch(() => {});
-    } else if (this.room.channel) {
-      this.room.channel.postMessage({ type: 'event', ev: full });
-    }
+    } else this.post({ type: 'event', ev: full });
   }
 
   leaveRoom() {
@@ -291,6 +452,22 @@ export class Net {
     } else if (room.channel) {
       room.channel.postMessage({ type: 'leave', uid: this.uid });
       room.channel.close();
+    } else if (room.peer) {
+      this.room = null;
+      try {
+        if (room.p2pHost) for (const c of room.conns.values()) c.open && c.send({ type: 'closed' });
+        else if (room.hostConn && room.hostConn.open) room.hostConn.send({ type: 'leave', uid: this.uid });
+      } catch (e) {
+        /* ignore */
+      }
+      setTimeout(() => {
+        try {
+          room.peer.destroy();
+        } catch (e) {
+          /* ignore */
+        }
+      }, 300);
+      if (!room.p2pHost) this.offset = 0;
     }
     this.room = null;
   }

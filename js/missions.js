@@ -11,6 +11,8 @@ export function makeMissions(level, cm, rng) {
     used.add(m.type + (m.arg || ''));
     list.push({ ...m, done: false, progress: 0 });
   };
+  // a quick first success right after diving in
+  add({ type: 'first' });
   // level-specific mission
   const [type, arg] = level.special.split(':');
   if (type === 'm_photo') add({ type: 'photo', arg });
@@ -21,7 +23,7 @@ export function makeMissions(level, cm, rng) {
 
   const pool = [];
   pool.push({ type: 'fantasy' });
-  pool.push({ type: 'photoAny', n: 3 });
+  pool.push({ type: 'photoAny', n: 5 });
   pool.push({ type: 'map', p: 6 });
   pool.push({ type: 'depth', d: Math.floor((level.maxDepth * 0.82) / 500) * 500 });
   if (cm.lander) pool.push({ type: 'lander' });
@@ -35,7 +37,7 @@ export function makeMissions(level, cm, rng) {
     [pool[i], pool[j]] = [pool[j], pool[i]];
   }
   for (const m of pool) {
-    if (list.length >= 3) break;
+    if (list.length >= 4) break;
     add(m);
   }
   return list;
@@ -47,6 +49,8 @@ export function missionText(m) {
       const c = CREATURES.find((x) => x.id === m.arg);
       return t('m_photo', { name: c ? L(c.name) : m.arg });
     }
+    case 'first':
+      return t('m_first');
     case 'photoAny':
       return t('m_photoAny', { n: m.n }) + ` (${Math.min(m.progress, m.n)}/${m.n})`;
     case 'fantasy':
@@ -83,6 +87,9 @@ export function updateMissions(missions, s) {
     switch (m.type) {
       case 'photo':
         done = s.photographed.has(m.arg);
+        break;
+      case 'first':
+        done = s.realCount >= 1;
         break;
       case 'photoAny':
         m.progress = s.realCount;

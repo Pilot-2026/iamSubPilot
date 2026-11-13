@@ -4,8 +4,11 @@ import * as THREE from './vendor/three.min.js';
 import { World, SCALE, axisZ } from './world.js';
 import { Sub, RemoteSub } from './sub.js';
 import { CreatureManager } from './creatures.js';
+import { FishSchools } from './schools.js';
+import { Launch } from './launch.js';
+import { Aquarium } from './intro.js';
 import { Input } from './input.js';
-import { audio } from './audio.js';
+import { audio, SOUND_MODES } from './audio.js';
 import { Net } from './net.js';
 import { LEVELS, HULL_RATINGS, levelById } from './data/levels.js';
 import { CREATURES } from './data/creatures.js';
@@ -65,7 +68,72 @@ function initRenderer() {
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
+    if (aquarium) aquarium.resize(window.innerWidth, window.innerHeight);
   });
+}
+let aquarium = null;
+
+// ======================= sound modes =======================
+const SOUND_ICON = { all: '🔊', fx: '🔉', music: '🎵', off: '🔇' };
+const soundLabel = (m = audio.mode) => `${SOUND_ICON[m]} ${t('snd_' + m)}`;
+function cycleSound() {
+  audio.init();
+  audio.cycleMode();
+  toast(soundLabel());
+}
+
+// ======================= intro / title screen =======================
+let introDone = null;
+function showIntro(onDone) {
+  introDone = onDone || introDone || (() => renderMenu());
+  closeModal();
+  $('#menu').classList.add('hidden');
+  $('#menuBg').classList.add('hidden');
+  $('#c').style.visibility = 'visible';
+  if (aquarium) aquarium.setMode('intro');
+  const el = $('#intro');
+  el.innerHTML = `
+    <div class="intro-top">
+      <button class="chip" id="iSound">${soundLabel()}</button>
+      <button class="chip" id="iLang">${getLang() === 'de' ? 'EN' : 'DE'}</button>
+    </div>
+    <div class="intro-bottom">
+      <p class="intro-claim">${t('introClaim')}</p>
+      <p class="intro-dedic">${t('introDedication')}</p>
+      <p class="intro-by">${t('introBy')}</p>
+      <button class="btn big" id="iGo">${t('introGo')}</button>
+      <div class="intro-hint" id="iHint">${audio.ctx && audio.ctx.state === 'running' ? '' : t('introSoundHint')}</div>
+    </div>`;
+  el.classList.remove('hidden');
+  const startMusic = () => {
+    audio.init();
+    audio.music('intro');
+    const h = $('#iHint');
+    if (h) h.textContent = '';
+  };
+  el.onclick = (e) => {
+    if (e.target.closest('button')) return;
+    startMusic();
+  };
+  $('#iSound').onclick = () => {
+    startMusic();
+    audio.cycleMode();
+    $('#iSound').textContent = soundLabel();
+  };
+  $('#iLang').onclick = () => {
+    profile.lang = getLang() === 'de' ? 'en' : 'de';
+    setLang(profile.lang);
+    saveProfile();
+    showIntro();
+  };
+  $('#iGo').onclick = () => {
+    startMusic();
+    audio.click();
+    el.classList.add('hidden');
+    const f = introDone;
+    introDone = null;
+    f && f();
+  };
 }
 
 const input = new Input();
@@ -184,6 +252,10 @@ function tierLabel() {
 
 // ======================= welcome / profile =======================
 function showWelcome(onDone) {
+  if (aquarium) {
+    aquarium.setMode('menu');
+    $('#c').style.visibility = 'visible';
+  }
   const html = `
     <div class="logo" style="font-size:40px;text-align:center">HADAL</div>
     <h1>${t('welcomeTitle')}</h1>
@@ -231,9 +303,17 @@ let selLevel = profile.lastLevel;
 let selMode = profile.lastMode;
 
 function renderMenu() {
-  buildMenuBg();
-  $('#menuBg').classList.remove('hidden');
-  $('#c').style.visibility = 'hidden';
+  $('#intro').classList.add('hidden');
+  if (aquarium) {
+    aquarium.setMode('menu');
+    $('#c').style.visibility = 'visible';
+    $('#menuBg').classList.add('hidden');
+  } else {
+    buildMenuBg();
+    $('#menuBg').classList.remove('hidden');
+    $('#c').style.visibility = 'hidden';
+  }
+  audio.music('intro');
   const hullRating = HULL_RATINGS[profile.upgrades.hull];
   const cards = LEVELS.map((lv, i) => {
     const warn = lv.maxDepth > hullRating ? `<div class="twarn">⚠ ${t('locked', { rating: fmtNum(hullRating) })}</div>` : '';
@@ -246,13 +326,13 @@ function renderMenu() {
   }).join('');
   $('#menu').innerHTML = `
     <div class="menu-head">
-      <div class="title"><div class="logo">HADAL</div><div class="tagline">${t('tagline')}</div></div>
+      <div class="title"><button class="logo logo-btn" id="mLogo" title="Intro">HADAL</button><div class="tagline">${t('tagline')}</div></div>
       <div class="chips">
         <button class="chip" id="mProfile">👤 ${escapeHtml(profile.name)} · ${tierLabel()}</button>
         <span class="chip">🔬 ${fmtNum(rpAvailable())} ${getLang() === 'de' ? 'FP' : 'RP'}</span>
         <span class="chip">🛡 ${fmtNum(hullRating)} m</span>
         <button class="chip" id="mLang">${getLang() === 'de' ? 'EN' : 'DE'}</button>
-        <button class="chip" id="mSound">${audio.muted ? '🔇' : '🔊'}</button>
+        <button class="chip" id="mSound">${soundLabel()}</button>
       </div>
     </div>
     <h2>${t('chooseTrench')}</h2>
@@ -305,9 +385,10 @@ function renderMenu() {
   };
   $('#mSound').onclick = () => {
     audio.init();
-    audio.setMuted(!audio.muted);
-    renderMenu();
+    audio.cycleMode();
+    $('#mSound').textContent = soundLabel();
   };
+  $('#mLogo').onclick = () => showIntro(renderMenu);
   $('#mHangar').onclick = showHangar;
   $('#mLog').onclick = () => showLogbook('real');
   $('#mLb').onclick = () => showLeaderboard('exp', selLevel);
@@ -416,7 +497,7 @@ function fmtTime(sec) {
 }
 
 // ======================= multiplayer =======================
-const PLAYER_COLORS = [0xf2a03d, 0x4dd2ff, 0x7dff8a, 0xff7ad9];
+const PLAYER_COLORS = [0xffc21a, 0x4dd2ff, 0x7dff8a, 0xff7ad9];
 let lobbyOpen = false;
 
 // Colours follow the join order, so everybody sees the same colours.
@@ -449,6 +530,7 @@ function showMultiplayer() {
     <h2 style="margin-top:18px">${t('mpJoin')}</h2>
     <div class="askrow"><input id="mpCode" type="text" maxlength="4" placeholder="${t('mpCode')}" style="text-transform:uppercase"><button class="btn" id="mpJoin">${t('mpJoin')}</button></div>
     <div class="hint" id="mpHint"></div>
+    ${net.mode === 'p2p' ? `<p style="font-size:12px;color:#8fb3c7;margin-top:10px">${t('mpP2PNote')}</p>` : ''}
     <div class="row-end"><button class="btn secondary" id="mpClose">${t('close')}</button></div>`, (root) => {
     let mm = 'coop';
     root.querySelectorAll('[data-mm]').forEach((b) => {
@@ -459,11 +541,12 @@ function showMultiplayer() {
     });
     root.querySelector('#mpClose').onclick = closeModal;
     root.querySelector('#mpCreate').onclick = async () => {
+      root.querySelector('#mpHint').textContent = t('mpConnecting');
       try {
         await net.createRoom({ mode: mm, level: root.querySelector('#mpLevel').value, name: profile.name });
         openLobby();
       } catch (e) {
-        root.querySelector('#mpHint').textContent = String(e.message || e);
+        root.querySelector('#mpHint').textContent = e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
       }
     };
     root.querySelector('#mpJoin').onclick = () => joinByCode(root.querySelector('#mpCode').value, root.querySelector('#mpHint'));
@@ -471,11 +554,13 @@ function showMultiplayer() {
 }
 
 async function joinByCode(code, hintEl) {
+  if (hintEl) hintEl.textContent = t('mpConnecting');
+  else toast(t('mpConnecting'));
   try {
     await net.joinRoom(code, { name: profile.name });
     openLobby();
   } catch (e) {
-    const msg = e.message === 'notfound' ? t('mpNotFound') : e.message === 'full' ? t('mpFull') : String(e.message || e);
+    const msg = e.message === 'notfound' ? t('mpNotFound') : e.message === 'full' ? t('mpFull') : e.message === 'p2p' || e.message === 'timeout' ? t('mpNoConn') : String(e.message || e);
     if (hintEl) hintEl.textContent = msg;
     else toast(msg);
   }
@@ -490,6 +575,12 @@ function openLobby() {
   net.on('meta', onRoomMeta);
   net.on('players', onRoomPlayers);
   net.on('event', (ev) => game && game.onNetEvent(ev));
+  net.on('closed', () => {
+    lobbyOpen = false;
+    net.leaveRoom();
+    toast(t('mpHostLeft'));
+    if (!game) closeModal();
+  });
   renderLobby();
 }
 
@@ -564,16 +655,8 @@ class Dive {
     this.seed = seed;
     this.scene = new THREE.Scene();
     this.world = new World(this.scene, level);
-    this.sub = new Sub(this.scene, this.world, profile.upgrades);
-    if (this.multi && net.room) {
-      const myColor = colorFor(net.uid, net.room.players);
-      this.sub.group.traverse((o) => {
-        if (o.isMesh && o.material && o.material.color && o.material.color.getHex() === 0xf2a03d) {
-          o.material = o.material.clone();
-          o.material.color.set(myColor);
-        }
-      });
-    }
+    const myColor = this.multi && net.room ? colorFor(net.uid, net.room.players) : PLAYER_COLORS[0];
+    this.sub = new Sub(this.scene, this.world, profile.upgrades, myColor);
     const sp = this.world.shipPos;
     let slot = 0;
     if (this.multi && net.room) {
@@ -583,6 +666,9 @@ class Dive {
     this.sub.pos.set(sp.x + 6 - (slot % 2) * 7, -2, sp.z + (slot - 1.5) * 9 * (this.multi ? 1 : 0));
     this.sub.yaw = -Math.PI / 2;
     this.cm = new CreatureManager(this.scene, this.world, level, seed);
+    this.schools = new FishSchools(this.scene, this.world, seed);
+    this.fx = [];
+    this.orbit = { yaw: 0, pitch: 0, zoom: 0, last: -10 };
     this.rng = mulberry32((seed ^ 0x9e3779b9) >>> 0);
     this.race = mode === 'race';
     this.hullRating = this.race ? 99999 : HULL_RATINGS[profile.upgrades.hull];
@@ -630,7 +716,26 @@ class Dive {
     if (this.race) this.setupRace();
     this.setupHud();
     audio.startLoops();
-    echoSay(line(this.race ? 'raceStart' : isTouch ? 'diveStartTouch' : 'diveStart'), { now: true });
+    // launch from the ship: winch, chains, splash
+    this.hooks = {
+      winch: (on) => audio.winch(on),
+      splash: () => audio.splash(),
+      release: () => audio.clunk(),
+      underwater: () => {
+        diveFx();
+        audio.underwater();
+        this.world.bubbleBurst(this.sub.pos.clone().add(new THREE.Vector3(0, 1, 0)), 120, 3.5);
+      },
+      done: () => {
+        this.camPos.copy(camera.position);
+        $('#skipHint').classList.add('hidden');
+        echoSay(line(this.race ? 'raceStart' : isTouch ? 'diveStartTouch' : 'diveStart'), { now: true });
+      },
+    };
+    this.launch = new Launch(this, { short: this.race });
+    $('#skipHint').textContent = t(isTouch ? 'skipTouch' : 'skipKey');
+    $('#skipHint').classList.remove('hidden');
+    echoSay(L({ en: 'Hold on tight – the winch is lowering us into the sea!', de: 'Gut festhalten – die Winde lässt uns ins Meer hinunter!' }), { now: true });
     if (isTouch && window.innerHeight > window.innerWidth) {
       const h = document.createElement('div');
       h.id = 'rotateHint';
@@ -669,7 +774,7 @@ class Dive {
       this.rings[i].lookAt(a.clone().add(dir));
     }
     this.ringIndex = 0;
-    this.raceStartLocal = this.multi && this.multi.startAt ? this.multi.startAt - net.offset : Date.now() + 3500;
+    this.raceStartLocal = this.multi && this.multi.startAt ? this.multi.startAt - net.offset : Date.now() + 8200;
     this.raceFinished = null;
     $('#race').classList.remove('hidden');
     this.highlightRing();
@@ -775,6 +880,7 @@ class Dive {
   }
 
   actGrab() {
+    this.sub.group.userData.grab = 1;
     if (!this.canAct()) return;
     const it = this.grabTarget;
     if (!it) return;
@@ -919,14 +1025,15 @@ class Dive {
   update(dt) {
     if (this.paused) return;
     this.time += dt;
+    const launching = this.launch && !this.launch.done;
     const racePre = this.race && Date.now() < this.raceStartLocal;
-    let inp = racePre || this.ended ? ZERO_INPUT : input.state();
+    let inp = racePre || this.ended || launching ? ZERO_INPUT : input.state();
     this.sub.update(dt, inp);
     const depth = this.depth();
     this.maxDepth = Math.max(this.maxDepth, depth);
 
     // resources
-    if (!this.race && !this.ended) {
+    if (!this.race && !this.ended && !launching) {
       const drain = (0.07 + this.sub.thrust * 0.11 + (this.sub.lightOn ? 0.05 : 0)) / this.batteryCap;
       this.energy -= drain * dt;
       this.life -= (100 / 720) * dt;
@@ -981,6 +1088,13 @@ class Dive {
     if (!this.zones.has(zk)) {
       this.zones.add(zk);
       echoSay(line(zk));
+    }
+    if (!this.flags.landed && !launching && depth > 1500 && this.sub.pos.y - this.world.heightAt(this.sub.pos.x, this.sub.pos.z) < 16) {
+      this.flags.landed = true;
+      if (!this.race) {
+        echoSay(L({ en: 'We are on the seafloor! Look around – it is full of life down here. Take photos!', de: 'Wir sind am Meeresboden! Schau dich um – hier unten wimmelt es von Leben. Mach Fotos!' }), { now: true });
+        audio.discovery();
+      }
     }
     if (depth > 8849 && !this.flags.everest) {
       this.flags.everest = true;
@@ -1040,7 +1154,10 @@ class Dive {
     this.world.updateEnvironment(depth, camera.position, light);
     this.sub.group.userData.beam.material.uniforms.opacity.value = 0.06 * clamp((depth - 150) / 600, 0, 1);
     this.world.update(dt);
-    this.updateCamera(dt);
+    this.schools.update(dt, this.sub, camera.position);
+    const launchCam = this.launch ? this.launch.update(dt, camera) : false;
+    if (!launchCam) this.updateCamera(dt);
+    this.updateFx(dt);
 
     // remote subs + network
     for (const r of this.remote.values()) r.update(dt);
@@ -1068,6 +1185,10 @@ class Dive {
   updateRace() {
     const now = Date.now();
     const cd = $('#countdown');
+    if (this.launch && !this.launch.done) {
+      $('#raceTime').textContent = '0:00.0';
+      return;
+    }
     if (now < this.raceStartLocal) {
       const s = Math.ceil((this.raceStartLocal - now) / 1000);
       cd.style.display = 'block';
@@ -1091,12 +1212,14 @@ class Dive {
     const ring = this.rings[this.ringIndex];
     ring.rotation.z += 0.02;
     if (ring.position.distanceTo(this.sub.pos) < 8) {
-      audio.ring();
+      audio.ringPass(this.ringIndex);
+      this.ringBurst(ring);
       this.ringIndex++;
       if (this.ringIndex >= this.rings.length) {
         this.raceFinished = (now - this.raceStartLocal) / 1000;
         toast(t('raceFinished'), fmtTime(this.raceFinished));
-        audio.mission();
+        audio.fanfare();
+        ringFlash(true);
         if (this.multi) net.setPlayer({ finish: this.raceFinished });
         this.ending = { emergency: false, race: true };
         setTimeout(() => this.finish(), 1800);
@@ -1104,12 +1227,88 @@ class Dive {
     }
   }
 
+  // Ring passed: expanding glowing ring, sparkles, screen flash.
+  ringBurst(ring) {
+    const m = new THREE.Mesh(ring.geometry, new THREE.MeshBasicMaterial({ color: 0xfff27a, transparent: true, opacity: 1, fog: false, blending: THREE.AdditiveBlending, depthWrite: false }));
+    m.position.copy(ring.position);
+    m.quaternion.copy(ring.quaternion);
+    this.scene.add(m);
+    this.fx.push({ kind: 'burst', obj: m, t: 0, life: 0.8 });
+    const N = 90;
+    const pos = new Float32Array(N * 3);
+    const vel = [];
+    const q = ring.quaternion;
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2;
+      const v = new THREE.Vector3(Math.cos(a) * 7, Math.sin(a) * 7, 0).applyQuaternion(q);
+      pos[i * 3] = v.x;
+      pos[i * 3 + 1] = v.y;
+      pos[i * 3 + 2] = v.z;
+      vel.push(v.clone().normalize().multiplyScalar(4 + Math.random() * 8).add(new THREE.Vector3((Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3, (Math.random() - 0.5) * 3)));
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    const colors = [0x7dffe9, 0xfff27a, 0xff9ee8];
+    const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color: colors[this.ringIndex % 3], size: 1.1, map: sparkTexture(), transparent: true, opacity: 1, fog: false, blending: THREE.AdditiveBlending, depthWrite: false }));
+    pts.position.copy(ring.position);
+    this.scene.add(pts);
+    this.fx.push({ kind: 'spark', obj: pts, vel, t: 0, life: 1.1 });
+    ring.visible = false;
+    ringFlash(false);
+    const n = this.rings.length - this.ringIndex - 1;
+    if (n > 0) toast(`✦ ${this.ringIndex + 1}/${this.rings.length}`, n === 1 ? t('raceLastRing') : '');
+  }
+
+  updateFx(dt) {
+    for (const f of this.fx) {
+      f.t += dt;
+      const k = f.t / f.life;
+      if (f.kind === 'burst') {
+        f.obj.scale.setScalar(1 + k * 1.8);
+        f.obj.material.opacity = Math.max(0, 1 - k);
+      } else if (f.kind === 'spark') {
+        const arr = f.obj.geometry.attributes.position.array;
+        f.vel.forEach((v, i) => {
+          arr[i * 3] += v.x * dt;
+          arr[i * 3 + 1] += v.y * dt;
+          arr[i * 3 + 2] += v.z * dt;
+          v.multiplyScalar(Math.exp(-dt * 2));
+        });
+        f.obj.geometry.attributes.position.needsUpdate = true;
+        f.obj.material.opacity = Math.max(0, 1 - k);
+      }
+      if (f.t >= f.life) {
+        this.scene.remove(f.obj);
+        if (f.kind === 'spark') f.obj.geometry.dispose();
+        f.obj.material.dispose();
+        f.dead = true;
+      }
+    }
+    this.fx = this.fx.filter((f) => !f.dead);
+  }
+
   updateCamera(dt) {
     const s = this.sub;
     const fwd = s.forward();
     const fall = clamp(-s.vel.y * 0.08, 0, 5);
-    const desired = s.pos.clone().addScaledVector(fwd, -12 - fall * 0.6).add(new THREE.Vector3(0, 6.2 + fall, 0));
-    this.camPos.lerp(desired, 1 - Math.exp(-dt * 4));
+    // orbit offsets from mouse / touch drag (spring back after a moment)
+    const o = this.orbit;
+    if (!camDrag.active && performance.now() / 1000 - o.last > 2.5) {
+      const k = Math.exp(-dt * 1.6);
+      o.yaw *= k;
+      o.pitch *= k;
+    }
+    // fly lower behind the sub close to the seafloor, so you see what is on it
+    const clear = s.pos.y - this.world.heightAt(s.pos.x, s.pos.z);
+    const low = clamp((28 - clear) / 18, 0, 1);
+    const dist = 12 + fall * 0.6 + o.zoom - low * 2;
+    const height = 6.2 + fall - low * 2.6;
+    const R = Math.hypot(dist, height);
+    const elev = clamp(Math.atan2(height, dist) + o.pitch, -0.45, 1.35);
+    const yaw = s.yaw + o.yaw;
+    const back = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+    const desired = s.pos.clone().addScaledVector(back, R * Math.cos(elev)).add(new THREE.Vector3(0, R * Math.sin(elev), 0));
+    this.camPos.lerp(desired, 1 - Math.exp(-dt * (camDrag.active ? 10 : 4)));
     const ty = this.world.heightAt(this.camPos.x, this.camPos.z) + 1.5;
     if (this.camPos.y < ty) this.camPos.y = ty;
     if (this.camPos.y > -0.5) this.camPos.y = -0.5;
@@ -1119,8 +1318,10 @@ class Dive {
       camera.position.x += (Math.random() - 0.5) * a;
       camera.position.y += (Math.random() - 0.5) * a;
     }
-    const look = s.pos.clone().addScaledVector(fwd, 18).add(new THREE.Vector3(0, -1 - fall * 1.2, 0));
-    camera.lookAt(look);
+    const ahead = s.pos.clone().addScaledVector(fwd, 18).add(new THREE.Vector3(0, -1 - fall * 1.2, 0));
+    const atSub = s.pos.clone().add(new THREE.Vector3(0, 0.5, 0));
+    const free = clamp(Math.abs(o.yaw) / 0.7 + Math.abs(o.pitch) / 0.5, 0, 1);
+    camera.lookAt(ahead.lerp(atSub, free));
   }
 
   updateHud(depth) {
@@ -1235,6 +1436,8 @@ class Dive {
   }
 
   dispose() {
+    audio.winch(false);
+    $('#skipHint').classList.add('hidden');
     this.contactEls.forEach((e) => e.remove());
     for (const r of this.remote.values()) r.dispose(this.scene);
     this.world.dispose();
@@ -1251,6 +1454,50 @@ function sonarRipple() {
   r.className = 'ripple';
   $('#hud').appendChild(r);
   setTimeout(() => r.remove(), 1400);
+}
+
+let sparkTex = null;
+function sparkTexture() {
+  if (sparkTex) return sparkTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(16, 16, 0, 16, 16, 16);
+  grd.addColorStop(0, 'rgba(255,255,255,1)');
+  grd.addColorStop(0.25, 'rgba(255,255,255,0.8)');
+  grd.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grd;
+  g.fillRect(0, 0, 32, 32);
+  g.fillRect(15, 0, 2, 32);
+  g.fillRect(0, 15, 32, 2);
+  sparkTex = new THREE.CanvasTexture(c);
+  return sparkTex;
+}
+
+// Underwater transition: bubbles rushing up + blue flash.
+function diveFx() {
+  const el = $('#diveFx');
+  el.innerHTML = '<div class="dfx-flash"></div><div class="dfx-line"></div>';
+  for (let i = 0; i < 46; i++) {
+    const b = document.createElement('span');
+    const s = 8 + Math.random() * 38;
+    b.style.width = b.style.height = `${s}px`;
+    b.style.left = `${Math.random() * 100}%`;
+    b.style.animationDelay = `${Math.random() * 0.5}s`;
+    b.style.animationDuration = `${0.9 + Math.random() * 0.9}s`;
+    el.appendChild(b);
+  }
+  el.classList.remove('hidden');
+  clearTimeout(diveFx.timer);
+  diveFx.timer = setTimeout(() => el.classList.add('hidden'), 2300);
+}
+
+function ringFlash(big) {
+  const el = $('#ringFlash');
+  el.classList.remove('go', 'big');
+  void el.offsetWidth;
+  el.classList.add('go');
+  if (big) el.classList.add('big');
 }
 
 function flash() {
@@ -1276,7 +1523,9 @@ function startDive(opts) {
   hideCard();
   $('#menu').classList.add('hidden');
   $('#menuBg').classList.add('hidden');
+  $('#intro').classList.add('hidden');
   $('#c').style.visibility = 'visible';
+  audio.music('dive');
   game = new Dive(opts);
   window.HADAL.game = game;
   input.enabled = true;
@@ -1481,7 +1730,7 @@ function showPause() {
       <button class="btn" id="pResume">▶ ${t('resume')}</button>
       <button class="btn secondary" id="pAsk">💬 ${t('askTitle')}</button>
       <button class="btn secondary" id="pLog">📖 ${t('logbook')}</button>
-      <button class="btn secondary" id="pSound">${audio.muted ? '🔊 ' + t('soundOn') : '🔇 ' + t('soundOff')}</button>
+      <div class="seg" id="pSound">${SOUND_MODES.map((m) => `<button data-s="${m}" class="${audio.mode === m ? 'on' : ''}">${soundLabel(m)}</button>`).join('')}</div>
       <button class="btn secondary" id="pAbort">⚠ ${t('abort')}</button>
     </div>
     <p style="font-size:12px;color:#8fb3c7;margin-top:14px">${t('keysHint')}</p>`, (root) => {
@@ -1491,10 +1740,12 @@ function showPause() {
       openAsk();
     };
     root.querySelector('#pLog').onclick = () => showLogbook('real');
-    root.querySelector('#pSound').onclick = () => {
-      audio.setMuted(!audio.muted);
-      showPause();
-    };
+    root.querySelectorAll('#pSound button').forEach((b) => {
+      b.onclick = () => {
+        audio.setMode(b.dataset.s);
+        root.querySelectorAll('#pSound button').forEach((x) => x.classList.toggle('on', x === b));
+      };
+    });
     root.querySelector('#pAbort').onclick = () => {
       resume();
       if (game.race) game.actSurface();
@@ -1572,7 +1823,7 @@ input.on('photo', () => game && game.actPhoto());
 input.on('grab', () => game && game.actGrab());
 input.on('surface', () => game && game.actSurface());
 input.on('ask', () => game && !game.ended && openAsk());
-input.on('mute', () => audio.setMuted(!audio.muted));
+input.on('mute', cycleSound);
 input.on('escape', () => {
   if (!$('#ask').classList.contains('hidden')) return closeAsk();
   if (game && !game.ended) {
@@ -1593,7 +1844,57 @@ function loop(now) {
   if (game) {
     game.update(dt);
     renderer.render(game.scene, camera);
+  } else if (aquarium && $('#c').style.visibility !== 'hidden') {
+    aquarium.update(dt);
+    renderer.render(aquarium.scene, aquarium.camera);
   }
+}
+
+// ======================= camera orbit (mouse / touch drag) =======================
+const camDrag = { active: false, id: null, x: 0, y: 0 };
+function bindCameraDrag() {
+  const c = $('#c');
+  c.addEventListener('pointerdown', (e) => {
+    if (!game || game.ended) return;
+    if (game.launch && !game.launch.done) {
+      game.launch.skip();
+      return;
+    }
+    camDrag.active = true;
+    camDrag.id = e.pointerId;
+    camDrag.x = e.clientX;
+    camDrag.y = e.clientY;
+    try {
+      c.setPointerCapture(e.pointerId);
+    } catch (x) {
+      /* ignore */
+    }
+  });
+  c.addEventListener('pointermove', (e) => {
+    if (!camDrag.active || e.pointerId !== camDrag.id || !game) return;
+    const dx = e.clientX - camDrag.x, dy = e.clientY - camDrag.y;
+    camDrag.x = e.clientX;
+    camDrag.y = e.clientY;
+    const o = game.orbit;
+    o.yaw = clamp(o.yaw - dx * 0.0075, -Math.PI, Math.PI);
+    o.pitch = clamp(o.pitch + dy * 0.005, -0.8, 0.95);
+    o.last = performance.now() / 1000;
+  });
+  const end = (e) => {
+    if (e.pointerId !== camDrag.id) return;
+    camDrag.active = false;
+    if (game) game.orbit.last = performance.now() / 1000;
+  };
+  c.addEventListener('pointerup', end);
+  c.addEventListener('pointercancel', end);
+  c.addEventListener('wheel', (e) => {
+    if (!game) return;
+    game.orbit.zoom = clamp(game.orbit.zoom + Math.sign(e.deltaY) * 1.5, -5, 16);
+    e.preventDefault();
+  }, { passive: false });
+  window.addEventListener('keydown', (e) => {
+    if (game && game.launch && !game.launch.done && ['Space', 'Enter', 'Escape', 'KeyW', 'ArrowUp', 'ArrowDown', 'KeyS'].includes(e.code)) game.launch.skip();
+  });
 }
 
 // ======================= boot =======================
@@ -1606,6 +1907,15 @@ async function boot() {
     return;
   }
   input.bindTouch($('#hud'));
+  bindCameraDrag();
+  try {
+    aquarium = new Aquarium();
+    aquarium.resize(window.innerWidth, window.innerHeight);
+    window.HADAL.aquarium = aquarium;
+  } catch (e) {
+    console.warn('Intro scene failed', e);
+    aquarium = null;
+  }
   await net.init();
   $('#loading').classList.add('hidden');
   requestAnimationFrame(loop);
@@ -1630,10 +1940,12 @@ async function boot() {
       else showMultiplayer();
     }
   };
-  if (!profile.name || !profile.age) {
-    buildMenuBg();
-    showWelcome(afterProfile);
-  } else afterProfile();
+  const afterIntro = () => {
+    if (!profile.name || !profile.age) showWelcome(afterProfile);
+    else afterProfile();
+  };
+  if (params.get('nointro') === '1') afterIntro();
+  else showIntro(afterIntro);
 }
 
 boot();

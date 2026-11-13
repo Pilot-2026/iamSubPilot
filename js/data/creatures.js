@@ -3,6 +3,190 @@
 // fact = short (all ages), more = extra detail (10+).
 
 export const CREATURES = [
+  // ---------------- REAL: sunlit + twilight zone (spawn around the ship) ----------------
+  // spawn: 'drop' = placed close to where the sub dives in, so you meet them right away.
+  {
+    id: 'dolphin', kind: 'real', model: 'dolphin', spawn: 'drop',
+    name: { en: 'Bottlenose dolphin', de: 'Großer Tümmler' }, sci: 'Tursiops truncatus',
+    depth: [5, 120], habitat: 'mid', count: 2, group: 4,
+    fact: {
+      en: 'Dolphins "see" with sound: they send out fast clicks and listen to the echoes – just like our sonar.',
+      de: 'Delfine „sehen“ mit Schall: Sie senden schnelle Klicklaute aus und hören auf das Echo – genau wie unser Sonar.',
+    },
+    more: {
+      en: 'They also whistle. Each dolphin has its own signature whistle, a bit like a name, that tells the group who and where it is.',
+      de: 'Außerdem pfeifen sie. Jeder Delfin hat seinen eigenen Erkennungspfiff – ein bisschen wie ein Name –, der der Gruppe sagt, wer und wo er ist.',
+    },
+    source: { label: 'DOSITS – Discovery of Sound in the Sea (URI)', url: 'https://dosits.org/?p=15905' },
+  },
+  {
+    id: 'humpback', kind: 'real', model: 'humpback', spawn: 'drop',
+    name: { en: 'Humpback whale', de: 'Buckelwal' }, sci: 'Megaptera novaeangliae',
+    depth: [15, 120], habitat: 'mid', count: 1, group: 1,
+    fact: {
+      en: 'Only male humpback whales sing. Their songs can go on for hours – and all males in one area sing the same song.',
+      de: 'Nur männliche Buckelwale singen. Ihre Gesänge können stundenlang dauern – und alle Männchen einer Region singen dasselbe Lied.',
+    },
+    more: {
+      en: 'Song sessions last from a few minutes to over 24 hours. Scientists think the songs play a role in finding a mate, but nobody knows exactly.',
+      de: 'Eine Gesangs-Session dauert von wenigen Minuten bis über 24 Stunden. Forschende vermuten, dass die Lieder bei der Partnersuche helfen – genau weiß es niemand.',
+    },
+    source: { label: 'NOAA National Marine Sanctuaries', url: 'https://sanctuaries.noaa.gov/news/sep22/mysteries-of-humpback-whale-song.html' },
+  },
+  {
+    id: 'whaleshark', kind: 'real', model: 'whaleshark', spawn: 'drop',
+    name: { en: 'Whale shark', de: 'Walhai' }, sci: 'Rhincodon typus',
+    depth: [10, 160], habitat: 'mid', count: 1, group: 1,
+    fact: {
+      en: 'The whale shark is the biggest fish in the ocean – and it eats some of the smallest food: plankton.',
+      de: 'Der Walhai ist der größte Fisch im Meer – und frisst mit das Kleinste: Plankton.',
+    },
+    more: {
+      en: 'It can dive to about 1,900 metres. Every whale shark has its own spot pattern, which scientists use like a fingerprint.',
+      de: 'Er kann rund 1.900 Meter tief tauchen. Jeder Walhai hat sein eigenes Punktemuster – Forschende nutzen es wie einen Fingerabdruck.',
+    },
+    source: { label: 'Save Our Seas Foundation', url: 'https://saveourseas.com/worldofsharks/species/whale-shark' },
+  },
+  {
+    id: 'turtle', kind: 'real', model: 'turtle', spawn: 'drop',
+    name: { en: 'Green sea turtle', de: 'Grüne Meeresschildkröte' }, sci: 'Chelonia mydas',
+    depth: [3, 60], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'Adult green sea turtles are vegetarians: they graze on seagrass and algae.',
+      de: 'Erwachsene Grüne Meeresschildkröten sind Vegetarier: Sie weiden Seegras und Algen ab.',
+    },
+    more: {
+      en: 'The name comes from the greenish colour of their fat, not their shell. Like all sea turtles they are reptiles and must come up to breathe.',
+      de: 'Der Name kommt von ihrem grünlichen Fett, nicht vom Panzer. Wie alle Meeresschildkröten sind sie Reptilien und müssen zum Atmen auftauchen.',
+    },
+    source: { label: 'NOAA Fisheries', url: 'https://www.fisheries.noaa.gov/species/green-turtle' },
+  },
+  {
+    id: 'manta', kind: 'real', model: 'manta', spawn: 'drop',
+    name: { en: 'Giant manta ray', de: 'Riesenmanta' }, sci: 'Mobula birostris',
+    depth: [10, 200], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'The giant manta is the largest ray: its "wings" can span almost 9 metres. It is harmless and filters tiny plankton from the water.',
+      de: 'Der Riesenmanta ist der größte Rochen: Seine „Flügel“ messen bis fast 9 Meter. Er ist harmlos und filtert winziges Plankton aus dem Wasser.',
+    },
+    more: {
+      en: 'Manta rays have the biggest brains of any fish. Their feeding dives link the surface with the deep sea.',
+      de: 'Mantas haben das größte Gehirn aller Fische. Mit ihren Tauchgängen zur Nahrungssuche verbinden sie die Oberfläche mit der Tiefsee.',
+    },
+    source: { label: 'NOAA Fisheries', url: 'https://www.fisheries.noaa.gov/feature-story/new-study-reveals-more-about-where-giant-manta-rays-go-and-why-0' },
+  },
+  {
+    id: 'tuna', kind: 'real', model: 'tuna', spawn: 'drop',
+    name: { en: 'Yellowfin tuna', de: 'Gelbflossen-Thun' }, sci: 'Thunnus albacares',
+    depth: [5, 200], habitat: 'mid', count: 2, group: 6,
+    fact: {
+      en: 'Yellowfin tuna are among the fastest swimmers in the ocean – around 70 km/h!',
+      de: 'Gelbflossen-Thunfische gehören zu den schnellsten Schwimmern im Meer – rund 70 km/h!',
+    },
+    more: {
+      en: 'Their torpedo-shaped body is built for speed. They are strong hunters with a big appetite.',
+      de: 'Ihr torpedoförmiger Körper ist auf Tempo gebaut. Sie sind kräftige Jäger mit großem Appetit.',
+    },
+    source: { label: 'Smithsonian Ocean', url: 'https://ocean.si.edu/node/110937' },
+  },
+  {
+    id: 'moonjelly', kind: 'real', model: 'moonjelly', spawn: 'drop',
+    name: { en: 'Moon jellyfish', de: 'Ohrenqualle' }, sci: 'Aurelia aurita',
+    depth: [3, 150], habitat: 'mid', count: 3, group: 5,
+    fact: {
+      en: 'Moon jellies have no brain, no heart and no eyes – and they are about 95% water.',
+      de: 'Ohrenquallen haben kein Gehirn, kein Herz und keine Augen – und bestehen zu etwa 95 % aus Wasser.',
+    },
+    more: {
+      en: 'Their English name comes from the round, see-through bell that looks like a moon. Their sting is very mild.',
+      de: 'Ihren englischen Namen „Mondqualle“ verdanken sie dem runden, durchsichtigen Schirm. Ihr Nesseln ist sehr schwach.',
+    },
+    source: { label: 'Houston Zoo', url: 'https://www.houstonzoo.org/explore/animals/moon-jelly/' },
+  },
+  {
+    id: 'sunfish', kind: 'real', model: 'sunfish', spawn: 'drop',
+    name: { en: 'Ocean sunfish', de: 'Mondfisch' }, sci: 'Mola',
+    depth: [10, 200], habitat: 'mid', count: 1, group: 1,
+    fact: {
+      en: 'Sunfish are the heaviest bony fish in the world. They look like a giant swimming head!',
+      de: 'Mondfische sind die schwersten Knochenfische der Welt. Sie sehen aus wie ein riesiger schwimmender Kopf!',
+    },
+    more: {
+      en: 'The record holder, a bump-head sunfish found near the Azores (Portugal) in 2021, weighed 2,744 kg – about as much as two cars.',
+      de: 'Der Rekordhalter, ein Buckelkopf-Mondfisch, wurde 2021 bei den Azoren (Portugal) gefunden: 2.744 kg – etwa so viel wie zwei Autos.',
+    },
+    source: { label: 'Guinness World Records', url: 'https://www.guinnessworldrecords.com/world-records/heaviest-bony-fish' },
+  },
+  {
+    id: 'spermwhale', kind: 'real', model: 'spermwhale', spawn: 'drop',
+    name: { en: 'Sperm whale', de: 'Pottwal' }, sci: 'Physeter macrocephalus',
+    depth: [350, 900], habitat: 'mid', count: 1, group: 1,
+    fact: {
+      en: 'Sperm whales dive deep to hunt squid. In the dark they find prey with clicks – the loudest animal sounds on Earth.',
+      de: 'Pottwale tauchen tief, um Tintenfische zu jagen. Im Dunkeln finden sie die Beute mit Klicks – den lautesten Tierlauten der Erde.',
+    },
+    more: {
+      en: 'Their deep dives last about 45 minutes on average. Rhythmic patterns of clicks, called codas, are used to talk to each other.',
+      de: 'Ein tiefer Tauchgang dauert im Schnitt etwa 45 Minuten. Rhythmische Klickmuster, sogenannte Codas, dienen der Verständigung.',
+    },
+    source: { label: 'NOAA Fisheries', url: 'https://www.fisheries.noaa.gov/science-blog/diving-deep-sperm-whale-clicks' },
+  },
+  {
+    id: 'hatchetfish', kind: 'real', model: 'hatchetfish', spawn: 'drop',
+    name: { en: 'Deep-sea hatchetfish', de: 'Tiefsee-Beilfisch' }, sci: 'Sternoptychidae',
+    depth: [250, 900], habitat: 'mid', count: 2, group: 6,
+    fact: {
+      en: 'Hatchetfish make light on their bellies that matches the faint light from above – so hunters below cannot see their shadow.',
+      de: 'Beilfische erzeugen am Bauch Licht, das zum schwachen Licht von oben passt – so sehen Jäger von unten ihren Schatten nicht.',
+    },
+    more: {
+      en: 'This trick is called counter-illumination. Their flat, silvery body is shaped like the blade of a hatchet.',
+      de: 'Dieser Trick heißt Gegenbeleuchtung. Ihr flacher, silbriger Körper sieht aus wie die Klinge eines Beils.',
+    },
+    source: { label: 'Penn Today (University of Pennsylvania)', url: 'https://penntoday.upenn.edu/news/penn-physicists-investigate-how-hatchetfish-camouflage-deep-sea' },
+  },
+  {
+    id: 'barreleye', kind: 'real', model: 'barreleye', spawn: 'drop',
+    name: { en: 'Barreleye', de: 'Gespensterfisch' }, sci: 'Macropinna microstoma',
+    depth: [600, 800], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'The barreleye has a see-through head! Its green, tube-shaped eyes sit inside and can rotate.',
+      de: 'Der Gespensterfisch hat einen durchsichtigen Kopf! Darin sitzen seine grünen, röhrenförmigen Augen – und sie können sich drehen.',
+    },
+    more: {
+      en: 'The eyes look up to spot the shadows of prey, then turn forward when it eats. The two "eyes" on its face are really its nostrils.',
+      de: 'Die Augen schauen nach oben, um Beute-Schatten zu entdecken, und drehen sich beim Fressen nach vorne. Die zwei „Augen“ vorne im Gesicht sind in Wahrheit Riechorgane.',
+    },
+    source: { label: 'MBARI', url: 'https://www.mbari.org/?p=86197' },
+  },
+  {
+    id: 'bristlemouth', kind: 'real', model: 'bristlemouth', spawn: 'drop',
+    name: { en: 'Bristlemouth', de: 'Borstenmaul' }, sci: 'Cyclothone',
+    depth: [400, 1200], habitat: 'mid', count: 3, group: 10,
+    fact: {
+      en: 'This tiny fish is probably the most common animal with a backbone on Earth – there may be quadrillions of them!',
+      de: 'Dieser winzige Fisch ist wahrscheinlich das häufigste Wirbeltier der Erde – es gibt vermutlich Billiarden davon!',
+    },
+    more: {
+      en: 'Most are only 2–3 cm long. Glowing dots on the belly confuse hunters that attack from below.',
+      de: 'Die meisten sind nur 2–3 cm lang. Leuchtpunkte am Bauch verwirren Jäger, die von unten angreifen.',
+    },
+    source: { label: 'Woods Hole Oceanographic Institution', url: 'https://twilightzone.whoi.edu/explore-the-otz/creature-features/bristlemouth' },
+  },
+  {
+    id: 'seacucumber', kind: 'real', model: 'seacucumber',
+    name: { en: 'Deep-sea sea cucumber', de: 'Tiefsee-Seegurke' }, sci: 'Holothuroidea (Elpidiidae)',
+    depth: [4000, 10500], habitat: 'floor', count: 6, group: 3,
+    fact: {
+      en: 'Sea cucumbers are the most common large animals on the deep seafloor. Researchers even call the trenches the "kingdom of the holothurians".',
+      de: 'Seegurken sind die häufigsten großen Tiere am Tiefseeboden. Forschende nennen die Gräben sogar das „Königreich der Holothurien“.',
+    },
+    more: {
+      en: 'They swallow mud and digest the tiny bits of food in it. Different species prefer different food, so they hardly compete.',
+      de: 'Sie schlucken Schlamm und verdauen die winzigen Nahrungsreste darin. Verschiedene Arten bevorzugen verschiedenes Futter – so kommen sie sich kaum in die Quere.',
+    },
+    source: { label: 'Jamieson et al. 2011, Marine Biology', url: 'https://eprints.soton.ac.uk/210855/1/jamieson_etal2011.pdf' },
+  },
   // ---------------- REAL: open water ----------------
   {
     id: 'lanternfish', kind: 'real', model: 'lanternfish',
