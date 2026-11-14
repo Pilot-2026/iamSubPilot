@@ -13,7 +13,7 @@ Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his ot
 - `js/main.js` – menu (footer bar = `footerHtml()`, same links/logos/social buttons as iamPilot), profile, `Dive` class (game loop per dive, `collide()` + `drawRadar()`), results, quiz, multiplayer lobby
 - `js/collide.js` – capsule shapes worked out from the 3D models, segment–segment tests (subs bounce off each other, animals/objects/ship hull are solid)
 - `js/world.js` – trench terrain (heightfield), light/fog by depth, sonar mapping shader, marine snow
-- `js/sub.js` – eight original sub designs (`SUB_MODELS`: isabella (mermaid sub, no. 1, built from `js/merfolk.js`), hummel, wolfshark (2nd in the picker, name plates "WOLFSHARK"), puffer, narwhal, octopus, rocket, ufo; merged parts via `js/parts.js`), movement; `RemoteSub` for teammates (model sent as player field `sub`)
+- `js/sub.js` – eight original sub designs (`SUB_MODELS`: isabella (mermaid sub, no. 1, built from `js/merfolk.js`, laughing face, no claw: grabs with her right hand – `info.hand` → `updateHandGrab`, the find floats into her palm), hummel, wolfshark (2nd in the picker, name plates "WOLFSHARK"), puffer, narwhal, octopus, rocket, ufo; merged parts via `js/parts.js`), movement; `RemoteSub` for teammates (model sent as player field `sub`)
 - `js/launch.js` – launch from the ship (HMS Andrew): A-frame, chains, splash, underwater transition (skippable); `Recovery` = the reverse when surfacing (crane lifts the sub back on deck, then results)
 - `js/schools.js` – instanced fish schools (decorative, upper ocean + twilight glow shoals)
 - `js/intro.js` – title screen / menu background aquarium (the wordmark assembles itself letter by letter: one plane per letter + roundel coin, water shader, animals, subs)

@@ -330,8 +330,9 @@ function buildWolfShark(g, B, ctx) {
 // A swimming mermaid with a scallop-shell cockpit on her back, a glowing gem in her tiara as headlight and
 // side thrusters at the hips. Tail, fins, arms, hair, head and eyes are all animated.
 function buildIsabella(g, B, ctx) {
-  const { group: fig, rig, info } = buildMerFigure(MER_PALETTES.isabella, { sub: true });
+  const { group: fig, rig, info } = buildMerFigure(MER_PALETTES.isabella, { sub: true, happy: true });
   g.add(fig);
+  g.userData.mer = rig;
   const M = {
     shell: std(0xffe3ef, { metalness: 0.35, roughness: 0.25, emissive: 0x3a1a28, emissiveIntensity: 0.15 }),
     rib: std(0xffb3d1, { metalness: 0.3, roughness: 0.3 }),
@@ -378,7 +379,8 @@ function buildIsabella(g, B, ctx) {
       j.scale.setScalar(0.9 + 0.3 * k);
     }
   };
-  return { lamp: [0, 0.98, -2.7], top: 0.75, attach: [1.4, 1.5], arm: [0, -0.48, -1.25] };
+  // no claw arm: she grabs with her right hand (shoulder position = where the reach is measured from)
+  return { lamp: [0, 0.98, -2.7], top: 0.75, attach: [1.4, 1.5], arm: [0.44, 0.03, -1.8], hand: { rig, arm: rig.armR } };
 }
 
 // ---------------- KUGELBLITZ (puffer fish ball) ----------------
@@ -825,7 +827,49 @@ function setExt(arm, e) {
   arm.s3.position.z = -0.2 - e3;
 }
 
+// Grabbing with a hand (ISABELLA): the arm reaches towards the find, a sparkling glow pulls it into her palm.
+function updateHandGrab(g, arm, dt) {
+  arm.t += dt;
+  const R = (arm.hand.rig.reach ||= { k: 0, yaw: 0, pitch: 0, grip: 0 });
+  const approach = (cur, want, rate) => cur + (want - cur) * (1 - Math.exp(-dt * rate));
+  if (arm.target) {
+    g.updateMatrixWorld();
+    arm.target.getWorldPosition(_tw);
+    g.worldToLocal(_tw);
+    _tw.sub(arm.root.position);
+    R.yaw = Math.atan2(-_tw.x, -_tw.z);
+    R.pitch = Math.atan2(_tw.y, Math.hypot(_tw.x, _tw.z));
+  }
+  const wantK = arm.state === 'out' || arm.state === 'grip' ? 1 : arm.state === 'in' && arm.t < 0.6 ? 1 : 0;
+  R.k = approach(R.k, wantK, 6);
+  R.grip = approach(R.grip, arm.state === 'grip' || arm.state === 'in' ? 1 : 0, 8);
+  if (arm.state === 'out' && arm.t > 0.6) {
+    arm.state = 'grip';
+    arm.t = 0;
+  } else if (arm.state === 'grip' && arm.t > 0.35) {
+    if (arm.onGrip) arm.carry = arm.onGrip(arm.claw) || null;
+    arm.onGrip = null;
+    arm.target = null;
+    arm.state = 'in';
+    arm.t = 0;
+  } else if (arm.state === 'in') {
+    if (arm.carry) {
+      // the find floats into her hand and gets small
+      arm.carry.position.multiplyScalar(Math.exp(-dt * 4.5));
+      arm.carry.scale.multiplyScalar(Math.exp(-dt * 1.4));
+    }
+    if (arm.t > 1.3) {
+      if (arm.carry) {
+        arm.carry.parent && arm.carry.parent.remove(arm.carry);
+        arm.carry = null;
+      }
+      arm.state = 'idle';
+    }
+  }
+}
+
 function updateArm(g, arm, dt, t) {
+  if (arm.hand) return updateHandGrab(g, arm, dt);
   arm.t += dt;
   const approach = (cur, want, rate) => cur + (want - cur) * (1 - Math.exp(-dt * rate));
   let wantYaw = 0, wantPitch = ARM_REST_PITCH, wantExt = 0, wantOpen = 0.22 + Math.sin(t * 1.3) * 0.06;
@@ -914,6 +958,13 @@ export function buildSubModel(type = 'hummel', color = null, withLights = false)
   const info = BUILDERS[def.id](g, B, ctx);
   B.build(g);
   g.userData.arm = buildArm(g, info.arm || [0, -0.9, -1.1]);
+  if (info.hand) {
+    // hand grab: keep the arm's timing, but without the visible claw (its meshes leave the model)
+    const arm = g.userData.arm;
+    g.remove(arm.root);
+    arm.hand = info.hand;
+    arm.claw = info.hand.arm.anchor;
+  }
   g.userData.type = def.id;
   g.userData.top = info.top;
   g.userData.attach = info.attach;

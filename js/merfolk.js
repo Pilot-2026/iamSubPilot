@@ -50,9 +50,9 @@ export const MER_PALETTES = {
 
 // ---------------------------------------------------------------------------
 // Mermaid figure. Returns { group, rig, info }.
-export function buildMerFigure(P, { sub = false } = {}) {
+export function buildMerFigure(P, { sub = false, happy = false } = {}) {
   const g = new THREE.Group();
-  const rig = { P, armL: null, armR: null, tail: [], fins: [], strands: [], eyes: [], head: null, fluke: null, gemMat: null, t0: Math.random() * 10 };
+  const rig = { P, armL: null, armR: null, tail: [], fins: [], strands: [], eyes: [], head: null, fluke: null, gemMat: null, t0: Math.random() * 10, happy, reach: null };
   const M = {
     body: vc({ roughness: 0.5 }),
     skin: std(P.skin, { roughness: 0.55 }),
@@ -111,17 +111,48 @@ export function buildMerFigure(P, { sub = false } = {}) {
     e.rotation.y = Math.PI - s * 0.22;
     head.add(e);
     rig.eyes.push(e);
-    // brows and lashes
-    HB.add(M.dark, new THREE.BoxGeometry(0.12, 0.018, 0.02), { p: [s * 0.17, 0.17, -0.41], r: [0, 0, s * 0.18] });
-    for (let k = 0; k < 3; k++) HB.add(M.dark, new THREE.BoxGeometry(0.012, 0.045, 0.012), { p: [s * (0.14 + k * 0.04), 0.135, -0.43], r: [0.4, 0, s * (0.35 - k * 0.25)] });
+    if (happy) {
+      // high, round, cheerful brows
+      HB.add(M.dark, new THREE.TorusGeometry(0.07, 0.013, 6, 14, Math.PI * 0.8), { p: [s * 0.17, 0.17, -0.415], r: [0.1, 0, Math.PI * 0.1] });
+      // laughing eyes: the cheeks push up from below, and in a laugh the eyes squeeze into happy arcs (^ ^)
+      const lid = new THREE.Mesh(new THREE.SphereGeometry(0.117, 16, 8, 0, Math.PI * 2, Math.PI * 0.7, Math.PI * 0.3), M.skin);
+      lid.position.set(s * 0.165, 0.04, -0.383);
+      lid.rotation.set(-0.12, Math.PI - s * 0.22, 0, 'YXZ');
+      head.add(lid);
+      const arc = new THREE.Mesh(new THREE.TorusGeometry(0.075, 0.016, 6, 14, Math.PI), M.dark);
+      arc.position.set(s * 0.165, 0.03, -0.445);
+      arc.rotation.x = 0.15;
+      arc.visible = false;
+      head.add(arc);
+      (rig.eyeArcs ||= []).push(arc);
+    } else HB.add(M.dark, new THREE.BoxGeometry(0.12, 0.018, 0.02), { p: [s * 0.17, 0.17, -0.41], r: [0, 0, s * 0.18] });
+    for (let k = 0; k < 3; k++) HB.add(M.dark, new THREE.BoxGeometry(0.011, 0.034, 0.011), { p: [s * (0.15 + k * 0.035), 0.128 - Math.abs(k - 1) * 0.006, -0.44], r: [0.95, 0, s * (0.75 - k * 0.3)] });
     // rosy cheeks
-    const ck = new THREE.Mesh(new THREE.CircleGeometry(0.065, 16), M.cheek);
-    ck.position.set(s * 0.27, -0.06, -0.37);
+    const ck = new THREE.Mesh(new THREE.CircleGeometry(happy ? 0.085 : 0.065, 16), M.cheek);
+    ck.position.set(s * 0.27, happy ? -0.045 : -0.06, -0.37);
     ck.rotation.y = Math.PI - s * 0.55;
     head.add(ck);
   }
   HB.add(M.skin, new THREE.SphereGeometry(0.038, 10, 8), { p: [0, -0.03, -0.46] });
-  HB.add(M.lips, new THREE.TorusGeometry(0.075, 0.016, 6, 18, Math.PI), { p: [0, -0.135, -0.41], r: [0.25, 0, Math.PI] });
+  if (happy) {
+    // big open laughing mouth: red inside, a row of white teeth, a pink tongue, smiling lips around it
+    const mouth = new THREE.Group();
+    mouth.position.set(0, -0.135, -0.445);
+    mouth.rotation.x = 0.28;
+    head.add(mouth);
+    const MB = new PartBuilder();
+    const inner = std(0x8a1230, { roughness: 0.6 });
+    inner.side = THREE.DoubleSide;
+    MB.add(inner, new THREE.CircleGeometry(0.12, 28, Math.PI, Math.PI), { r: [0, Math.PI, 0], s: [1.15, 0.95, 1] });
+    MB.add(std(0xffffff, { roughness: 0.3 }), new THREE.BoxGeometry(0.22, 0.035, 0.01), { p: [0, -0.016, -0.004] });
+    MB.add(std(0xff7a9a, { roughness: 0.5 }), new THREE.SphereGeometry(1, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), { p: [0, -0.098, -0.002], r: [-Math.PI / 2, 0, 0], s: [0.06, 0.05, 0.02] });
+    MB.add(M.lips, new THREE.TorusGeometry(0.135, 0.016, 6, 24, Math.PI), { p: [0, 0, 0.002], r: [0, 0, Math.PI], s: [1.03, 0.92, 1] });
+    MB.add(M.lips, new THREE.CylinderGeometry(0.014, 0.014, 0.28, 6), { p: [0, 0.002, 0.002], r: [0, 0, Math.PI / 2] });
+    // little laugh lines at the corners of the mouth
+    for (const s of [-1, 1]) MB.add(M.lips, new THREE.TorusGeometry(0.03, 0.009, 4, 8, Math.PI * 0.7), { p: [s * 0.15, 0.01, 0.004], r: [0, 0, s > 0 ? -0.6 : Math.PI + 0.6] });
+    MB.build(mouth);
+    rig.mouth = mouth;
+  } else HB.add(M.lips, new THREE.TorusGeometry(0.075, 0.016, 6, 18, Math.PI), { p: [0, -0.135, -0.41], r: [0.25, 0, Math.PI] });
   // hair: cap over the back and the top, fringe over the forehead (the face stays free)
   const FACE = 1.0;
   HB.add(M.hair, new THREE.SphereGeometry(0.5, 26, 16, Math.PI * 1.5 + FACE, Math.PI * 2 - 2 * FACE, 0, Math.PI * 0.64), { p: [0, 0.03, 0.03], s: [1.06, 1.05, 1.1] });
@@ -186,6 +217,15 @@ export function buildMerFigure(P, { sub = false } = {}) {
     HB2.add(M.skin, capZ(0.02, 0.09), { p: [s * 0.06, 0, -0.04], r: [0, Math.PI + s * 0.9, 0] });
     HB2.build(hand);
     const arm = { sh, el, hand, s };
+    // the right hand can grab things: an anchor in the palm and a sparkling glow while she pulls a find in
+    if (s > 0) {
+      arm.anchor = new THREE.Group();
+      arm.anchor.position.set(0, 0, -0.12);
+      hand.add(arm.anchor);
+      arm.glow = new THREE.Mesh(new THREE.SphereGeometry(0.16, 16, 12), new THREE.MeshBasicMaterial({ color: 0xbff8ff, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+      arm.glow.position.z = -0.1;
+      hand.add(arm.glow);
+    }
     if (s < 0) rig.armL = arm;
     else rig.armR = arm;
   }
@@ -286,14 +326,31 @@ export function animMer(rig, t, dt, speed = 0, opts = {}) {
     arm.el.rotation.set(0, e, 0);
     arm.hand.rotation.set(0, 0, Math.sin(t * 2 + s) * 0.2);
   }
-  // head: looking around, blinking
+  // reaching for something with the right hand (grabbing): the arm points at it, the elbow straightens
+  const R = rig.reach;
+  if (R && R.k > 0.001 && rig.armR) {
+    const a = rig.armR;
+    a.sh.rotation.order = 'YXZ';
+    a.sh.rotation.x = lerp(a.sh.rotation.x, R.pitch, R.k);
+    a.sh.rotation.y = lerp(a.sh.rotation.y, R.yaw, R.k);
+    a.el.rotation.y = lerp(a.el.rotation.y, 0, R.k);
+    a.hand.rotation.x = lerp(0, -0.5 * R.grip, R.k);
+    if (a.glow) {
+      a.glow.material.opacity = R.k * (0.35 + 0.25 * Math.sin(t * 18));
+      a.glow.scale.setScalar(1 + R.k * 0.6 + 0.2 * Math.sin(t * 9));
+    }
+  } else if (rig.armR && rig.armR.glow) rig.armR.glow.material.opacity = 0;
+  // head: looking around, blinking – and a happy laugh every few seconds
+  const laugh = rig.happy && t % 6.5 < 1.7;
   if (rig.head) {
     rig.head.rotation.y = 0.28 * Math.sin(t * 0.45) + (opts.look || 0);
-    rig.head.rotation.x = 0.07 * Math.sin(t * 0.8);
-    rig.head.rotation.z = 0.06 * Math.sin(t * 0.6);
+    rig.head.rotation.x = 0.07 * Math.sin(t * 0.8) + (laugh ? -0.08 + 0.06 * Math.sin(t * 16) : 0);
+    rig.head.rotation.z = 0.06 * Math.sin(t * 0.6) + (laugh ? 0.05 * Math.sin(t * 8) : 0);
   }
+  if (rig.mouth) rig.mouth.scale.set(1 + (laugh ? 0.08 : 0), laugh ? 1.05 + 0.35 * Math.abs(Math.sin(t * 15)) : 0.95 + 0.07 * Math.sin(t * 2.2), 1);
   const blink = t % 3.9 < 0.13 ? 0.12 : 1;
-  for (const e of rig.eyes) e.scale.y = blink;
+  for (const e of rig.eyes) e.scale.y = laugh ? 0.08 : rig.happy ? Math.min(blink, 0.9) : blink;
+  if (rig.eyeArcs) for (const a of rig.eyeArcs) a.visible = laugh;
   for (const st of rig.strands) {
     st.chain.forEach((seg, i) => {
       seg.rotation.x = 0.04 + 0.07 * Math.sin(t * 2.1 - i * 0.8 + st.ph) - moving * 0.03;
