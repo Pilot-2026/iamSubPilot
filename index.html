@@ -50,7 +50,7 @@
       <div class="bar"><span id="lLife">Life</span><div class="track"><div class="fill" id="bLife"></div></div><span class="val" id="vLife"></span></div>
     </div>
     <div id="gauge"><div id="gaugeMax"></div><div id="gaugeHull"></div><div id="gaugeSub"></div></div>
-    <div id="missions" class="panel"></div>
+    <div id="missions" class="panel"><div id="missionsList"></div><div id="deepNav" class="hidden"><span class="dn-arrow">▲</span><span class="dn-txt"></span></div></div>
     <div id="race" class="panel hidden"><div id="raceTime">0:00.0</div><div id="raceRing"></div></div>
     <div id="team" class="panel hidden"></div>
     <div id="echo"><div class="avatar"><span></span><span></span><span></span></div><div id="echoText"></div></div>
@@ -79,9 +79,12 @@
     </div>
     <button id="btnPause" data-action="escape" aria-label="Pause">❚❚</button>
     <button id="btnSound" data-action="mute" aria-label="Sound: music + FX / FX / music / silent">🔊</button>
+    <button id="btnMap" data-action="map" aria-label="Map">🗺</button>
     <div id="keysHint"></div>
   </div>
 
+  <div id="map" class="hidden"><div class="map-box"><div class="map-head"><b>🗺 <span class="map-title">Map</span></b><span class="map-info"></span><button class="map-x" data-action="map" aria-label="Close">×</button></div><canvas></canvas><div class="map-legend"><span class="map-ramp"></span><span class="map-lg"></span></div></div></div>
+  <div id="subSpin" class="hidden"></div>
   <div id="help" class="hidden"></div>
   <div id="cardBack" class="hidden"></div>
   <div id="card"></div>

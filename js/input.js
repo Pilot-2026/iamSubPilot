@@ -34,7 +34,7 @@ export class Input {
     }
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
     if (!down || e.repeat) return;
-    const map = { KeyF: 'sonar', KeyL: 'light', KeyC: 'photo', Enter: 'photo', KeyG: 'grab', KeyI: 'ask', KeyH: 'help', KeyX: 'boost', KeyB: 'surface', Escape: 'escape', KeyP: 'escape', KeyM: 'mute' };
+    const map = { KeyF: 'sonar', KeyL: 'light', KeyC: 'photo', Enter: 'photo', KeyG: 'grab', KeyI: 'ask', KeyH: 'help', KeyX: 'boost', KeyK: 'map', KeyB: 'surface', Escape: 'escape', KeyP: 'escape', KeyM: 'mute' };
     if (map[k]) this.fire(map[k]);
   }
 

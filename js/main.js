@@ -24,6 +24,8 @@ import { viewer, playTurntable } from './viewer.js';
 import { recordVisit, recordDive, markOwner, isOwner } from './stats.js';
 import { openStats } from './statsview.js';
 import { Recovery } from './launch.js';
+import { DeepBeacon, MapView, fmtDist } from './guide.js';
+import { Atlantis, atlantisSpot } from './atlantis.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -44,7 +46,7 @@ const DEFAULT_PROFILE = () => ({
   dives: 0,
   lastLevel: 'java',
   lastMode: 'expedition',
-  sub: 'hummel',
+  sub: 'isabella',
   debrief: true,
 });
 let profile = loadProfile();
@@ -276,6 +278,12 @@ let cardOpen = null;
 function closeCard(quick = false) {
   const el = $('#card');
   el.classList.remove('show');
+  if (el.classList.contains('big')) {
+    clearTimeout(closeCard.t);
+    closeCard.t = setTimeout(() => {
+      if (!el.classList.contains('show')) el.classList.remove('big');
+    }, 350);
+  }
   $('#cardBack').classList.add('hidden');
   if (cardOpen && cardOpen.big) viewer().hide();
   if (cardOpen && cardOpen.paused && game && !game.ended) {
@@ -447,7 +455,7 @@ function subThumb(id) {
 // ======================= passers-by in front of the main menu =======================
 // Now and then a single fish or sub glides across the menu (in front of the text).
 const PASSERS = [
-  ['sub', 'hummel', 220], ['sub', 'wolfshark', 240], ['sub', 'puffer', 170], ['sub', 'narwhal', 250], ['sub', 'octopus', 170], ['sub', 'rocket', 230], ['sub', 'ufo', 220],
+  ['sub', 'isabella', 260], ['sub', 'hummel', 220], ['sub', 'wolfshark', 240], ['sub', 'puffer', 170], ['sub', 'narwhal', 250], ['sub', 'octopus', 170], ['sub', 'rocket', 230], ['sub', 'ufo', 220],
   ['ani', 'turtle', 150], ['ani', 'manta', 230], ['ani', 'dolphin', 190], ['ani', 'tuna', 120], ['ani', 'sunfish', 150],
   ['ani', 'hammerhead', 230], ['ani', 'whiteshark', 260], ['ani', 'blueshark', 230], ['ani', 'goblin', 220],
   ['ani', 'whaleshark', 300], ['ani', 'angler', 120], ['ani', 'jellyphant', 150], ['ani', 'duckangler', 130], ['ani', 'toaster', 140],
@@ -507,14 +515,26 @@ function showInfo(onDone) {
 let selLevel = profile.lastLevel;
 let selMode = profile.lastMode;
 
+// The sub under the mouse (or the tapped one on touch screens) appears big in its own layer above the
+// cards – it may overlap the text and is never cut off by the scrolling row – and turns slowly around.
 let spinning = null;
 function spinSub(card) {
   if (spinning === card) return;
   unspinSub();
   spinning = card;
   card.classList.add('spin');
+  const box = $('#subSpin');
+  const r = card.querySelector('.subimg').getBoundingClientRect();
+  const size = Math.max(Math.min(420, window.innerWidth * 0.9), Math.min(window.innerWidth * 0.7, r.width * 3.6));
+  const h = size * 0.7;
+  box.style.width = size + 'px';
+  box.style.height = h + 'px';
+  box.style.left = clamp(r.left + r.width / 2 - size / 2, 4, window.innerWidth - size - 4) + 'px';
+  box.style.top = clamp(r.top + r.height / 2 - h / 2, 4, window.innerHeight - h - 4) + 'px';
+  box.classList.remove('hidden');
+  requestAnimationFrame(() => box.classList.add('show'));
   try {
-    viewer().show(card.querySelector('.subimg'), 'sub:' + card.dataset.sub, { speed: (Math.PI * 2) / 9, zoom: 0.82, start: 0.6, drag: false });
+    viewer().show(box, 'sub:' + card.dataset.sub, { speed: (Math.PI * 2) / 9, zoom: 0.72, start: 0.6, drag: false });
   } catch (e) {
     console.warn(e);
   }
@@ -523,8 +543,13 @@ function unspinSub(card) {
   if (card && spinning !== card) return;
   if (spinning) spinning.classList.remove('spin');
   spinning = null;
+  const box = $('#subSpin');
+  box.classList.remove('show');
+  box.classList.add('hidden');
   viewer().hide();
 }
+window.addEventListener('scroll', () => spinning && unspinSub(), true);
+window.addEventListener('resize', () => spinning && unspinSub());
 
 function renderMenu() {
   viewer().hide();
@@ -1276,6 +1301,9 @@ function onRoomPlayers(players) {
   if (resultsRace) renderRaceStandings();
 }
 
+// a mission's identity (the same on every device of a team dive)
+const missionKey = (m) => [m.type, m.arg || '', m.n || '', m.d || '', m.p || ''].join(':');
+
 // ======================= the dive =======================
 const ZERO_INPUT = { throttle: 0, turn: 0, vertical: 0, boost: false };
 
@@ -1351,6 +1379,8 @@ class Dive {
     this.ended = false;
     this.paused = false;
     this.missions = this.race ? [] : makeMissions(level, this.cm, this.rng);
+    this.beacon = this.race ? null : new DeepBeacon(this.scene, this.cm.deepest);
+    this.mapView = new MapView(this);
     this.camPos = this.sub.pos.clone().add(new THREE.Vector3(10, 3.5, 0));
     this.shake = 0;
     this.nextQuake = 60 + this.rng() * 60;
@@ -1470,6 +1500,8 @@ class Dive {
     $('#tUp').textContent = t('btnUp');
     $('#tDown').textContent = t('btnDown');
     $('#keysHint').textContent = t('keysHint');
+    $('#map .map-title').textContent = t('mapTitle');
+    $('#map .map-lg').textContent = t('mapLegend', { d: fmtNum(this.level.maxDepth) });
     updateSoundBtn();
     $('#bLight').classList.add('on');
     const gmax = this.level.maxDepth;
@@ -1480,8 +1512,8 @@ class Dive {
 
   renderMissions() {
     if (this.race) return;
-    $('#missions').innerHTML = `<div class="mtitle">${t('missions')}</div>` +
-      this.missions.map((m) => `<div class="m ${m.done ? 'done' : ''}"><span class="box"></span><span>${escapeHtml(missionText(m))}</span></div>`).join('');
+    $('#missionsList').innerHTML = `<div class="mtitle">${t('missions')}</div>` +
+      this.missions.map((m) => `<div class="m ${m.done ? 'done' : ''}"><span class="box"></span><span>${escapeHtml(missionText(m))}${m.byTeam ? ` <small class="by">· ${escapeHtml(m.byTeam)}</small>` : ''}</span></div>`).join('');
   }
 
   depth() {
@@ -1624,7 +1656,7 @@ class Dive {
     const isNew = !prev;
     profile.logbook[def.id] = { n: (prev?.n || 0) + 1, maxDepth: Math.max(prev?.maxDepth || 0, depth), first: prev?.first || Date.now() };
     saveProfile();
-    this.found.push({ def, isNew, team, depth });
+    this.found.push({ def, isNew, team, depth, pos: this.sub.pos.clone() });
     if (def.kind === 'real') this.realCount++;
     if (def.kind === 'fantasy') this.fantasyCount++;
     if (def.kind === 'fantasy') audio.fantasy(def.sound);
@@ -1662,7 +1694,101 @@ class Dive {
       audio.mission();
       setTimeout(() => toast(t('missionDone'), missionText(m)), 900);
     }
+    if (done.length) this.publishMissions();
     this.renderMissions();
+    this.afterMissions();
+  }
+
+  // Team dives: everybody has the same missions (same seed). Each diver keeps the list of finished missions in
+  // the player data – the others tick them off too, also somebody who joins later.
+  publishMissions() {
+    if (!this.multi || !this.multi.coop || !net.room) return;
+    const md = this.missions.filter((m) => m.done).map(missionKey);
+    const sig = md.join(',');
+    if (sig === this.mdSig) return;
+    this.mdSig = sig;
+    net.setPlayer({ md });
+  }
+
+  applyTeamMissions(uid, p) {
+    if (this.race || !this.multi || !this.multi.coop || !Array.isArray(p.md) || !p.md.length) return;
+    let any = false;
+    for (const m of this.missions) {
+      if (m.done || !p.md.includes(missionKey(m))) continue;
+      m.done = true;
+      m.byTeam = p.name || '?';
+      if (m.n) m.progress = m.n;
+      if (m.p) m.progress = m.p;
+      any = true;
+      audio.mission();
+      toast(`✓ ${t('missionDone')}`, `${missionText(m)} · ${t('missionByTeam', { name: p.name || '?' })}`);
+    }
+    if (any) {
+      this.publishMissions();
+      this.renderMissions();
+      this.afterMissions();
+    }
+  }
+
+  // every mission done: Atlantis appears
+  afterMissions() {
+    if (this.race || this.atlantis || this.atlantisPending || this.ended || this.ending || !this.missions.length) return;
+    if (!this.missions.every((m) => m.done)) return;
+    this.atlantisPending = true;
+    setTimeout(() => this.startAtlantis(), 2200);
+  }
+
+  // secret: press 1 five times – all missions done, Atlantis appears
+  cheatComplete() {
+    if (this.race || this.ended || this.ending) return;
+    for (const m of this.missions) {
+      if (m.done) continue;
+      m.done = true;
+      if (m.n) m.progress = m.n;
+      if (m.p) m.progress = Math.max(m.progress || 0, m.p);
+    }
+    audio.fanfare();
+    toast('✨ ' + t('cheatDone'));
+    this.publishMissions();
+    this.renderMissions();
+    this.afterMissions();
+  }
+
+  // a short text about Atlantis first, then the city rises from the floor
+  startAtlantis() {
+    if (this.atlantis || this.ended || this.ending) return;
+    const solo = !this.multi;
+    if (solo) this.paused = true;
+    showModal(`<div class="atl-intro">
+      <div class="atl-badge">★ ${t('fantasy')} · ${t('atlLegend')}</div>
+      <h1>🏛️ ${t('atlTitle')}</h1>
+      <p>${t('atlText1')}</p>
+      <p>${t('atlText2')}</p>
+      <p class="atl-game">${t('atlText3')}</p>
+      <div class="src">${t('source')}: <a href="https://www.gutenberg.org/ebooks/1571" target="_blank" rel="noopener">Plato, Critias (Project Gutenberg)</a> · <a href="https://www.horniman.ac.uk/story/the-legend-of-atlantis/" target="_blank" rel="noopener">Horniman Museum: The Legend of Atlantis</a> · <a href="https://www.worldatlas.com/ancient-world/did-atlantis-really-exist.html" target="_blank" rel="noopener">WorldAtlas: Did Atlantis really exist?</a></div>
+      <div class="row-end"><button class="btn big" id="atlGo">🏛️ ${t('atlGo')}</button></div>
+    </div>`, (root) => {
+      root.querySelector('#atlGo').onclick = () => {
+        closeModal();
+        if (solo && !this.ended) this.paused = false;
+        input.enabled = !this.ended;
+        this.raiseAtlantis();
+      };
+    }, 'glass atl');
+    input.enabled = false;
+  }
+
+  raiseAtlantis() {
+    if (this.atlantis || this.ended) return;
+    const spot = this.teamAtl || atlantisSpot(this.world, this.sub);
+    this.atlantis = new Atlantis(this.scene, this.world, spot, (this.seed ^ 0xa71a) >>> 0);
+    if (this.multi && this.multi.coop && net.room) net.setPlayer({ atl: [Math.round(spot.x), Math.round(spot.z)] });
+    this.energy = this.hull = this.life = 100;
+    this.flags.lowEnergy = false;
+    audio.fanfare();
+    diveFx();
+    echoSay(t('atlWelcome'), { now: true });
+    toast('🏛️ Atlantis', t('atlToast'));
   }
 
   // ---------- network ----------
@@ -1680,6 +1806,11 @@ class Dive {
       r.data = p;
       if (p.s) r.setState(p.s);
       r.setTalking(!!p.talk);
+      if (Array.isArray(p.atl) && !this.teamAtl) this.teamAtl = { x: p.atl[0], z: p.atl[1] };
+      if (p.md && p.md.join(',') !== r.mdSig) {
+        r.mdSig = p.md.join(',');
+        this.applyTeamMissions(uid, p);
+      }
     }
     for (const [uid, r] of this.remote) {
       if (!ids.has(uid)) {
@@ -1929,8 +2060,11 @@ class Dive {
     const depth = this.depth();
     this.maxDepth = Math.max(this.maxDepth, depth);
 
-    // resources
-    if (!this.race && !this.ended && !launching && !recovering) {
+    // resources (in Atlantis nothing runs out)
+    if (this.atlantis) {
+      this.energy = this.hull = this.life = 100;
+    }
+    if (!this.race && !this.ended && !launching && !recovering && !this.atlantis) {
       const drain = (0.07 + this.sub.thrust * 0.11 + (this.sub.lightOn ? 0.05 : 0) + (this.boost ? 0.12 : 0)) / this.batteryCap;
       this.energy -= drain * dt;
       this.life -= (100 / 720) * dt;
@@ -1952,7 +2086,7 @@ class Dive {
       }
     }
     if (this.sub.impact > 0) {
-      if (!this.race) this.hull -= this.sub.impact * 10;
+      if (!this.race && !this.atlantis) this.hull -= this.sub.impact * 10;
       audio.thud();
       this.shake = Math.max(this.shake, 0.4);
       if (this.time - this.lastHit > 8) {
@@ -1963,7 +2097,7 @@ class Dive {
     this.energy = clamp(this.energy, 0, 100);
     this.hull = clamp(this.hull, 0, 100);
     this.life = clamp(this.life, 0, 100);
-    if (!this.race && !recovering) {
+    if (!this.race && !recovering && !this.atlantis) {
       if (this.energy <= 0) this.emergency('energy');
       else if (this.hull <= 0) this.emergency('hull');
       else if (this.life <= 0) this.emergency('life');
@@ -2002,14 +2136,22 @@ class Dive {
       echoSay(line('deep10k'));
     }
 
-    // deepest point
+    // deepest point: close to the marker, or anywhere down in the deepest basin of the trench (its floor is
+    // flat over a long stretch – being there counts, not only the exact spot)
     const dp = this.cm.deepest;
-    if (!this.atDeepest && Math.hypot(this.sub.pos.x - dp.x, this.sub.pos.z - dp.z) < 22 && this.sub.pos.y - dp.y < 14) {
-      this.atDeepest = true;
-      echoSay(line('deepest'), { now: true });
-      toast(t('deepestFound'), `${fmtNum(-dp.y * SCALE)} m`);
-      audio.mission();
-      this.checkMissions();
+    if (!this.atDeepest && !recovering) {
+      const floorY = this.world.heightAt(this.sub.pos.x, this.sub.pos.z);
+      const nearMark = Math.hypot(this.sub.pos.x - dp.x, this.sub.pos.z - dp.z) < 24 && this.sub.pos.y - dp.y < 16;
+      const inBasin = floorY <= dp.floorY + 4 && this.sub.pos.y - floorY < 16; // floor within 40 m of the deepest depth
+      if (nearMark || inBasin) {
+        this.atDeepest = true;
+        this.world.deepestFound && this.world.deepestFound();
+        if (this.beacon) this.beacon.found();
+        echoSay(line('deepest'), { now: true });
+        toast(`🎯 ${t('deepestFound')}`, `${fmtNum(-dp.y * SCALE)} m`);
+        audio.mission();
+        this.checkMissions();
+      }
     }
 
     // creatures, targets
@@ -2058,6 +2200,28 @@ class Dive {
     const launchCam = !recCam && this.launch ? this.launch.update(dt, camera) : false;
     if (!launchCam && !recCam) this.updateCamera(dt);
     this.updateFx(dt);
+
+    // Atlantis
+    if (this.atlantis) {
+      const da = Math.hypot(this.sub.pos.x - this.atlantis.center.x, this.sub.pos.z - this.atlantis.center.z);
+      this.world.magic = Math.min(1, Math.max(0, 1 - (da - 80) / 140)) * this.atlantis.rise;
+      const hello = this.atlantis.update(dt, this.time, this.sub);
+      this.atlantis.clampSub(this.sub);
+      if (hello === 'neptune') {
+        echoSay(t('atlNeptune'), { now: true });
+        toast('🔱 ' + t('atlNeptuneName'), t('atlNeptuneHi'));
+        audio.fanfare();
+      } else if (hello === 'mermaid') {
+        echoSay(t('atlMermaid'), { now: true });
+        toast('🧜‍♀️ ' + t('atlMermaidName'), t('atlMermaidHi'));
+        audio.discovery();
+      }
+    }
+
+    // guide: beacon over the deepest point, map
+    if (this.beacon) this.beacon.update(this.time);
+    this.mapView.mark(this.sub.pos, dt);
+    this.mapView.update(dt);
 
     // remote subs + network
     for (const r of this.remote.values()) r.update(dt);
@@ -2229,8 +2393,25 @@ class Dive {
     camera.lookAt(ahead.lerp(atSub, free));
   }
 
+  // little guide to the deepest point: direction (relative to the view), distance, how much deeper
+  updateDeepNav() {
+    const el = $('#deepNav');
+    const show = !this.race && !this.atDeepest && !this.atlantis && !this.recovery && !this.ended && !(this.launch && !this.launch.done);
+    el.classList.toggle('hidden', !show);
+    if (!show) return;
+    const dp = this.cm.deepest, p = this.sub.pos;
+    const dx = dp.x - p.x, dz = dp.z - p.z;
+    const dist = Math.hypot(dx, dz) * SCALE;
+    const v = camera.getWorldDirection(new THREE.Vector3());
+    const ang = Math.atan2(dx * v.z - dz * v.x, dx * v.x + dz * v.z); // >0: target to the right
+    el.querySelector('.dn-arrow').style.transform = `rotate(${(-ang * 180) / Math.PI}deg)`;
+    const deeper = Math.max(0, (p.y - dp.floorY) * SCALE);
+    el.querySelector('.dn-txt').textContent = `${t('deepestShort')} · ${fmtDist(dist)}${deeper > 60 ? ' · ' + t('deeperBy', { d: fmtNum(Math.round(deeper / 10) * 10) }) : ''}`;
+  }
+
   updateHud(depth) {
     $('#hDepth').textContent = fmtNum(depth);
+    this.updateDeepNav();
     $('#hZone').textContent = t(zoneKey(depth));
     $('#hPressure').textContent = `${fmtNum(depth / 10 + 1)} bar`;
     $('#hTemp').textContent = `${fmtDec(this.temperature(depth), 1)} °C`;
@@ -2350,6 +2531,9 @@ class Dive {
 
   finish() {
     if (this.ended) return;
+    if (this.mapView) this.mapView.toggle(false);
+    hideCard();
+    toggleHelp(false);
     $('#skipHint').classList.add('hidden');
     this.ended = true;
     input.enabled = false;
@@ -2359,6 +2543,7 @@ class Dive {
   }
 
   dispose() {
+    if (this.mapView) this.mapView.toggle(false);
     audio.winch(false);
     $('#skipHint').classList.add('hidden');
     this.contactEls.forEach((e) => e.remove());
@@ -2498,8 +2683,17 @@ function showResults(g) {
   const foundHtml = g.found.length
     ? `<h3 class="ptitle">📷 ${t('yourPhotos')} (${g.found.length})</h3><div class="ptiles">${g.found.map((f, i) => `<button class="ptile ${f.def.kind === 'fantasy' ? 'f' : ''}" data-i="${i}"><canvas></canvas><span>${f.def.kind === 'fantasy' ? '★ ' : ''}${escapeHtml(L(f.def.name))}${f.isNew ? ' ✨' : ''}</span></button>`).join('')}</div><p class="phint">${t('yourPhotosHint')}</p>`
     : '';
+  // how deep you got – and how deep the trench goes
+  const target = Math.round(-g.cm.deepest.y * SCALE);
+  const pct = clamp(g.maxDepth / target, 0, 1);
+  const depthHtml = `<div class="depth-res ${g.atDeepest ? 'ok' : ''}">
+      <div class="dr-row"><span>${t('resDepth')}</span><b>${fmtNum(g.maxDepth)} m</b><span class="dr-of">${t('resOf', { d: fmtNum(target) })}</span></div>
+      <div class="dr-bar"><div style="width:${(pct * 100).toFixed(1)}%"></div><i style="left:100%"></i></div>
+      <div class="dr-note">${g.atDeepest ? '🎯 ' + t('resDeepestYes') : t('resDeepestNo', { d: fmtNum(Math.max(0, target - g.maxDepth)) })}</div>
+    </div>`;
   showModal(`<h1>${emergency ? '⚠ ' + t('diveEmergency') : '✅ ' + t('diveComplete')}</h1>
-    <p>${escapeHtml(L(g.level.name))} · ${t('maxDepth')}: <b>${fmtNum(g.maxDepth)} m</b></p>
+    <p>${escapeHtml(L(g.level.name))}${g.atlantis ? ' · 🏛️ Atlantis' : ''}</p>
+    ${depthHtml}
     ${foundHtml}
     <div class="score-list">
       <span>${t('discoveries')} (${g.found.length})</span><span>${fmtNum(sc.disc)}</span>
@@ -2659,11 +2853,19 @@ function renderRaceStandings() {
     list.sort((a, b) => (a.finish ?? 1e9) - (b.finish ?? 1e9));
     standings = `<table class="lb">${list.map((p, i) => `<tr><td>${i + 1}.</td><td>${escapeHtml(p.name || '?')}${p.me ? ' ←' : ''}</td><td>${p.finish ? fmtTime(p.finish) : '…'}</td></tr>`).join('')}</table>`;
   }
+  // the standings change with every position update of the others: only swap the table, never the whole
+  // window (rebuilding the buttons all the time made mouse clicks get lost)
+  const box = document.querySelector('#sheet .race-standings');
+  if (box && resultsRace.shown) {
+    if (box.innerHTML !== standings) box.innerHTML = standings;
+    return;
+  }
+  resultsRace.shown = true;
   showModal(`<h1>🏁 ${t('raceResults')}</h1>
     <p>${escapeHtml(L(g.level.name))}</p>
     <div class="score-list"><span>${t('raceYourTime')}</span><span class="tot">${dnf ? '–' : fmtTime(time)}</span>
     ${dnf ? '' : `<span>${t('research')}</span><span>+150</span>`}</div>
-    ${standings}
+    <div class="race-standings">${standings}</div>
     <div class="row-end">
       <button class="btn secondary" id="fLb">🏆 ${t('leaderboard')}</button>
       ${inRoom ? `<button class="btn" id="fRoom">👥 ${t('mpTitle')}</button>` : ''}
@@ -2762,7 +2964,21 @@ function showStats() {
 }
 window.addEventListener('keydown', (e) => {
   if ((e.code === 'Digit9' || e.code === 'Numpad9' || e.key === '9') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) secretPress();
+  if ((e.code === 'Digit1' || e.code === 'Numpad1') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) && $('#radioMenu').classList.contains('hidden')) cheatPress();
 });
+// 5 × "1" (or 5 taps on the mission list): every mission done → Atlantis
+const cheat = { n: 0, last: 0 };
+function cheatPress() {
+  if (!game || game.ended || game.race) return;
+  const now = performance.now();
+  cheat.n = now - cheat.last < 2000 ? cheat.n + 1 : 1;
+  cheat.last = now;
+  if (cheat.n >= 5) {
+    cheat.n = 0;
+    game.cheatComplete();
+  }
+}
+document.getElementById('missions').addEventListener('pointerdown', () => cheatPress());
 document.addEventListener('click', (e) => {
   if (e.target && e.target.closest && e.target.closest('.legal .ver')) secretPress();
 });
@@ -2859,6 +3075,8 @@ input.on('ask', () => game && !game.ended && openAsk());
 input.on('mute', cycleSound);
 input.on('boost', () => game && game.actBoost());
 input.on('help', () => toggleHelp());
+input.on('map', () => game && !game.ended && game.mapView && game.mapView.toggle());
+document.querySelector('#map .map-x').addEventListener('click', () => game && game.mapView && game.mapView.toggle(false));
 input.on('escape', () => {
   if (cardOpen && cardOpen.big) return closeCard();
   if (!$('#help').classList.contains('hidden')) return toggleHelp(false);

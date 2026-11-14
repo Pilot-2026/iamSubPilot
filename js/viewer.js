@@ -5,6 +5,13 @@
 import * as THREE from './vendor/three.min.js';
 import { buildModel, animUpper } from './creatures.js';
 import { buildSubModel, animateSubModel } from './sub.js';
+import { buildMerFigure, animMer, MER_PALETTES, buildNeptune, animNeptune } from './merfolk.js';
+function makeFigure(name) {
+  const f = name === 'neptune' ? buildNeptune() : buildMerFigure(MER_PALETTES.atlantis);
+  f.group.userData.fig = f;
+  f.group.userData.figName = name;
+  return f.group;
+}
 
 let shared = null;
 export function viewer() {
@@ -14,6 +21,7 @@ export function viewer() {
 
 // Build a model by kind: 'sub:<id>' or a creature model name.
 export function makeModel(key) {
+  if (key.startsWith('fig:')) return makeFigure(key.slice(4)); // tests only – these figures stay secret in the game
   if (key.startsWith('sub:')) {
     const m = buildSubModel(key.slice(4), null, false);
     if (m.userData.beam) m.remove(m.userData.beam);
@@ -126,7 +134,11 @@ class Viewer {
       if (!this.dragging || !this.dragging()) this.angle += dt * speed;
       if (this.model) {
         if (this.key.startsWith('sub:')) animateSubModel(this.model, dt, this.t, 2, true);
-        else animUpper(this.model, this.key, this.t * 1.2);
+        else if (this.key.startsWith('fig:')) {
+          const f = this.model.userData.fig;
+          if (this.model.userData.figName === 'neptune') animNeptune(f.rig, this.t, dt, { bless: Math.max(0, Math.sin(this.t * 0.5)) });
+          else animMer(f.rig, this.t, dt, 4, {});
+        } else animUpper(this.model, this.key, this.t * 1.2);
       }
       this.place(this.angle, this.w, this.h, zoom);
       this.renderer.render(this.scene, this.camera);

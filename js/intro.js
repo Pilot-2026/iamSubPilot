@@ -317,7 +317,7 @@ export class Aquarium {
     // a whole fleet of subs with strong lights
     const FLEET = [
       ['hummel', 15.5, 10, 0, 0.19, 0, true],
-      ['rocket', 20, 13, 5.5, -0.14, 2.1, true],
+      ['isabella', 20, 13, 5.5, -0.14, 2.1, true],
       ['ufo', 12, 8, -5.2, 0.11, 4.2, false],
       ['wolfshark', 17, 11, -3.6, 0.13, 2.7, false],
     ];

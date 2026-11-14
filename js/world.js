@@ -23,6 +23,7 @@ function shipNameTexture() {
 export const WX = 800; // half-size along the trench (units)
 export const WZ = 420; // half-size across the trench
 export const SCALE = 10; // metres per unit (depth readout)
+const MAGIC_COL = new THREE.Color(0x2a1a6a);
 export const SHIP_X = -520;
 export const DEEP_X = 360;
 
@@ -177,6 +178,7 @@ export class World {
   }
 
   deepestPoint() {
+    if (this._deepest) return this._deepest;
     // search along the axis near DEEP_X
     let best = { x: DEEP_X, z: axisZ(DEEP_X), y: this.heightAt(DEEP_X, axisZ(DEEP_X)) };
     for (let x = DEEP_X - 120; x <= DEEP_X + 120; x += 4) {
@@ -186,6 +188,24 @@ export class World {
         if (y < best.y) best = { x, z, y };
       }
     }
+    // the trench floor is flat over a long stretch at the deepest depth: mark the middle of that basin
+    let sx = 0, sz = 0, n = 0;
+    for (let x = DEEP_X - 160; x <= DEEP_X + 160; x += 2) {
+      for (let off = -40; off <= 40; off += 2) {
+        const z = axisZ(x) + off;
+        if (this.heightAt(x, z) <= best.y + 0.3) {
+          sx += x;
+          sz += z;
+          n++;
+        }
+      }
+    }
+    if (n) {
+      const x = sx / n, z = sz / n;
+      best = { x, z, y: Math.min(this.heightAt(x, z), best.y + 0.3) };
+    }
+    best.floorY = best.y;
+    this._deepest = best;
     return best;
   }
 
@@ -988,10 +1008,13 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
       this.hemi.intensity = 1.5;
       this.sun.intensity = 2.4;
     } else {
+      // near Atlantis (magic 0..1) the water gets clearer and a little violet, the city glows from afar
+      const mg = this.magic || 0;
+      if (mg > 0) col.lerp(MAGIC_COL, mg * 0.6);
       this.scene.fog.color.copy(col);
       this.scene.background.copy(col);
-      this.scene.fog.density = 0.0045 + 0.0145 * smoothstep(0, 1500, depth);
-      this.hemi.intensity = 1.3 * surf + 0.05;
+      this.scene.fog.density = (0.0045 + 0.0145 * smoothstep(0, 1500, depth)) * (1 - 0.72 * mg);
+      this.hemi.intensity = 1.3 * surf + 0.05 + 0.9 * mg;
       this.sun.intensity = 2.0 * surf;
     }
     this.sky.visible = above;

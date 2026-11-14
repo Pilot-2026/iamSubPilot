@@ -1,6 +1,6 @@
 # iamSubPilot – Expedition into the deep-sea trenches
 
-A 3D browser game about the deepest places on Earth. Pick one of seven crazy subs (bumblebee HUMMEL-1, shark-shaped WOLFSHARK, pufferfish ball, narwhal with drill horn, octopus, retro rocket or deep-sea UFO). It is lowered from the research ship HMS Andrew on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles, ten kinds of sharks (hammerheads, great white, blue shark, goblin, frilled, cookiecutter, ninja lanternshark, sixgill, Greenland shark and the deepest one, the Portuguese dogfish) and huge fish schools, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
+A 3D browser game about the deepest places on Earth – a game for Isabella, inspired by Wolfgang Hummelberger. Pick one of eight crazy subs (the mermaid sub ISABELLA, bumblebee HUMMEL-1, shark-shaped WOLFSHARK, pufferfish ball, narwhal with drill horn, octopus, retro rocket or deep-sea UFO). It is lowered from the research ship HMS Andrew on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles, ten kinds of sharks (hammerheads, great white, blue shark, goblin, frilled, cookiecutter, ninja lanternshark, sixgill, Greenland shark and the deepest one, the Portuguese dogfish) and huge fish schools, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
 
 **A game by Andreas Schmölzer · [www.pilotFilm.at](https://www.pilotfilm.at)**
 
@@ -25,10 +25,13 @@ A 3D browser game about the deepest places on Earth. Pick one of seven crazy sub
 | Back to the view from behind | V | double-tap the sub |
 | Radio: talk (online, 14+) | hold R (3× tap = keep open) | hold 🎙 |
 | Quick radio calls (online) | T, then 1–8 | 📻 |
+| Map of the explored area | K | 🗺 |
 | Sound (Music + FX / FX only / Music only / Silent) | M | sound button |
 | Pause | Esc | ❚❚ |
 
 - **Photos in 3D:** every new find opens large, and the camera circles around the animal until you click it away (drag to turn it yourself; a solo dive pauses meanwhile). The results screen shows all photographed animals as small rotating 3D tiles – tap one to see it big. In the sub picker, the sub under the mouse grows and turns around.
+- **Deepest point:** a golden column of light marks it, a small guide under the missions shows direction and distance, and the map shows it too. The whole flat deepest basin counts. The results show how deep you got compared with the deepest point.
+- **Atlantis (secret):** finish every mission of a dive and a short text explains the legend of Atlantis (Plato) – then a colourful, futuristic Atlantis rises from the seafloor. Explore it as long as you like (nothing runs out there), and keep your eyes open …
 - **Back aboard:** when you surface, the chains come down and the crane of the HMS Andrew lifts the sub out of the water and sets it back on deck (skippable).
 - **Expedition:** explore, photograph, complete the missions (the first one is done within seconds), at the end choose whether to do the debrief quiz or skip it, map the trench with sonar and surface before energy, hull or oxygen run out.
 - **Grabbing:** the big telescopic arm reaches out several metres, closes its claw and pulls the find into the sample basket – manganese nodules, litter, sediment samples (yellow flags) and the lost lander count for missions and points.

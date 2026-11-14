@@ -5,6 +5,7 @@ import { clamp, lerp } from './util.js';
 import { WX, WZ } from './world.js';
 import { PartBuilder } from './parts.js';
 import { loftBody, prof, thickFin } from './detail.js';
+import { buildMerFigure, animMer, MER_PALETTES } from './merfolk.js';
 
 // ---------------------------------------------------------------------------
 // Six original submarine designs. Static parts are merged per material
@@ -16,6 +17,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 const ZAX = new THREE.Vector3(0, 0, 1);
 
 export const SUB_MODELS = [
+  { id: 'isabella', color: 0xffc21a, name: { en: 'ISABELLA', de: 'ISABELLA' }, desc: { en: 'The mermaid sub: shell cockpit, golden fins, swims like a dolphin', de: 'Das Meerjungfrau-U-Boot: Muschel-Cockpit, goldene Flossen, schwimmt wie ein Delfin' } },
   { id: 'hummel', color: 0xffc21a, name: { en: 'HUMMEL-1', de: 'HUMMEL-1' }, desc: { en: 'The bumblebee: sturdy, full of gadgets', de: 'Die Hummel: robust und voller Technik' } },
   { id: 'wolfshark', color: 0xffc21a, name: { en: 'WOLFSHARK', de: 'WOLFSHARK' }, desc: { en: 'Shark-shaped and nimble – with a friendly grin', de: 'In Haiform, flink und wendig – mit freundlichem Grinsen' } },
   { id: 'puffer', color: 0xffc21a, name: { en: 'PUFFBALL', de: 'KUGELBLITZ' }, desc: { en: 'Round, spiky, absolutely unsinkable', de: 'Kugelrund, stachelig, unkaputtbar' } },
@@ -322,6 +324,61 @@ function buildWolfShark(g, B, ctx) {
     tail.rotation.y = Math.sin(t * (2.2 + speed * 0.25)) * 0.28;
   };
   return { lamp: [0, yf(0.03) - 0.1, z(0.03)], top: 1.0, attach: [1.2, 1.0], arm: [0, -0.92, -1.25] };
+}
+
+// ---------------- ISABELLA (mermaid sub) ----------------
+// A swimming mermaid with a scallop-shell cockpit on her back, a glowing gem in her tiara as headlight and
+// side thrusters at the hips. Tail, fins, arms, hair, head and eyes are all animated.
+function buildIsabella(g, B, ctx) {
+  const { group: fig, rig, info } = buildMerFigure(MER_PALETTES.isabella, { sub: true });
+  g.add(fig);
+  const M = {
+    shell: std(0xffe3ef, { metalness: 0.35, roughness: 0.25, emissive: 0x3a1a28, emissiveIntensity: 0.15 }),
+    rib: std(0xffb3d1, { metalness: 0.3, roughness: 0.3 }),
+    gold: std(0xffcf4a, { metalness: 0.85, roughness: 0.28 }),
+    jet: new THREE.MeshBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: 0.85 }),
+  };
+  // scallop shell on the back with the glass cockpit bubble
+  const sz = -1.25, sy = 0.36;
+  for (let i = 0; i < 9; i++) {
+    const a = -1.0 + (i / 8) * 2.0;
+    B.add(i % 2 ? M.rib : M.shell, new THREE.SphereGeometry(1, 10, 8, 0, Math.PI, 0, Math.PI / 2), { p: [Math.sin(a) * 0.12, sy, sz + 0.12 - Math.cos(a) * 0.12], r: [-Math.PI / 2, a, 0], s: [0.1, 0.62, 0.16] });
+  }
+  B.add(M.gold, new THREE.TorusGeometry(0.36, 0.03, 6, 26, Math.PI), { p: [0, sy + 0.02, sz + 0.1], r: [-Math.PI / 2, 0, 0] });
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2), glassMat());
+  dome.scale.set(0.3, 0.26, 0.38);
+  dome.position.set(0, sy + 0.02, sz - 0.22);
+  dome.renderOrder = 2;
+  g.add(dome);
+  B.add(M.gold, new THREE.TorusGeometry(1, 0.03, 6, 26), { p: [0, sy + 0.02, sz - 0.22], r: [Math.PI / 2, 0, 0], s: [0.31, 0.39, 1] });
+  // side thrusters at the hips (glow brighter when going fast)
+  const jets = [];
+  for (const s of [-1, 1]) {
+    B.add(M.gold, new THREE.CylinderGeometry(0.1, 0.12, 0.3, 14, 1, true), { p: [s * 0.46, -0.08, -0.45], r: [Math.PI / 2, 0, 0] });
+    const j = new THREE.Mesh(new THREE.CircleGeometry(0.085, 16), M.jet);
+    j.position.set(s * 0.46, -0.08, -0.3);
+    g.add(j);
+    jets.push(j);
+  }
+  // headlight: the gem in her tiara
+  ctx.lamp(0, 0.98, -2.68, 0.07, true);
+  // name plates "ISABELLA" on the tail (they move with it)
+  const plateMat = new THREE.MeshBasicMaterial({ map: namePlateTexture('ISABELLA'), transparent: true, fog: true });
+  for (const sx of [-1, 1]) {
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(0.95, 0.24), plateMat);
+    pl.position.set(sx * 0.41, 0.06, 0.32);
+    pl.rotation.y = sx * (Math.PI / 2 - 0.08);
+    info.tailSeg1.add(pl);
+  }
+  g.userData.anim = (dt, t, speed) => {
+    animMer(rig, t, dt, speed, {});
+    const k = Math.min(1, speed / 9);
+    for (const j of jets) {
+      j.material.opacity = 0.45 + 0.5 * k + 0.08 * Math.sin(t * 20);
+      j.scale.setScalar(0.9 + 0.3 * k);
+    }
+  };
+  return { lamp: [0, 0.98, -2.7], top: 0.75, attach: [1.4, 1.5], arm: [0, -0.48, -1.25] };
 }
 
 // ---------------- KUGELBLITZ (puffer fish ball) ----------------
@@ -814,7 +871,7 @@ function updateArm(g, arm, dt, t) {
   if (arm.state === 'in' && arm.carry) arm.carry.scale.multiplyScalar(Math.exp(-dt * 0.8));
 }
 
-const BUILDERS = { hummel: buildHummel, wolfshark: buildWolfShark, puffer: buildPuffer, narwhal: buildNarwhal, octopus: buildOctopus, rocket: buildRocket, ufo: buildUfo };
+const BUILDERS = { isabella: buildIsabella, hummel: buildHummel, wolfshark: buildWolfShark, puffer: buildPuffer, narwhal: buildNarwhal, octopus: buildOctopus, rocket: buildRocket, ufo: buildUfo };
 
 let glowTex = null;
 function lampGlowTexture() {
