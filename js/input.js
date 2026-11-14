@@ -29,11 +29,12 @@ export class Input {
     else this.keys.delete(k);
     if (!this.enabled) {
       if (down && k === 'Escape') this.fire('escape');
+      if (down && k === 'KeyH') this.fire('help');
       return;
     }
     if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
     if (!down || e.repeat) return;
-    const map = { KeyF: 'sonar', KeyL: 'light', KeyC: 'photo', Enter: 'photo', KeyG: 'grab', KeyH: 'ask', KeyB: 'surface', Escape: 'escape', KeyP: 'escape', KeyM: 'mute' };
+    const map = { KeyF: 'sonar', KeyL: 'light', KeyC: 'photo', Enter: 'photo', KeyG: 'grab', KeyI: 'ask', KeyH: 'help', KeyX: 'boost', KeyB: 'surface', Escape: 'escape', KeyP: 'escape', KeyM: 'mute' };
     if (map[k]) this.fire(map[k]);
   }
 
@@ -127,7 +128,7 @@ export class Input {
     if (k.has('KeyA') || k.has('ArrowLeft')) turn -= 1;
     if (k.has('KeyD') || k.has('ArrowRight')) turn += 1;
     if (k.has('Space') || k.has('KeyE')) vertical += 1;
-    if (k.has('ShiftLeft') || k.has('ShiftRight') || k.has('KeyQ') || k.has('KeyX')) vertical -= 1;
+    if (k.has('ShiftLeft') || k.has('ShiftRight') || k.has('KeyQ')) vertical -= 1;
     if (this.joy.active) {
       throttle += this.joy.y > 0 ? this.joy.y : this.joy.y * 0.6;
       turn += this.joy.x;

@@ -20,6 +20,10 @@ import { t, L, setLang, getLang, detectLang, fmtNum, fmtDec } from './i18n.js';
 import { mulberry32, clamp, escapeHtml } from './util.js';
 import { GAME_VERSION } from './config.js';
 import { shapeFor, capsuleEnds, closestSegSeg } from './collide.js';
+import { viewer, playTurntable } from './viewer.js';
+import { recordVisit, recordDive, markOwner, isOwner } from './stats.js';
+import { openStats } from './statsview.js';
+import { Recovery } from './launch.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -231,6 +235,7 @@ function sourceLink(def) {
 let cardTimer = null;
 function showCard(def, info = {}) {
   const el = $('#card');
+  if (cardOpen) closeCard(true);
   const fantasy = def.kind === 'fantasy';
   const kid = tier() === 'kid';
   const badge = fantasy ? `<span class="badge fantasy">★ ${t('fantasy')}</span>` : `<span class="badge real">${t('real')}</span>`;
@@ -243,17 +248,45 @@ function showCard(def, info = {}) {
     body += `<p>${escapeHtml(L(def.more))}</p>`;
   }
   const meta = info.depth !== undefined ? `<div class="meta">${t('foundAt', { depth: fmtNum(info.depth) })}${info.by ? ' · ' + escapeHtml(info.by) : ''}</div>` : '';
-  el.className = fantasy ? 'fantasy' : '';
-  el.innerHTML = `<button class="x" aria-label="${t('close')}">×</button>${badge}${isNew}
+  const big = !!info.big;
+  el.className = (fantasy ? 'fantasy' : '') + (big ? ' big' : '');
+  el.innerHTML = `<button class="x" aria-label="${t('close')}">×</button>${big ? '<div class="card-3d"></div>' : ''}<div class="card-txt">${badge}${isNew}
     <h3>${escapeHtml(L(def.name))}</h3>${def.sci ? `<div class="sci">${escapeHtml(def.sci)}</div>` : ''}
-    ${meta}${body}${fantasy ? '' : sourceLink(def)}`;
-  el.querySelector('.x').onclick = () => el.classList.remove('show');
-  requestAnimationFrame(() => el.classList.add('show'));
+    ${meta}${body}${fantasy ? '' : sourceLink(def)}${big ? `<div class="row-end"><button class="btn" id="cardGo">${t('cardContinue')}</button></div>` : ''}</div>`;
+  el.querySelector('.x').onclick = () => closeCard();
   clearTimeout(cardTimer);
-  if (!info.stay) cardTimer = setTimeout(() => el.classList.remove('show'), 14000);
+  cardOpen = { big, paused: false };
+  if (big) {
+    // large 3D view: the camera circles the find until it is clicked away
+    $('#cardBack').classList.remove('hidden');
+    el.querySelector('#cardGo').onclick = () => closeCard();
+    try {
+      viewer().show(el.querySelector('.card-3d'), def.model, { speed: 0.45 });
+    } catch (e) {
+      console.warn('3D view failed', e);
+    }
+    if (info.pause && game && !game.ended && !game.multi) {
+      game.paused = true;
+      cardOpen.paused = true;
+    }
+  } else if (!info.stay) cardTimer = setTimeout(() => closeCard(), 14000);
+  requestAnimationFrame(() => el.classList.add('show'));
+}
+let cardOpen = null;
+function closeCard(quick = false) {
+  const el = $('#card');
+  el.classList.remove('show');
+  $('#cardBack').classList.add('hidden');
+  if (cardOpen && cardOpen.big) viewer().hide();
+  if (cardOpen && cardOpen.paused && game && !game.ended) {
+    game.paused = false;
+    audio.click();
+  }
+  cardOpen = null;
+  if (quick) el.className = '';
 }
 function hideCard() {
-  $('#card').classList.remove('show');
+  closeCard();
 }
 
 function buildMenuBg() {
@@ -292,7 +325,7 @@ function socialHtml() {
 function creditHtml() {
   const AS = 'https://www.andreas-schmoelzer.at', PF = 'https://www.pilotfilm.at';
   const ext = 'target="_blank" rel="noopener"';
-  return `<div class="credit"><span class="credit-links"><a href="${AS}" ${ext}>www.Andreas-Schmoelzer.at</a><a href="${PF}" ${ext}>www.pilotFilm.at</a><span class="logos"><a class="logo-link as" href="${AS}" ${ext} aria-label="www.Andreas-Schmoelzer.at"><img src="assets/logo-schmoelzer.png" alt="Andreas Schmölzer Keynote-Speaker logo" width="176" height="26"></a><a class="logo-link pf" href="${PF}" ${ext} aria-label="www.pilotFilm.at"><img src="assets/logo-pilotfilm.png" alt="pilotFilm logo" width="127" height="30"></a><a class="logo-link me" href="${AS}" ${ext} aria-label="Andreas Schmölzer"><img src="assets/andreas-schmoelzer.png" alt="Portrait of Andreas Schmölzer" width="62" height="63" decoding="async" loading="lazy"></a></span></span>${socialHtml()}</div>
+  return `<div class="credit"><span class="logos"><a class="logo-link as" href="${AS}" ${ext} aria-label="www.Andreas-Schmoelzer.at"><img src="assets/logo-schmoelzer.png" alt="Andreas Schmölzer Keynote-Speaker logo" width="176" height="26"></a><a class="logo-link pf" href="${PF}" ${ext} aria-label="www.pilotFilm.at"><img src="assets/logo-pilotfilm.png" alt="pilotFilm logo" width="127" height="30"></a><a class="logo-link me" href="${AS}" ${ext} aria-label="Andreas Schmölzer"><img src="assets/andreas-schmoelzer.png" alt="Portrait of Andreas Schmölzer" width="62" height="63" decoding="async" loading="lazy"></a></span>${socialHtml()}</div>
     <p class="legal"><span class="ver">v${GAME_VERSION}</span><a href="${PF}/impressum" ${ext}>${t('imprint')}</a><a href="privacy.html" ${ext}>${t('privacy')}</a></p>`;
 }
 function footerHtml() {
@@ -314,7 +347,7 @@ function showWelcome(onDone) {
     <p>${t('welcomeText')}</p>
     <div class="field"><label>${t('language')}</label>
       <div class="seg" id="wLang"><button data-l="en" class="${getLang() === 'en' ? 'on' : ''}">English</button><button data-l="de" class="${getLang() === 'de' ? 'on' : ''}">Deutsch</button></div></div>
-    <div class="field"><label for="wName">${t('nickname')}</label><input id="wName" type="text" maxlength="16" autocomplete="off" value="${escapeHtml(profile.name)}"><div class="hint" id="wNameHint"></div></div>
+    <div class="field"><label for="wName">${t('nickname')}</label><input id="wName" type="text" maxlength="30" autocomplete="off" value="${escapeHtml(profile.name)}"><div class="hint" id="wNameHint"></div></div>
     <div class="field"><label for="wAge">${t('age')}</label><input id="wAge" type="number" min="5" max="120" inputmode="numeric" value="${profile.age || ''}"><div class="hint" id="wAgeHint"></div></div>
     <div class="row-end"><button class="btn big" id="wGo">${t('letsGo')}</button></div>
     <p class="welcome-privacy">${t('welcomePrivacy')} <a href="privacy.html" target="_blank" rel="noopener">${t('privacy')}</a> · <a href="https://www.pilotfilm.at/impressum" target="_blank" rel="noopener">${t('imprint')}</a></p>`;
@@ -332,7 +365,7 @@ function showWelcome(onDone) {
       const name = root.querySelector('#wName').value.trim();
       const age = Number(root.querySelector('#wAge').value);
       let ok = true;
-      if (!/^[\p{L}\p{N} _\-.]{2,16}$/u.test(name)) {
+      if (!/^[\p{L}\p{N} _\-.]{2,30}$/u.test(name)) {
         root.querySelector('#wNameHint').textContent = t('nameHint');
         ok = false;
       } else root.querySelector('#wNameHint').textContent = '';
@@ -474,7 +507,27 @@ function showInfo(onDone) {
 let selLevel = profile.lastLevel;
 let selMode = profile.lastMode;
 
+let spinning = null;
+function spinSub(card) {
+  if (spinning === card) return;
+  unspinSub();
+  spinning = card;
+  card.classList.add('spin');
+  try {
+    viewer().show(card.querySelector('.subimg'), 'sub:' + card.dataset.sub, { speed: (Math.PI * 2) / 9, zoom: 0.82, start: 0.6, drag: false });
+  } catch (e) {
+    console.warn(e);
+  }
+}
+function unspinSub(card) {
+  if (card && spinning !== card) return;
+  if (spinning) spinning.classList.remove('spin');
+  spinning = null;
+  viewer().hide();
+}
+
 function renderMenu() {
+  viewer().hide();
   $('#intro').classList.add('hidden');
   if (aquarium) {
     aquarium.setMode('menu');
@@ -507,15 +560,20 @@ function renderMenu() {
         <button class="chip" id="mSound">${soundLabel()}</button>
       </div>
     </div>
+    <hr class="sep">
     <h2>${t('chooseTrench')}</h2>
     <div class="trenches">${cards}</div>
+    <hr class="sep">
     <h2>${t('chooseSub')}</h2>
     <div class="subs">${SUB_MODELS.map((m) => `<button class="subcard ${m.id === subModelById(profile.sub).id ? 'sel' : ''}" data-sub="${m.id}">
-      <img alt="" src="${subThumb(m.id)}"><b>${escapeHtml(L(m.name))}</b><span>${escapeHtml(L(m.desc))}</span></button>`).join('')}</div>
+      <span class="subimg"><img alt="" src="${subThumb(m.id)}"></span><b>${escapeHtml(L(m.name))}</b><span>${escapeHtml(L(m.desc))}</span></button>`).join('')}</div>
+    <hr class="sep">
+    <h2>${t('chooseMode')}</h2>
     <div class="modes">
       <button class="mode ${selMode === 'expedition' ? 'sel' : ''}" data-mode="expedition"><b>🔦 ${t('modeExpedition')}</b><span>${t('modeExpeditionDesc')}</span></button>
       <button class="mode ${selMode === 'race' ? 'sel' : ''}" data-mode="race"><b>🏁 ${t('modeRace')}</b><span>${t('modeRaceDesc')}</span></button>
     </div>
+    <hr class="sep">
     <div class="menu-actions">
       <button class="btn big" id="mStart">${t('start')}</button>
       <button class="btn secondary" id="mMulti">👥 ${t('multiplayer')}</button>
@@ -560,6 +618,14 @@ function renderMenu() {
       $('#menu').querySelectorAll('.subcard').forEach((x) => x.classList.toggle('sel', x === b));
       audio.init();
       audio.click();
+      if (isTouch) spinSub(b); // no hover on touch screens: the tapped sub turns
+    };
+    // hovering a sub: it grows and turns slowly once around
+    b.onpointerenter = (e) => {
+      if (e.pointerType === 'mouse') spinSub(b);
+    };
+    b.onpointerleave = (e) => {
+      if (e.pointerType === 'mouse') unspinSub(b);
     };
   });
 
@@ -641,7 +707,7 @@ function showLogbook(tab) {
     root.querySelectorAll('[data-id]').forEach((b) => {
       b.onclick = () => {
         const def = CREATURES.find((c) => c.id === b.dataset.id);
-        showCard(def, { depth: profile.logbook[def.id].maxDepth, stay: true });
+        showCard(def, { depth: profile.logbook[def.id].maxDepth, stay: true, big: true });
       };
     });
     root.querySelector('#lClose').onclick = () => {
@@ -1319,6 +1385,8 @@ class Dive {
     $('#tGrab').textContent = t('btnGrab');
     $('#tAsk').textContent = t('btnAsk');
     $('#tSurface').textContent = t('btnSurface');
+    $('#tBoost').textContent = t('btnBoost');
+    $('#bBoost').classList.remove('on');
     $('#tUp').textContent = t('btnUp');
     $('#tDown').textContent = t('btnDown');
     $('#keysHint').textContent = t('keysHint');
@@ -1374,6 +1442,14 @@ class Dive {
     if (!this.flags.sonarHelp && this.depth() > 300) {
       this.flags.sonarHelp = true;
     }
+  }
+
+  actBoost() {
+    if (!this.canAct() || this.recovery || (this.launch && !this.launch.done)) return;
+    this.boost = !this.boost;
+    $('#bBoost').classList.toggle('on', this.boost);
+    toast(this.boost ? `🚀 ${t('boostOn')}` : t('boostOff'));
+    audio.tone(this.boost ? 220 : 520, 0.35, { type: 'sawtooth', vol: 0.08, toFreq: this.boost ? 880 : 180 });
   }
 
   actLight() {
@@ -1475,7 +1551,7 @@ class Dive {
     else audio.discovery();
     if (team) toast(t('teamFound', { name: by || '?', what: L(def.name) }));
     else toast(isNew ? t('newDiscovery') : L(def.name), isNew ? L(def.name) : '');
-    showCard(def, { depth, isNew, by: team ? by : null });
+    showCard(def, { depth, isNew, by: team ? by : null, big: !team, pause: !team });
     if (!team) {
       if (def.kind === 'fantasy') {
         echoSay(L({ en: 'Ha! That one is pure fantasy – but its card hides a real fact.', de: 'Ha! Das ist reine Fantasie – aber seine Karte verrät einen echten Fakt.' }));
@@ -1567,7 +1643,7 @@ class Dive {
 
   // ---------- solid bodies: subs bounce off each other, animals and objects can't be passed through ----------
   collide(dt) {
-    if (this.launch && !this.launch.done) return;
+    if ((this.launch && !this.launch.done) || this.recovery) return;
     const sub = this.sub;
     const S = (this.subShape ||= shapeFor('sub-' + sub.group.userData.type, sub.group));
     if (!S) return;
@@ -1764,15 +1840,18 @@ class Dive {
     if (this.paused) return;
     this.time += dt;
     const launching = this.launch && !this.launch.done;
+    const recovering = !!this.recovery;
     const racePre = this.race && Date.now() < this.raceStartLocal;
-    let inp = racePre || this.ended || launching ? ZERO_INPUT : input.state();
+    let inp = racePre || this.ended || launching || recovering ? ZERO_INPUT : input.state();
+    if (this.boost && inp !== ZERO_INPUT) inp = { ...inp, boost: true };
+    this.sub.boostDive = !!this.boost && !recovering;
     this.sub.update(dt, inp);
     const depth = this.depth();
     this.maxDepth = Math.max(this.maxDepth, depth);
 
     // resources
-    if (!this.race && !this.ended && !launching) {
-      const drain = (0.07 + this.sub.thrust * 0.11 + (this.sub.lightOn ? 0.05 : 0)) / this.batteryCap;
+    if (!this.race && !this.ended && !launching && !recovering) {
+      const drain = (0.07 + this.sub.thrust * 0.11 + (this.sub.lightOn ? 0.05 : 0) + (this.boost ? 0.12 : 0)) / this.batteryCap;
       this.energy -= drain * dt;
       this.life -= (100 / 720) * dt;
       if (depth > this.hullRating - 300 && !this.flags.hullNear && this.hullRating < this.level.maxDepth) {
@@ -1804,7 +1883,7 @@ class Dive {
     this.energy = clamp(this.energy, 0, 100);
     this.hull = clamp(this.hull, 0, 100);
     this.life = clamp(this.life, 0, 100);
-    if (!this.race) {
+    if (!this.race && !recovering) {
       if (this.energy <= 0) this.emergency('energy');
       else if (this.hull <= 0) this.emergency('hull');
       else if (this.life <= 0) this.emergency('life');
@@ -1857,8 +1936,8 @@ class Dive {
     const light = this.sub.lightInfo();
     this.cm.update(dt, this.sub, light);
     this.collide(dt);
-    this.target = this.race ? null : this.cm.findPhotoTarget(this.sub, light);
-    this.grabTarget = this.race ? null : this.cm.findGrabTarget(this.sub);
+    this.target = this.race || recovering ? null : this.cm.findPhotoTarget(this.sub, light);
+    this.grabTarget = this.race || recovering ? null : this.cm.findGrabTarget(this.sub);
     if (!this.flags.fantasyNear) {
       for (const it of this.cm.items) {
         if (it.def.kind === 'fantasy' && !it.collected && it.group.position.distanceTo(this.sub.pos) < 38) {
@@ -1895,8 +1974,9 @@ class Dive {
     this.sub.group.userData.glowMat.opacity = 0.75 * clamp((depth - 100) / 500, 0, 1);
     this.world.update(dt);
     this.schools.update(dt, this.sub, camera.position);
-    const launchCam = this.launch ? this.launch.update(dt, camera) : false;
-    if (!launchCam) this.updateCamera(dt);
+    const recCam = this.recovery ? this.recovery.update(dt, camera) : false;
+    const launchCam = !recCam && this.launch ? this.launch.update(dt, camera) : false;
+    if (!launchCam && !recCam) this.updateCamera(dt);
     this.updateFx(dt);
 
     // remote subs + network
@@ -1912,7 +1992,8 @@ class Dive {
     }
 
     // surfaced?
-    if (this.ending && !this.ended && this.sub.pos.y > -3) this.finish();
+    // close to the surface (or stuck under the ship's hull): the crane takes over
+    if (this.ending && !this.ended && !this.recovery && this.sub.pos.y > -6) this.startRecovery();
 
     audio.setEngine(clamp(this.sub.thrust + Math.abs(this.sub.vel.y) / 30, 0, 1));
     this.hudTimer -= dt;
@@ -2170,8 +2251,26 @@ class Dive {
     } else arrow.style.display = 'none';
   }
 
+  // surfaced: back to the ship – the crane lifts the sub aboard, then the results
+  startRecovery() {
+    if (this.recovery || this.ended) return;
+    if (this.race) return this.finish();
+    this.sub.autoAscent = false;
+    this.boost = false;
+    $('#bBoost').classList.remove('on');
+    hideCard();
+    toggleHelp(false);
+    diveFx();
+    audio.splash();
+    echoSay(t('recoveryMsg'), { now: true });
+    this.recovery = new Recovery(this, () => this.finish());
+    $('#skipHint').textContent = t(isTouch ? 'skipTouch' : 'skipKey');
+    $('#skipHint').classList.remove('hidden');
+  }
+
   finish() {
     if (this.ended) return;
+    $('#skipHint').classList.add('hidden');
     this.ended = true;
     input.enabled = false;
     audio.stopLoops();
@@ -2265,6 +2364,7 @@ function startDive(opts) {
   if (game) endGame();
   closeModal();
   hideCard();
+  unspinSub();
   $('#menu').classList.add('hidden');
   $('#menuBg').classList.add('hidden');
   $('#intro').classList.add('hidden');
@@ -2272,6 +2372,7 @@ function startDive(opts) {
   $('#c').style.visibility = 'visible';
   audio.music('dive');
   game = new Dive(opts);
+  recordDive(net, { level: opts.level.id, sub: subModelById(profile.sub).id, mode: opts.mode, multi: !!opts.multi });
   const showRadio = !!(radio && opts.multi);
   $('#radio').classList.toggle('hidden', !showRadio);
   $('#radioPtt').style.display = showRadio && voiceAllowed() ? '' : 'none';
@@ -2314,10 +2415,12 @@ function showResults(g) {
   if (g.race) return showRaceResults(g);
   const sc = computeScore(g);
   const emergency = g.ending && g.ending.emergency;
-  const foundHtml = g.found.map((f) => `<span class="${f.def.kind === 'fantasy' ? 'f' : ''}">${f.def.kind === 'fantasy' ? '★ ' : ''}${escapeHtml(L(f.def.name))}${f.isNew ? ' ✨' : ''}</span>`).join('');
+  const foundHtml = g.found.length
+    ? `<h3 class="ptitle">📷 ${t('yourPhotos')} (${g.found.length})</h3><div class="ptiles">${g.found.map((f, i) => `<button class="ptile ${f.def.kind === 'fantasy' ? 'f' : ''}" data-i="${i}"><canvas></canvas><span>${f.def.kind === 'fantasy' ? '★ ' : ''}${escapeHtml(L(f.def.name))}${f.isNew ? ' ✨' : ''}</span></button>`).join('')}</div><p class="phint">${t('yourPhotosHint')}</p>`
+    : '';
   showModal(`<h1>${emergency ? '⚠ ' + t('diveEmergency') : '✅ ' + t('diveComplete')}</h1>
     <p>${escapeHtml(L(g.level.name))} · ${t('maxDepth')}: <b>${fmtNum(g.maxDepth)} m</b></p>
-    <div class="found">${foundHtml}</div>
+    ${foundHtml}
     <div class="score-list">
       <span>${t('discoveries')} (${g.found.length})</span><span>${fmtNum(sc.disc)}</span>
       <span>${t('samples')}</span><span>${fmtNum(sc.samples)}</span>
@@ -2334,7 +2437,34 @@ function showResults(g) {
     </div>`, (root) => {
     root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
     root.querySelector('#rNext').onclick = () => finishQuiz(g, sc, 0);
+    mountPhotoTiles(root, g.found);
+  }, 'wide');
+}
+
+// rotating 3D thumbnails (pre-rendered turntables), one after another so the screen stays smooth
+function mountPhotoTiles(root, found) {
+  const tiles = [...root.querySelectorAll('.ptile')];
+  tiles.forEach((tile) => {
+    tile.onclick = () => {
+      const f = found[Number(tile.dataset.i)];
+      showCard(f.def, { depth: f.depth, stay: true, big: true });
+    };
   });
+  let i = 0;
+  const next = () => {
+    if (i >= tiles.length || !tiles[i].isConnected) return;
+    const tile = tiles[i];
+    const f = found[Number(tile.dataset.i)];
+    try {
+      const tt = viewer().turntable(f.def.model, 24, 150, 112);
+      playTurntable(tile.querySelector('canvas'), tt);
+    } catch (e) {
+      console.warn('turntable failed', e);
+    }
+    i++;
+    setTimeout(next, 40);
+  };
+  setTimeout(next, 150);
 }
 
 function runQuiz(g, sc) {
@@ -2490,7 +2620,7 @@ function showPause() {
       ${radio && voiceAllowed() ? `<button class="btn secondary" id="pRadio">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : ''}
       <button class="btn secondary" id="pAbort">⚠ ${t('abort')}</button>
     </div>
-    <p style="font-size:12px;color:var(--ink-soft);margin-top:14px">${t('keysHint')}</p>`, (root) => {
+    <p style="font-size:13px;color:var(--ink-soft);margin-top:14px">${t('keysHint')}</p>`, (root) => {
     root.querySelector('#pResume').onclick = resume;
     root.querySelector('#pAsk').onclick = () => {
       closeModal();
@@ -2514,6 +2644,67 @@ function showPause() {
       else game.emergency('abort');
     };
   });
+}
+
+// ======================= statistics (5 × 9 or 5 taps on the version) =======================
+const secret = { n: 0, last: 0 };
+function secretPress() {
+  const now = performance.now();
+  secret.n = now - secret.last < 1400 ? secret.n + 1 : 1;
+  secret.last = now;
+  if (secret.n >= 5) {
+    secret.n = 0;
+    showStats();
+  }
+}
+function showStats() {
+  const wasOwner = isOwner();
+  markOwner();
+  if (game && !game.ended && !game.multi) game.paused = true;
+  input.enabled = false;
+  openStats({
+    net,
+    showModal,
+    closeModal: () => {
+      closeModal();
+      if (game && !game.ended) resume();
+    },
+    ownerNote: !wasOwner,
+    levelName: (id) => {
+      const lv = LEVELS.find((l) => l.id === id);
+      return lv ? L(lv.name) : id;
+    },
+    subName: (id) => {
+      const m = SUB_MODELS.find((x) => x.id === id);
+      return m ? L(m.name) : id;
+    },
+  });
+}
+window.addEventListener('keydown', (e) => {
+  if ((e.code === 'Digit9' || e.code === 'Numpad9' || e.key === '9') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) secretPress();
+});
+document.addEventListener('click', (e) => {
+  if (e.target && e.target.closest && e.target.closest('.legal .ver')) secretPress();
+});
+
+// ======================= key list (H) =======================
+let helpPaused = false;
+function toggleHelp(force) {
+  const el = $('#help');
+  const open = force ?? el.classList.contains('hidden');
+  if (open) {
+    el.innerHTML = `<div class="help-box"><h2>⌨ ${t('helpTitle')}</h2><div class="help-grid">${t('helpKeys').map(([k, v]) => `<kbd>${escapeHtml(k)}</kbd><span>${escapeHtml(v)}</span>`).join('')}</div><p class="help-close">${t('helpClose')}</p></div>`;
+    el.classList.remove('hidden');
+    el.onclick = () => toggleHelp(false);
+    if (game && !game.ended && !game.multi && !game.paused) {
+      game.paused = true;
+      helpPaused = true;
+    }
+  } else {
+    el.classList.add('hidden');
+    if (helpPaused && game && !game.ended) game.paused = false;
+    helpPaused = false;
+  }
 }
 
 function resume() {
@@ -2586,7 +2777,11 @@ input.on('grab', () => game && game.actGrab());
 input.on('surface', () => game && game.actSurface());
 input.on('ask', () => game && !game.ended && openAsk());
 input.on('mute', cycleSound);
+input.on('boost', () => game && game.actBoost());
+input.on('help', () => toggleHelp());
 input.on('escape', () => {
+  if (cardOpen && cardOpen.big) return closeCard();
+  if (!$('#help').classList.contains('hidden')) return toggleHelp(false);
   if (!$('#ask').classList.contains('hidden')) return closeAsk();
   if (game && !game.ended) {
     if (!$('#modal').classList.contains('hidden')) resume();
@@ -2625,6 +2820,10 @@ function bindCameraDrag() {
     if (!game || game.ended) return;
     if (game.launch && !game.launch.done) {
       game.launch.skip();
+      return;
+    }
+    if (game.recovery && !game.recovery.done) {
+      game.recovery.skip();
       return;
     }
     // double tap on the sub: back to the view from behind
@@ -2697,6 +2896,7 @@ function bindCameraDrag() {
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyV' && game && !game.ended) resetView();
     if (game && game.launch && !game.launch.done && ['Space', 'Enter', 'Escape', 'KeyW', 'ArrowUp', 'ArrowDown', 'KeyS'].includes(e.code)) game.launch.skip();
+    if (game && game.recovery && !game.recovery.done && ['Space', 'Enter', 'Escape'].includes(e.code)) game.recovery.skip();
   });
 }
 
@@ -2726,6 +2926,7 @@ async function boot() {
     aquarium = null;
   }
   await net.init();
+  recordVisit(net);
   $('#loading').classList.add('hidden');
   requestAnimationFrame(loop);
 

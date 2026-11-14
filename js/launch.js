@@ -212,4 +212,96 @@ export class Launch {
   }
 }
 
+// Recovery at the end of a dive: back at the stern, the chains come down, the winch lifts the
+// sub out of the water, the A-frame swings it in and sets it down on its cradle. Skippable.
+export class Recovery extends Launch {
+  constructor(dive, onDone) {
+    super(dive);
+    this.onDone = onDone;
+    this.T2 = { chains: 1.3, lift: 4.0, swing: 5.8, lower: 7.0, end: 7.6 };
+    this.angle = 0.62;
+    this.world.setAframe(this.angle);
+    const [a, b] = this.world.sheaves();
+    const mid = a.clone().add(b).multiplyScalar(0.5);
+    const top = this.sub.group.userData.top || 1.05;
+    this.Ls = mid.y - top + 0.9; // sub floats with its back just out of the water
+    this.L = this.Ls;
+    this.t = 0;
+    this.T = { lift: 0, swing: 0, lower: 0, release: 0 }; // no swinging from the launch formula
+    this.place();
+    this.drawChains(1);
+    this.mesh.visible = true;
+    this.lifted = false;
+    this.clunked = false;
+    this.camOrbit = 0;
+  }
+
+  skip() {
+    this.t = Math.max(this.t, this.T2.end);
+  }
+
+  update(dt, camera) {
+    if (this.done) return false;
+    this.t += dt;
+    const T = this.T2, t = this.t;
+    const hooks = this.dive.hooks;
+    let drop = 0;
+    if (t < T.chains) {
+      this.angle = 0.62;
+      this.L = this.Ls;
+      drop = 1 - smoothstep(0, T.chains, t);
+    } else if (t < T.lift) {
+      if (!this.winch) {
+        this.winch = true;
+        hooks.release();
+        hooks.winch(true);
+      }
+      this.L = lerp(this.Ls, 3.0, smoothstep(T.chains, T.lift, t));
+    } else if (t < T.swing) {
+      this.L = 3.0;
+      this.angle = lerp(0.62, -0.15, smoothstep(T.lift, T.swing, t));
+    } else if (t < T.lower) {
+      this.angle = -0.15;
+      this.L = lerp(3.0, this.L0, smoothstep(T.swing, T.lower, t));
+    } else {
+      this.angle = -0.15;
+      this.L = this.L0;
+      if (!this.clunked) {
+        this.clunked = true;
+        hooks.winch(false);
+        this.winch = false;
+        hooks.release();
+      }
+    }
+    this.world.setAframe(this.angle);
+    this.place();
+    if (t < T.chains) this.sub.pos.y += Math.sin(t * 2.4) * 0.12; // bobbing on the waves
+    this.drawChains(drop);
+    // water pours off when the sub leaves the sea
+    if (!this.lifted && this.sub.pos.y > 0.2) {
+      this.lifted = true;
+      this.world.splash(this.sub.pos.clone().setY(0));
+      hooks.splash();
+    }
+    // camera: circle around the stern, a little above the water
+    const s = this.sub.pos;
+    this.camOrbit += dt * 0.12;
+    const a = 0.9 + this.camOrbit;
+    const desired = new THREE.Vector3(s.x + Math.sin(a) * 20, Math.max(s.y + 4.5, 5), s.z + Math.cos(a) * 20);
+    const look = new THREE.Vector3(s.x - 3, s.y - 0.5, s.z - 8);
+    if (!this.camStart) {
+      this.camStart = true;
+      camera.position.copy(desired);
+    } else camera.position.lerp(desired, 1 - Math.exp(-dt * 3));
+    camera.lookAt(look);
+    if (t >= T.end) {
+      this.done = true;
+      if (this.winch) hooks.winch(false);
+      this.mesh.visible = false;
+      this.onDone && this.onDone();
+    }
+    return true;
+  }
+}
+
 export { clamp };

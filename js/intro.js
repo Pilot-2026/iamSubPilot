@@ -170,25 +170,23 @@ const TITLE_FS = `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot
 // [model, scale, rx, rz, height, speed, count]
 const CAST = [
   ['whaleshark', 0.5, 20, 12, -5.5, 0.07, 1],
-  ['hammerhead', 0.9, 18, 13, 3.0, -0.12, 3],
+  ['hammerhead', 0.9, 18, 13, 3.0, -0.12, 2],
   ['whiteshark', 0.75, 23, 11, -3.4, 0.09, 1],
   ['blueshark', 0.85, 15, 14, 8.4, 0.14, 1],
   ['humpback', 0.42, 25, 15, 9, -0.05, 1],
   ['manta', 0.95, 15, 10, -2.8, 0.13, 1],
   ['turtle', 1.25, 12.5, 9, 6.2, -0.17, 1],
-  ['dolphin', 0.85, 17, 12, 1.2, 0.24, 3],
+  ['dolphin', 0.85, 17, 12, 1.2, 0.24, 2],
   ['sunfish', 0.9, 21, 9, -7.5, 0.05, 1],
   ['jellyphant', 0.75, 13, 8, -4.5, -0.11, 1],
   ['toaster', 0.85, 11, 13, 7.5, 0.15, 1],
   ['duckangler', 1.0, 18, 10, 4.5, -0.12, 1],
   ['sheep', 1.0, 9, 11, -6.5, 0.16, 1],
-  ['sockopus', 0.75, 22, 13, -1.5, -0.08, 1],
   ['angler', 1.5, 10, 7, -2.2, 0.21, 1],
   ['dumbo', 1.6, 14, 6, 5.2, 0.09, 1],
-  ['vampire', 1.3, 24, 9, 2.5, 0.1, 1],
   ['barreleye', 2.6, 8, 9, 0.2, -0.2, 1],
-  ['combjelly', 1.3, 19, 7, 7.2, 0.06, 2],
-  ['moonjelly', 1.0, 16, 14, 3.5, 0.03, 3],
+  ['combjelly', 1.3, 19, 7, 7.2, 0.06, 1],
+  ['moonjelly', 1.0, 16, 14, 3.5, 0.03, 2],
 ];
 
 export class Aquarium {
@@ -301,10 +299,10 @@ export class Aquarium {
     }
     // fish schools orbiting the letters
     this.schools = [];
-    const tints = [0x9fd2ff, 0xffd76a, 0xa8f0c8, 0xffa8d8, 0xe8f4ff];
+    const tints = [0x9fd2ff, 0xffd76a, 0xe8f4ff];
     tints.forEach((tint, i) => {
-      const n = 36;
-      const mesh = new THREE.InstancedMesh(fishGeometry(), fishMaterial(i === 4), n);
+      const n = 22;
+      const mesh = new THREE.InstancedMesh(fishGeometry(), fishMaterial(i === 2), n);
       mesh.frustumCulled = false;
       const offs = [];
       const col = new THREE.Color(tint);
@@ -313,7 +311,7 @@ export class Aquarium {
         offs.push({ x: (rng() - 0.5) * 6, y: (rng() - 0.5) * 2.4, z: (rng() - 0.5) * 6, ph: rng() * 10, s: 0.5 + rng() * 0.25 });
       }
       this.scene.add(mesh);
-      this.schools.push({ mesh, offs, rx: 14 + i * 3, rz: 9 + i * 2, h: -6 + i * 3.2, speed: (i % 2 ? -1 : 1) * (0.16 + i * 0.03), ph: i * 1.3 });
+      this.schools.push({ mesh, offs, rx: 14 + i * 4.5, rz: 9 + i * 3, h: -6 + i * 5.5, speed: (i % 2 ? -1 : 1) * (0.16 + i * 0.03), ph: i * 1.3 });
     });
 
     // a whole fleet of subs with strong lights
@@ -321,9 +319,6 @@ export class Aquarium {
       ['hummel', 15.5, 10, 0, 0.19, 0, true],
       ['rocket', 20, 13, 5.5, -0.14, 2.1, true],
       ['ufo', 12, 8, -5.2, 0.11, 4.2, false],
-      ['octopus', 22, 9, -1.8, -0.09, 1.0, false],
-      ['narwhal', 18, 15, 8.6, 0.16, 3.3, false],
-      ['puffer', 10.5, 12, 4.2, -0.21, 5.2, false],
       ['wolfshark', 17, 11, -3.6, 0.13, 2.7, false],
     ];
     this.subs = FLEET.map(([model, R, Rz, h, speed, ph, light]) => {

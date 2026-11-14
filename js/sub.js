@@ -996,14 +996,16 @@ export class Sub {
     const clearance = this.pos.y - floorY;
     let vInput = input.vertical;
     if (this.autoAscent) vInput = 1;
-    if (vInput < -0.2 && clearance > 70) this.descentRamp = Math.min(1, this.descentRamp + dt * 0.6);
+    // boost mode (stays on until switched off): much faster diving and climbing
+    const bd = this.boostDive ? 1 : 0;
+    if (vInput < -0.2 && clearance > 70) this.descentRamp = Math.min(1, this.descentRamp + dt * (bd ? 1.6 : 0.6));
     else this.descentRamp = Math.max(0, this.descentRamp - dt * 1.8);
-    if (vInput > 0.2 && this.pos.y < -25) this.ascentRamp = Math.min(1, this.ascentRamp + dt * (this.autoAscent ? 1.2 : 0.6));
+    if (vInput > 0.2 && this.pos.y < -25) this.ascentRamp = Math.min(1, this.ascentRamp + dt * (this.autoAscent ? 1.2 : bd ? 1.6 : 0.6));
     else this.ascentRamp = Math.max(0, this.ascentRamp - dt * 1.8);
     this.proximity = vInput < -0.2 && clearance < 70 && clearance > 6 && this.vel.y < -12;
-    let vSpeed = 6.5;
-    if (vInput < 0) vSpeed += 38 * this.descentRamp;
-    if (vInput > 0) vSpeed += (this.autoAscent ? 55 : 38) * this.ascentRamp;
+    let vSpeed = bd ? 11 : 6.5;
+    if (vInput < 0) vSpeed += (bd ? 66 : 38) * this.descentRamp;
+    if (vInput > 0) vSpeed += (this.autoAscent ? 55 : bd ? 66 : 38) * this.ascentRamp;
     let targetV = vInput * vSpeed;
     if (vInput < 0 && clearance < 70) targetV = Math.max(targetV, -Math.max(4, clearance * 0.5));
     this.vel.y = lerp(this.vel.y, targetV, 1 - Math.exp(-dt * 2.2));

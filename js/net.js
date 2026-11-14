@@ -46,22 +46,28 @@ export class Net {
         const fb = await import('./vendor/firebase.min.js');
         this.fb = fb;
         this.app = fb.initializeApp(FIREBASE_CONFIG);
-        this.auth = fb.getAuth(this.app);
-        const cred = await fb.signInAnonymously(this.auth);
-        this.uid = cred.user.uid;
         this.db = fb.getFirestore(this.app);
-        this.lbOnline = true;
+        try {
+          this.auth = fb.getAuth(this.app);
+          const cred = await fb.signInAnonymously(this.auth);
+          this.uid = cred.user.uid;
+          this.lbOnline = true; // online leaderboard needs the (anonymous) login
+        } catch (e) {
+          console.warn('Anonymous login not available – leaderboard stays local.', e);
+        }
         if (FIREBASE_CONFIG.databaseURL) {
           this.rtdb = fb.getDatabase(this.app);
           this.mpAvailable = true;
           fb.onValue(fb.ref(this.rtdb, '.info/serverTimeOffset'), (snap) => {
             this.offset = snap.val() || 0;
           });
+          this.mode = 'firebase';
+          return;
         }
-        this.mode = 'firebase';
-        return;
+        // Firestore only (leaderboard + statistics): rooms stay peer-to-peer
       } catch (e) {
         console.warn('Firebase not available, playing offline.', e);
+        this.db = null;
       }
     }
     if (params.get('local') === '1') {

@@ -16,7 +16,7 @@ function shipNameTexture() {
   g.font = 'bold 72px system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('R/V SUBPILOT', 256, 54, 496);
+  g.fillText('HMS ANDREW', 256, 54, 496);
   return new THREE.CanvasTexture(c);
 }
 
@@ -431,7 +431,7 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
     this.splashes = this.splashes.filter((s) => !s.dead);
   }
 
-  // ---------------- research vessel R/V SUBPILOT ----------------
+  // ---------------- research vessel HMS Andrew ----------------
   // Local frame: bow at -z, stern at +z, deck ~2.6 above the waterline (y = 0).
   buildShip() {
     const g = new THREE.Group();
