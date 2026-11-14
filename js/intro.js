@@ -10,6 +10,8 @@ import { fishGeometry, fishMaterial, fishTime } from './schools.js';
 import { mulberry32, clamp, lerp } from './util.js';
 
 const TEXT_W = 26, TEXT_H = 6.5, TEXT_Y = 2.2;
+// ?ogshot=1: a crowded, posed aquarium for the link preview picture (assets/og-image.jpg)
+const OG = new URLSearchParams(location.search).get('ogshot') === '1';
 const WORD = 'iamSubPilot';
 const N_IAM = 3; // "iam" yellow with black outline, "SubPilot" navy
 const FONT = '"Source Sans 3", "Myriad Pro", "Segoe UI", system-ui, sans-serif';
@@ -290,6 +292,7 @@ export class Aquarium {
     // animals
     this.actors = [];
     for (const [model, scale, rx, rz, h, speed, count] of CAST) {
+      if (OG && (model === 'dumbo' || model === 'angler')) continue; // would cover the title in the picture
       for (let k = 0; k < count; k++) {
         const o = buildModel(model);
         o.scale.multiplyScalar(scale);
@@ -299,9 +302,9 @@ export class Aquarium {
     }
     // fish schools orbiting the letters
     this.schools = [];
-    const tints = [0x9fd2ff, 0xffd76a, 0xe8f4ff];
+    const tints = OG ? [0x9fd2ff, 0xffd76a, 0xe8f4ff, 0xa8f0c8, 0xffa8d8] : [0x9fd2ff, 0xffd76a, 0xe8f4ff];
     tints.forEach((tint, i) => {
-      const n = 22;
+      const n = OG ? 40 : 22;
       const mesh = new THREE.InstancedMesh(fishGeometry(), fishMaterial(i === 2), n);
       mesh.frustumCulled = false;
       const offs = [];
@@ -315,13 +318,26 @@ export class Aquarium {
     });
 
     // a whole fleet of subs with strong lights
-    const FLEET = [
-      ['hummel', 15.5, 10, 0, 0.19, 0, true],
-      ['isabella', 20, 13, 5.5, -0.14, 2.1, true],
-      ['ufo', 12, 8, -5.2, 0.11, 4.2, false],
-      ['wolfshark', 17, 11, -3.6, 0.13, 2.7, false],
-    ];
-    this.subs = FLEET.map(([model, R, Rz, h, speed, ph, light]) => {
+    const PI = Math.PI;
+    const FLEET = OG
+      ? [
+          // fixed poses around the title (model, R, Rz, h, direction, angle, light, yaw)
+          ['hummel', 10, 5, -5.2, 1, 0.32 * PI, true],
+          ['isabella', 13, 6, -5.0, -1, 0.7 * PI, true],
+          ['ufo', 11, 4, 4.4, 1, 0.64 * PI, false],
+          ['wolfshark', 10.5, 10, -7.6, -1, 0.1 * PI, false, -2.0],
+          ['octopus', 12, 4, -2.4, 1, 0.9 * PI, false],
+          ['narwhal', 12.5, 4, -1.6, -1, 0.07 * PI, false],
+          ['puffer', 6, 4, -6.8, 1, 0.5 * PI, false],
+          ['rocket', 7.0, 6.8, 2.4, 1, 0.12 * PI, false, 1.9],
+        ]
+      : [
+          ['hummel', 15.5, 10, 0, 0.19, 0, true],
+          ['isabella', 20, 13, 5.5, -0.14, 2.1, true],
+          ['ufo', 12, 8, -5.2, 0.11, 4.2, false],
+          ['wolfshark', 17, 11, -3.6, 0.13, 2.7, false],
+        ];
+    this.subs = FLEET.map(([model, R, Rz, h, speed, ph, light, yaw]) => {
       const g = buildSubModel(model, null, light);
       g.userData.beam.material.uniforms.opacity.value = 0.2;
       g.userData.beam.scale.set(1.25, 1.25, 1.7);
@@ -330,9 +346,9 @@ export class Aquarium {
         g.userData.spot.intensity = 140;
         g.userData.spot.distance = 70;
       }
-      g.scale.setScalar(model === 'hummel' ? 1.15 : 1);
+      g.scale.setScalar((model === 'hummel' ? 1.15 : 1) * (OG ? (model === 'isabella' ? 0.82 : 0.62) : 1));
       this.scene.add(g);
-      return { g, R, Rz, h, speed, ph };
+      return { g, R, Rz, h, speed, ph, yaw };
     });
     this.sub = this.subs[0].g;
     this.subLightDir = new THREE.Vector3(0, -7, -20).normalize();
@@ -620,7 +636,7 @@ export class Aquarium {
     // the fleet circles the letters and sweeps them with their lamps
     const hits = [null, null, null];
     this.subs.forEach((s, idx) => {
-      const th = s.ph + t * s.speed;
+      const th = s.ph + (OG ? 0 : t * s.speed);
       const sg = Math.sign(s.speed) || 1;
       const sp = s.g.position;
       sp.set(Math.cos(th) * s.R, TEXT_Y - 0.4 + s.h + Math.sin(th * 2) * 1.4, Math.sin(th) * s.Rz);
@@ -631,7 +647,7 @@ export class Aquarium {
       while (d > Math.PI) d -= Math.PI * 2;
       while (d < -Math.PI) d += Math.PI * 2;
       s.g.rotation.order = 'YXZ';
-      s.g.rotation.y = tangentYaw + d * 0.45;
+      s.g.rotation.y = s.yaw ?? tangentYaw + d * 0.45;
       s.g.rotation.z = Math.sin(t * 0.7 + s.ph) * 0.08;
       animateSubModel(s.g, dt, t + s.ph, 4, true);
       // where the light beam hits the text plane (z = 0)
