@@ -8,6 +8,20 @@ const LINK = new THREE.TorusGeometry(0.17, 0.055, 4, 8);
 const LINK_LEN = 0.26;
 const MAX_LINKS = 64;
 
+// distance from the sub's origin down to its lowest part (ignoring light effects)
+function bottomOffset(group) {
+  group.updateMatrixWorld(true);
+  const box = new THREE.Box3(), tmp = new THREE.Box3();
+  const beam = group.userData.beam;
+  group.traverse((o) => {
+    if (o.isMesh && o !== beam && !(o.material && o.material.blending === THREE.AdditiveBlending)) {
+      tmp.setFromObject(o);
+      box.union(tmp);
+    }
+  });
+  return box.isEmpty() ? 1.3 : group.getWorldPosition(new THREE.Vector3()).y - box.min.y;
+}
+
 export class Launch {
   constructor(dive, { short = false } = {}) {
     this.dive = dive;
@@ -21,8 +35,14 @@ export class Launch {
     this.sub.locked = true;
     this.sub.yaw = -Math.PI / 2;
     this.sub.vel.set(0, 0, 0);
-    this.L = 5.9;
     this.angle = -0.15;
+    // start resting on the deck cradle (models have different heights)
+    this.sub.group.rotation.set(0, this.sub.yaw, 0);
+    const [a0, b0] = this.world.sheaves();
+    const top = this.sub.group.userData.top || 1.05;
+    const cradle = this.world.ship.position.y + 3.25;
+    this.L0 = Math.max(3.2, (a0.y + b0.y) / 2 - cradle - top - bottomOffset(this.sub.group));
+    this.L = this.L0;
     this.done = false;
     this.splashed = false;
     this.camUnder = false;
@@ -97,7 +117,7 @@ export class Launch {
     const t = this.t;
     const hooks = this.dive.hooks;
     if (t < T.lift) {
-      this.L = lerp(5.9, 3.0, smoothstep(0, T.lift, t));
+      this.L = lerp(this.L0, 3.0, smoothstep(0, T.lift, t));
       if (!this.winch) {
         this.winch = true;
         hooks.winch(true);

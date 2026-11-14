@@ -2,11 +2,12 @@
 
 import * as THREE from './vendor/three.min.js';
 import { World, SCALE, axisZ } from './world.js';
-import { Sub, RemoteSub, SUB_MODELS, subModelById, buildSubModel } from './sub.js';
+import { Sub, RemoteSub, SUB_MODELS, subModelById, buildSubModel, armBusy } from './sub.js';
 import { CreatureManager, buildModel } from './creatures.js';
 import { FishSchools } from './schools.js';
 import { Launch } from './launch.js';
 import { Aquarium } from './intro.js';
+import { Radio, QUICK_CALLS } from './radio.js';
 import { Input } from './input.js';
 import { audio, SOUND_MODES } from './audio.js';
 import { Net } from './net.js';
@@ -652,6 +653,131 @@ function colorFor(uid, players) {
 }
 const hexColor = (c) => '#' + new THREE.Color(c).getHexString();
 
+// ======================= radio (push-to-talk + quick calls) =======================
+let radio = null;
+const voiceAllowed = () => (profile.age || 0) >= 14;
+let lastTalkers = '';
+
+function createRadio() {
+  if (radio || net.mode !== 'p2p' || !net.room || !net.room.peer) return;
+  radio = new Radio(net, { onTalk: updateRadioUi, onError: () => toast(t('radioNoMic')) });
+  if (!voiceAllowed()) radio.setEnabled(false); // under 14: quick calls only
+  radio.sync(net.room.players);
+  updateRadioUi();
+}
+
+function leaveRoomAll() {
+  if (radio) radio.destroy();
+  radio = null;
+  $('#radio').classList.add('hidden');
+  net.leaveRoom();
+}
+
+function radioPress() {
+  if (!radio || !voiceAllowed()) return;
+  if (!sessionStorage.getItem('hadal.radioOk')) {
+    const n = $('#radioNotice');
+    n.innerHTML = `<b>🎙 ${t('radioNoticeTitle')}</b><p>${t('radioNoticeText')}</p><div class="row-end"><button class="btn small secondary" id="rnNo">${t('close')}</button><button class="btn small" id="rnOk">${t('radioNoticeOk')}</button></div>`;
+    n.classList.remove('hidden');
+    n.querySelector('#rnOk').onclick = () => {
+      sessionStorage.setItem('hadal.radioOk', '1');
+      n.classList.add('hidden');
+    };
+    n.querySelector('#rnNo').onclick = () => n.classList.add('hidden');
+    return;
+  }
+  radio.press();
+}
+function radioRelease() {
+  if (radio) radio.release();
+}
+
+// who is talking right now (shown next to the radio button), squelch + ducking for incoming voice
+function updateRadioUi() {
+  const players = (net.room && net.room.players) || {};
+  const talkers = Object.entries(players).filter(([u, p]) => p.talk && u !== net.uid && !(radio && radio.mutedUids.has(u))).map(([, p]) => p.name || '?');
+  const key = talkers.join(',');
+  if (radio && radio.enabled && key !== lastTalkers) {
+    if (talkers.length > lastTalkers.split(',').filter(Boolean).length) audio.squelch();
+    else if (lastTalkers) audio.squelch(true);
+    if (!radio.talking) audio.duck(talkers.length > 0);
+  }
+  lastTalkers = key;
+  const me = radio && radio.talking;
+  const who = me ? `🎙 ${t('radioYou')}${radio.locked ? ' 🔒' : ''}` : talkers.length ? `🎙 ${talkers.map(escapeHtml).join(', ')}` : '';
+  document.querySelectorAll('.radio-who').forEach((el) => (el.innerHTML = who));
+  document.querySelectorAll('.radio-ptt').forEach((b) => {
+    b.classList.toggle('on', !!me);
+    b.classList.toggle('locked', !!(radio && radio.locked));
+    const lbl = b.querySelector('small');
+    if (lbl) lbl.textContent = radio && radio.locked ? t('radioLocked') : me ? t('radioTalk') : t('radioHold');
+  });
+}
+
+function bindPtt(btn) {
+  if (!btn) return;
+  btn.addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      btn.setPointerCapture(e.pointerId);
+    } catch (x) {
+      /* ignore */
+    }
+    radioPress();
+  });
+  const up = (e) => {
+    e.preventDefault();
+    radioRelease();
+  };
+  btn.addEventListener('pointerup', up);
+  btn.addEventListener('pointercancel', up);
+}
+
+function quickCallsHtml() {
+  return QUICK_CALLS.map((q, i) => `<button class="qc" data-qc="${q.k}">${i + 1}. ${escapeHtml(L(q))}</button>`).join('');
+}
+function bindQuickCalls(root, after) {
+  root.querySelectorAll('[data-qc]').forEach((b) => (b.onclick = () => {
+    sendQuickCall(b.dataset.qc);
+    after && after();
+  }));
+}
+function sendQuickCall(k) {
+  const q = QUICK_CALLS.find((x) => x.k === k);
+  if (!q || !net.room) return;
+  net.sendEvent({ type: 'radio', k, name: profile.name });
+  audio.squelch(true);
+  showRadioLine(t('radioYou'), L(q));
+}
+function onQuickCall(ev) {
+  const q = QUICK_CALLS.find((x) => x.k === ev.k);
+  if (!q || (radio && radio.mutedUids.has(ev.by))) return;
+  audio.squelch(true);
+  showRadioLine(ev.name || '?', L(q));
+  if (game && ['look', 'found', 'help', 'follow'].includes(ev.k)) {
+    const r = game.remote.get(ev.by);
+    if (r) r.flash(7);
+  }
+}
+let radioLineTimer = null;
+function showRadioLine(name, text) {
+  const el = $('#radioLine');
+  el.innerHTML = `📻 <b>${escapeHtml(name)}:</b> ${escapeHtml(text)}`;
+  el.classList.remove('hidden');
+  clearTimeout(radioLineTimer);
+  radioLineTimer = setTimeout(() => el.classList.add('hidden'), 4500);
+}
+function toggleQuickMenu(force) {
+  const menu = $('#radioMenu');
+  const open = force ?? menu.classList.contains('hidden');
+  if (open) {
+    menu.innerHTML = quickCallsHtml();
+    bindQuickCalls(menu, () => menu.classList.add('hidden'));
+  }
+  menu.classList.toggle('hidden', !open);
+}
+
 // All rooms are public and have no visible code: you either jump into an open
 // room ("play now") or open your own. A room waits a short while for others
 // (countdown, the host can start earlier) – latecomers simply join the running dive.
@@ -735,7 +861,6 @@ function showMultiplayer() {
     };
     root.querySelector('#mpCreate').onclick = () => create(mpMode, root.querySelector('#mpLevel').value);
     let rooms = [];
-    let busy = false;
     const box = root.querySelector('#mpRooms');
     const draw = () => {
       if (!box.isConnected) return stopMpRefresh();
@@ -751,22 +876,45 @@ function showMultiplayer() {
         : `<div class="hint">${t('mpNoRooms')}</div>`;
       box.querySelectorAll('[data-code]').forEach((b) => (b.onclick = () => joinRoomCode(b.dataset.code, hint)));
     };
-    const refresh = async () => {
-      if (busy || !box.isConnected) return;
-      busy = true;
-      try {
-        rooms = await net.listRooms();
-      } catch (e) {
-        rooms = [];
-      }
-      busy = false;
-      rooms.sort((a, b) => (a.status === 'running') - (b.status === 'running') || b.players - a.players);
-      draw();
+    let inflight = null;
+    const refresh = () => {
+      if (!box.isConnected) return Promise.resolve();
+      if (inflight) return inflight; // a scan is already running: wait for it
+      inflight = (async () => {
+        let first = true;
+        try {
+          // rooms show up as soon as they answer
+          rooms = await net.listRooms((r, all) => {
+            if (first) rooms = [];
+            first = false;
+            rooms = [...all];
+            draw();
+            if (wantQuick) {
+              const pick = pickRoom(rooms);
+              if (pick) {
+                wantQuick = false;
+                joinRoomCode(pick.code, hint);
+              }
+            }
+          });
+        } catch (e) {
+          rooms = [];
+        }
+        rooms.sort((a, b) => (a.status === 'running') - (b.status === 'running') || b.players - a.players);
+        draw();
+      })().finally(() => (inflight = null));
+      return inflight;
     };
     root.querySelector('#mpRefresh').onclick = refresh;
+    let wantQuick = false;
     root.querySelector('#mpQuick').onclick = async () => {
+      const now = pickRoom(rooms);
+      if (now) return joinRoomCode(now.code, hint);
       hint.textContent = t('mpSearching');
+      wantQuick = true;
       await refresh();
+      if (!wantQuick) return; // already joined a room that answered during the scan
+      wantQuick = false;
       const r = pickRoom(rooms);
       if (r) joinRoomCode(r.code, hint);
       else create('coop', selLevel);
@@ -808,10 +956,11 @@ function openLobby(autoJoin = false) {
   lobbyOpen = true;
   net.on('meta', onRoomMeta);
   net.on('players', onRoomPlayers);
-  net.on('event', (ev) => game && game.onNetEvent(ev));
+  net.on('event', (ev) => (ev.type === 'radio' ? onQuickCall(ev) : game && game.onNetEvent(ev)));
+  createRadio();
   net.on('closed', () => {
     closeLobby();
-    net.leaveRoom();
+    leaveRoomAll();
     toast(t('mpHostLeft'));
     if (!game) closeModal();
   });
@@ -855,7 +1004,11 @@ function renderLobby() {
   const meta = net.room.meta || {};
   const host = net.isHost();
   const players = Object.entries(net.room.players || {});
-  const plist = players.map(([u, p]) => `<div><i style="background:${hexColor(colorFor(u, net.room.players))}"></i>${escapeHtml(p.name || '?')} <small style="color:#8fb3c7">${escapeHtml(L(subModelById(p.sub).name))}</small>${meta.host === u ? ` <small style="color:#8fb3c7">(${t('mpHost')})</small>` : ''}${u === net.uid ? ' ←' : ''}</div>`).join('');
+  const plist = players.map(([u, p]) => `<div><i style="background:${hexColor(colorFor(u, net.room.players))}"></i>${escapeHtml(p.name || '?')} <small style="color:#8fb3c7">${escapeHtml(L(subModelById(p.sub).name))}</small>${meta.host === u ? ` <small style="color:#8fb3c7">(${t('mpHost')})</small>` : ''}${u === net.uid ? ' ←' : radio && radio.enabled ? ` <button class="mute" data-mute="${escapeHtml(u)}">${radio.mutedUids.has(u) ? '🔇' : '🔊'}</button>` : ''}</div>`).join('');
+  const radioBox = radio
+    ? `<div class="radio-box"><div class="radio-row">${voiceAllowed() ? `<button class="radio-ptt" id="lbPtt"><span>🎙</span><small>${t('radioHold')}</small></button><button class="btn small secondary" id="lbRadioToggle">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : `<span class="hint" style="color:#8fb3c7">${t('radioKids')}</span>`}<span class="radio-who"></span></div>
+       <div class="qcs">${quickCallsHtml()}</div></div>`
+    : '';
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === meta.level ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
   const lv = levelById(meta.level);
   const running = meta.status === 'running';
@@ -868,15 +1021,30 @@ function renderLobby() {
     <p style="font-size:13px;color:#bfe9f7">${t('mpLobbyNote')}</p>
     ${host && !running ? `<div class="field"><div class="seg" id="lbMode"><button data-m="coop" class="${meta.mode !== 'race' ? 'on' : ''}">${t('mpCoop')}</button><button data-m="race" class="${meta.mode === 'race' ? 'on' : ''}">${t('mpRace')}</button></div></div><div class="field"><select id="lbLevelSel">${levelOpts}</select></div>` : ''}
     <h2>${t('mpPlayers')} (${players.length}/4)</h2><div class="players">${plist}</div>
+    ${radioBox}
     <div class="row-end">
       <button class="btn secondary" id="lbLeave">${t('mpLeave')}</button>
       ${running ? `<button class="btn big" id="lbJoinRun">⚡ ${t('mpJoinRunning')}</button>` : host ? `<button class="btn secondary" id="lbMore">${t('mpWaitMore')}</button><button class="btn big" id="lbStart">${t('mpStartNow')}</button>` : `<span style="color:#8fb3c7">${t('mpAutoStart')}</span>`}
     </div>`, (root) => {
     root.querySelector('#lbLeave').onclick = () => {
       closeLobby();
-      net.leaveRoom();
+      leaveRoomAll();
       closeModal();
     };
+    if (radio) {
+      bindPtt(root.querySelector('#lbPtt'));
+      bindQuickCalls(root);
+      const rt = root.querySelector('#lbRadioToggle');
+      if (rt) rt.onclick = () => {
+        radio.setEnabled(!radio.enabled);
+        renderLobby();
+      };
+      root.querySelectorAll('[data-mute]').forEach((b) => (b.onclick = () => {
+        radio.toggleMute(b.dataset.mute);
+        renderLobby();
+      }));
+      updateRadioUi();
+    }
     if (running) root.querySelector('#lbJoinRun').onclick = joinRunningDive;
     else if (host) {
       root.querySelectorAll('#lbMode button').forEach((b) => (b.onclick = () => net.updateMeta({ mode: b.dataset.m })));
@@ -896,9 +1064,15 @@ function onRoomMeta(meta) {
   }
 }
 
+let crewSig = '';
 function onRoomPlayers(players) {
+  if (radio) radio.sync(players);
+  updateRadioUi();
+  const sig = Object.entries(players || {}).map(([u, p]) => `${u}:${p.name}:${p.sub}`).sort().join('|');
+  const crewChanged = sig !== crewSig;
+  crewSig = sig;
   if (game) game.syncPlayers(players);
-  else if (lobbyOpen) {
+  else if (lobbyOpen && crewChanged) {
     // somebody new arrived shortly before the start: give them a few seconds
     const meta = net.room && net.room.meta;
     if (net.isHost() && meta && meta.status === 'lobby' && meta.autoStartAt && meta.autoStartAt - net.now() < 10000 && Object.keys(players || {}).length > 1) {
@@ -951,6 +1125,7 @@ class Dive {
     this.fantasyCount = 0;
     this.nodules = 0;
     this.litter = 0;
+    this.sediments = 0;
     this.landerFound = false;
     this.atDeepest = false;
     this.maxDepth = 0;
@@ -1150,16 +1325,33 @@ class Dive {
     this.discover(it.def, {});
   }
 
+  // Grab: the big telescopic arm reaches out, closes the claw and pulls the find into the sample basket.
   actGrab() {
-    this.sub.group.userData.grab = 1;
-    if (!this.canAct()) return;
+    if (!this.canAct() || armBusy(this.sub.group)) return;
     const it = this.grabTarget;
-    if (!it) return;
-    this.cm.remove(it);
+    if (!it) {
+      if (this.time - (this.lastGrabHint ?? -10) > 4) {
+        this.lastGrabHint = this.time;
+        toast(`✋ ${t('grabNothing')}`, t('grabNothingSub'));
+      }
+      return;
+    }
+    it.reserved = true;
     audio.grab();
+    this.sub.grab(it.group, (claw) => {
+      if (it.collected) return null;
+      it.collected = true;
+      claw.attach(it.group); // the find rides along while the arm retracts
+      this.collectItem(it);
+      return it.group;
+    });
+  }
+
+  collectItem(it) {
+    audio.discovery();
     this.countCollect(it.def.id);
     if (!this.photographed.has(it.def.id)) this.discover(it.def, {});
-    else toast(`+1 ${L(it.def.name)}`);
+    else toast(`✋ +1 ${L(it.def.name)}`);
     if (this.multi && this.multi.coop) net.sendEvent({ type: 'collect', item: it.id, kind: it.def.id, name: profile.name });
   }
 
@@ -1167,6 +1359,7 @@ class Dive {
     if (kind === 'nodule') this.nodules++;
     else if (kind === 'litter') this.litter++;
     else if (kind === 'lander') this.landerFound = true;
+    else if (kind === 'sediment') this.sediments++;
     this.checkMissions();
   }
 
@@ -1232,6 +1425,7 @@ class Dive {
       maxDepth: this.maxDepth,
       mapped: this.world.mappedPercent(),
       nodules: this.nodules,
+      sediments: this.sediments,
       litter: this.litter,
       lander: this.landerFound,
       atDeepest: this.atDeepest,
@@ -1257,6 +1451,7 @@ class Dive {
       }
       r.data = p;
       if (p.s) r.setState(p.s);
+      r.setTalking(!!p.talk);
     }
     for (const [uid, r] of this.remote) {
       if (!ids.has(uid)) {
@@ -1272,9 +1467,15 @@ class Dive {
     const rows = Object.entries(players || {}).map(([uid, p]) => {
       const d = p.s ? fmtNum(Math.max(0, -p.s.y * SCALE)) + ' m' : '';
       const extra = this.race && p.finish ? ` ✓ ${fmtTime(p.finish)}` : '';
-      return `<div><i style="background:${hexColor(colorFor(uid, players))}"></i>${escapeHtml(p.name || '?')}${uid === net.uid ? '' : ' · ' + d}${extra}</div>`;
+      const mute = radio && radio.enabled && uid !== net.uid ? ` <button class="mute" data-mute="${escapeHtml(uid)}">${radio.mutedUids.has(uid) ? '🔇' : '🔊'}</button>` : '';
+      return `<div><i style="background:${hexColor(colorFor(uid, players))}"></i>${p.talk ? '🎙 ' : ''}${escapeHtml(p.name || '?')}${uid === net.uid ? '' : ' · ' + d}${extra}${mute}</div>`;
     });
-    $('#team').innerHTML = rows.join('');
+    const html = rows.join('');
+    if (html !== this.teamHtml) {
+      this.teamHtml = html;
+      $('#team').innerHTML = html;
+      $('#team').querySelectorAll('[data-mute]').forEach((b) => (b.onclick = () => radio && radio.toggleMute(b.dataset.mute)));
+    }
   }
 
   onNetEvent(ev) {
@@ -1565,10 +1766,13 @@ class Dive {
     const fall = clamp(-s.vel.y * 0.08, 0, 5);
     // orbit offsets from mouse / touch drag (spring back after a moment)
     const o = this.orbit;
-    if (!camDrag.active && performance.now() / 1000 - o.last > 2.5) {
-      const k = Math.exp(-dt * 1.6);
+    // the chosen perspective stays until you double-tap the sub (or press V)
+    if (o.reset) {
+      const k = Math.exp(-dt * 4);
       o.yaw *= k;
       o.pitch *= k;
+      o.zoom *= k;
+      if (Math.abs(o.yaw) + Math.abs(o.pitch) + Math.abs(o.zoom) < 0.01) o.reset = false;
     }
     // fly lower behind the sub close to the seafloor, so you see what is on it
     const clear = s.pos.y - this.world.heightAt(s.pos.x, s.pos.z);
@@ -1800,11 +2004,17 @@ function startDive(opts) {
   $('#c').style.visibility = 'visible';
   audio.music('dive');
   game = new Dive(opts);
+  const showRadio = !!(radio && opts.multi);
+  $('#radio').classList.toggle('hidden', !showRadio);
+  $('#radioPtt').style.display = showRadio && voiceAllowed() ? '' : 'none';
+  $('#radioMenu').classList.add('hidden');
   window.HADAL.game = game;
   input.enabled = true;
 }
 
 function endGame() {
+  $('#radio').classList.add('hidden');
+  $('#radioMenu').classList.add('hidden');
   if (!game) return;
   game.dispose();
   game = null;
@@ -1821,7 +2031,7 @@ function computeScore(g) {
     const pts = f.isNew ? (k === 'fantasy' ? 200 : k === 'real' ? 150 : 100) : k === 'fantasy' ? 60 : k === 'real' ? 40 : 30;
     return s + pts;
   }, 0);
-  const samples = g.nodules * 40 + g.litter * 60 + (g.landerFound ? 250 : 0);
+  const samples = g.nodules * 40 + g.litter * 60 + g.sediments * 50 + (g.landerFound ? 250 : 0);
   const missions = g.missions.filter((m) => m.done).length * 250;
   const mapped = Math.round(g.world.mappedPercent() * 10);
   const depthB = Math.floor(g.maxDepth / 100);
@@ -1931,7 +2141,7 @@ async function finishQuiz(g, sc, correct) {
       showLeaderboard('exp', g.level.id);
     };
     root.querySelector('#fMenu').onclick = () => {
-      if (inRoom) net.leaveRoom();
+      if (inRoom) leaveRoomAll();
       endGame();
       closeModal();
       renderMenu();
@@ -1989,7 +2199,7 @@ function renderRaceStandings() {
     };
     root.querySelector('#fMenu').onclick = () => {
       resultsRace = null;
-      if (inRoom) net.leaveRoom();
+      if (inRoom) leaveRoomAll();
       endGame();
       closeModal();
       renderMenu();
@@ -2009,6 +2219,7 @@ function showPause() {
       <button class="btn secondary" id="pAsk">💬 ${t('askTitle')}</button>
       <button class="btn secondary" id="pLog">📖 ${t('logbook')}</button>
       <div class="seg" id="pSound">${SOUND_MODES.map((m) => `<button data-s="${m}" class="${audio.mode === m ? 'on' : ''}">${soundLabel(m)}</button>`).join('')}</div>
+      ${radio && voiceAllowed() ? `<button class="btn secondary" id="pRadio">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : ''}
       <button class="btn secondary" id="pAbort">⚠ ${t('abort')}</button>
     </div>
     <p style="font-size:12px;color:#8fb3c7;margin-top:14px">${t('keysHint')}</p>`, (root) => {
@@ -2024,6 +2235,10 @@ function showPause() {
         root.querySelectorAll('#pSound button').forEach((x) => x.classList.toggle('on', x === b));
       };
     });
+    if (root.querySelector('#pRadio')) root.querySelector('#pRadio').onclick = () => {
+      radio.setEnabled(!radio.enabled);
+      showPause();
+    };
     root.querySelector('#pAbort').onclick = () => {
       resume();
       if (game.race) game.actSurface();
@@ -2129,7 +2344,12 @@ function loop(now) {
 }
 
 // ======================= camera orbit (mouse / touch drag) =======================
-const camDrag = { active: false, id: null, x: 0, y: 0 };
+const camDrag = { active: false, id: null, x: 0, y: 0, lastTap: 0, tapX: 0, tapY: 0, hinted: false };
+function resetView() {
+  if (!game) return;
+  game.orbit.reset = true;
+  audio.click();
+}
 function bindCameraDrag() {
   const c = $('#c');
   c.addEventListener('pointerdown', (e) => {
@@ -2137,6 +2357,18 @@ function bindCameraDrag() {
     if (game.launch && !game.launch.done) {
       game.launch.skip();
       return;
+    }
+    // double tap on the sub: back to the view from behind
+    const now = performance.now();
+    if (now - camDrag.lastTap < 340 && Math.hypot(e.clientX - camDrag.tapX, e.clientY - camDrag.tapY) < 40) {
+      const p = game.sub.pos.clone().project(camera);
+      const sx = (p.x * 0.5 + 0.5) * window.innerWidth, sy = (-p.y * 0.5 + 0.5) * window.innerHeight;
+      if (Math.hypot(e.clientX - sx, e.clientY - sy) < Math.max(110, Math.min(window.innerWidth, window.innerHeight) * 0.2)) resetView();
+      camDrag.lastTap = 0;
+    } else {
+      camDrag.lastTap = now;
+      camDrag.tapX = e.clientX;
+      camDrag.tapY = e.clientY;
     }
     camDrag.active = true;
     camDrag.id = e.pointerId;
@@ -2154,9 +2386,14 @@ function bindCameraDrag() {
     camDrag.x = e.clientX;
     camDrag.y = e.clientY;
     const o = game.orbit;
+    o.reset = false;
     o.yaw = clamp(o.yaw - dx * 0.0075, -Math.PI, Math.PI);
     o.pitch = clamp(o.pitch + dy * 0.005, -0.8, 0.95);
     o.last = performance.now() / 1000;
+    if (Math.abs(o.yaw) > 0.5 && !camDrag.hinted) {
+      camDrag.hinted = true;
+      toast(t('viewHint'));
+    }
   });
   const end = (e) => {
     if (e.pointerId !== camDrag.id) return;
@@ -2170,7 +2407,26 @@ function bindCameraDrag() {
     game.orbit.zoom = clamp(game.orbit.zoom + Math.sign(e.deltaY) * 1.5, -5, 16);
     e.preventDefault();
   }, { passive: false });
+  bindPtt($('#radioPtt'));
+  $('#radioQuick').onclick = (e) => {
+    e.stopPropagation();
+    toggleQuickMenu();
+  };
+  const typing = (e) => /INPUT|TEXTAREA|SELECT/.test((e.target && e.target.tagName) || '');
   window.addEventListener('keydown', (e) => {
+    if (!radio || typing(e) || e.repeat) return;
+    if (e.code === 'KeyR') radioPress();
+    else if (e.code === 'KeyT') toggleQuickMenu();
+    else if (/^Digit[1-8]$/.test(e.code) && !$('#radioMenu').classList.contains('hidden')) {
+      sendQuickCall(QUICK_CALLS[Number(e.code.slice(5)) - 1].k);
+      toggleQuickMenu(false);
+    }
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'KeyR' && radio) radioRelease();
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyV' && game && !game.ended) resetView();
     if (game && game.launch && !game.launch.done && ['Space', 'Enter', 'Escape', 'KeyW', 'ArrowUp', 'ArrowDown', 'KeyS'].includes(e.code)) game.launch.skip();
   });
 }
@@ -2178,6 +2434,7 @@ function bindCameraDrag() {
 // ======================= boot =======================
 async function boot() {
   window.HADAL = { game: null, profile, net, startDive, levels: LEVELS, input };
+  Object.defineProperty(window.HADAL, 'radio', { get: () => radio });
   try {
     initRenderer();
   } catch (e) {

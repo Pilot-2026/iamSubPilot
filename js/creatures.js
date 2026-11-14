@@ -681,6 +681,26 @@ const BUILD = {
     }
     return g;
   },
+  sediment() {
+    const g = new THREE.Group();
+    const mound = new THREE.Mesh(SPH, std(0x5a4632, { roughness: 0.95 }));
+    mound.scale.set(0.9, 0.28, 0.75);
+    g.add(mound);
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 1.1, 6), std(0x9aa6b2, { metalness: 0.6 }));
+    pole.position.set(0.2, 0.55, 0);
+    g.add(pole);
+    const flag = new THREE.Mesh(new THREE.PlaneGeometry(0.42, 0.26), std(0xffc21a, { side: THREE.DoubleSide, emissive: 0xffc21a, emissiveIntensity: 0.4 }));
+    flag.position.set(0.42, 0.95, 0);
+    g.add(flag);
+    const light = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), basic(0xffd84a));
+    light.position.set(0.2, 1.12, 0);
+    g.add(light);
+    const glow = glowSprite(0xffd84a, 1.4, 0.7);
+    glow.position.copy(light.position);
+    g.add(glow);
+    g.userData.glow = glow;
+    return g;
+  },
   nodule() {
     const geo = new THREE.IcosahedronGeometry(0.35, 1);
     const p = geo.attributes.position;
@@ -1053,12 +1073,12 @@ const BUILD = {
 };
 
 // Which models glow by themselves (visible without our lights).
-const SELF_GLOW = new Set(['lanternfish', 'angler', 'gulper', 'lander', 'trieste', 'seep', 'bristlemouth', 'hatchetfish', 'barreleye']);
+const SELF_GLOW = new Set(['lanternfish', 'angler', 'gulper', 'lander', 'trieste', 'seep', 'sediment', 'bristlemouth', 'hatchetfish', 'barreleye']);
 
 const SPEED = { dolphin: 4.5, humpback: 1.3, spermwhale: 1.2, whaleshark: 1.1, turtle: 1.0, manta: 1.6, tuna: 4, moonjelly: 0.25, sunfish: 0.5, hatchetfish: 1.0, barreleye: 0.3, bristlemouth: 1.2, seacucumber: 0.08, lanternfish: 2.4, combjelly: 0.6, vampire: 0.9, gulper: 1.2, angler: 0.7, seapig: 0.25, grenadier: 1.4, dumbo: 0.8, supergiant: 0.6, amphipod: 1.5, snailfish: 1.0 };
 const HOVER = { seacucumber: 0.25, seapig: 0, grenadier: 1.6, dumbo: 1.8, supergiant: 0.5, amphipod: 0.9, snailfish: 1.0, xeno: 0, sockopus: 0, spaghetti: 0, sheep: 0.6, pancake: 0 };
-const RADIUS = { dolphin: 3, humpback: 7, spermwhale: 6, whaleshark: 6, turtle: 1.6, manta: 3.5, tuna: 2.5, moonjelly: 2, sunfish: 2, hatchetfish: 1.6, barreleye: 1.1, bristlemouth: 1.8, seacucumber: 1.6, lanternfish: 2.2, combjelly: 1, vampire: 1.3, gulper: 2.6, angler: 1.3, seapig: 2.2, grenadier: 2, dumbo: 1.4, supergiant: 1.6, amphipod: 2.2, snailfish: 1.6, xeno: 1, tubeworm: 3, clam: 2.5, nodule: 0.6, litter: 1, whale: 10, seep: 5, lander: 2, trieste: 3, jellyphant: 2.5, sockopus: 2.4, toaster: 2.2, grumpus: 2, duckangler: 2, spaghetti: 2.5, sheep: 1.8, pancake: 2 };
-const STATIC = new Set(['xeno', 'tubeworm', 'clam', 'nodule', 'litter', 'whale', 'seep', 'lander', 'trieste']);
+const RADIUS = { sediment: 1, dolphin: 3, humpback: 7, spermwhale: 6, whaleshark: 6, turtle: 1.6, manta: 3.5, tuna: 2.5, moonjelly: 2, sunfish: 2, hatchetfish: 1.6, barreleye: 1.1, bristlemouth: 1.8, seacucumber: 1.6, lanternfish: 2.2, combjelly: 1, vampire: 1.3, gulper: 2.6, angler: 1.3, seapig: 2.2, grenadier: 2, dumbo: 1.4, supergiant: 1.6, amphipod: 2.2, snailfish: 1.6, xeno: 1, tubeworm: 3, clam: 2.5, nodule: 0.6, litter: 1, whale: 10, seep: 5, lander: 2, trieste: 3, jellyphant: 2.5, sockopus: 2.4, toaster: 2.2, grumpus: 2, duckangler: 2, spaghetti: 2.5, sheep: 1.8, pancake: 2 };
+const STATIC = new Set(['sediment', 'xeno', 'tubeworm', 'clam', 'nodule', 'litter', 'whale', 'seep', 'lander', 'trieste']);
 
 
 // Swimming animation for the upper-ocean animals.
@@ -1225,6 +1245,11 @@ export class CreatureManager {
       const p = W.randomFloorPoint(this.rng, L.plainDepth, L.maxDepth, { nearAxis: W.halfW * 0.8 });
       if (p) this.lander = this.add(byId('lander'), p);
     }
+    // sediment samples along the trench
+    for (let i = 0; i < 4; i++) {
+      const p = W.randomFloorPoint(this.rng, Math.min(3000, L.plainDepth), L.maxDepth, { nearAxis: W.halfW * 0.9 });
+      if (p) this.add(byId('sediment'), p);
+    }
     // Trieste marker at the deepest point
     this.deepest = W.deepestPoint();
     if (L.trieste) {
@@ -1299,6 +1324,8 @@ export class CreatureManager {
         this.add(nod, new THREE.Vector3(x, W.heightAt(x, z), z));
       }
     }
+    const sed = CREATURES.find((c) => c.id === 'sediment');
+    for (let i = 0; i < 2; i++) this.add(sed, ring(6, 15));
     const fans = CREATURES.filter((c) => c.kind === 'fantasy' && c.habitat === 'floor' && landD >= c.depth[0] && landD <= c.depth[1]);
     if (!fans.length) return null;
     const f = fans[Math.floor(this.rng() * fans.length)];
@@ -1402,6 +1429,8 @@ export class CreatureManager {
       } else if (m === 'gulper' || m === 'grenadier' || m === 'snailfish') {
         const tl = g.userData.tail;
         if (tl) tl.rotation.y = Math.sin(ph * 2.5) * 0.15;
+      } else if (m === 'sediment') {
+        g.userData.glow.material.opacity = 0.35 + Math.max(0, Math.sin(T * 3 + it.phase)) * 0.55;
       } else if (m === 'lander') {
         g.userData.strobe.material.opacity = (T * 1.2) % 1 < 0.15 ? 1 : 0.1;
       } else if (m === 'trieste') {
@@ -1475,9 +1504,9 @@ export class CreatureManager {
   // Nearest collectible in reach.
   findGrabTarget(sub) {
     let best = null;
-    let bestD = 9;
+    let bestD = 9.5;
     for (const it of this.items) {
-      if (it.collected || !it.def.collect) continue;
+      if (it.collected || it.reserved || !it.def.collect) continue;
       const d = it.group.position.distanceTo(sub.pos);
       if (d < bestD) {
         bestD = d;

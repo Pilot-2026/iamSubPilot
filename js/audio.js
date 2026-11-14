@@ -439,6 +439,17 @@ class AudioFX {
     }
   }
 
+  // radio: short noise burst when a channel opens / closes (+ "roger" beep on close)
+  squelch(close = false) {
+    this.noise(0.14, { vol: 0.13, freq: 2600, q: 0.8 });
+    if (close) this.tone(1320, 0.07, { vol: 0.07, type: 'square', when: 0.1 });
+  }
+  // lower game sounds while somebody talks on the radio
+  duck(on) {
+    this.ducked = on;
+    if (!this.ctx) return;
+    this.master.gain.setTargetAtTime(on ? 0.3 : 0.8, this.ctx.currentTime, 0.12);
+  }
   ringPass(i) {
     const notes = [72, 74, 77, 79, 81, 84, 86, 89, 91, 93, 96, 98, 101, 103];
     const f = mtof(notes[Math.min(i, notes.length - 1)]);

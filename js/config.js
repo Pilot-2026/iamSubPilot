@@ -13,4 +13,4 @@ export const FIREBASE_CONFIG = null;
 
 export const AI_ENDPOINT = null;
 
-export const GAME_VERSION = '0.3.1';
+export const GAME_VERSION = '0.4.0';

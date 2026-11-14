@@ -16,6 +16,7 @@ Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his ot
 - `js/data/*.js` – levels, creatures (facts EN/DE + sources), quiz (age tiers kid/junior/adult)
 - `js/net.js` – rooms: Firebase RTDB if configured, else peer-to-peer (PeerJS, host relays, all rooms public: codes from `PUBLIC_CODES`, `listRooms()` asks every code, `window.__FAKE_PEER__` hook for tests); `?local=1` = BroadcastChannel between tabs; Firestore leaderboard or local
 - `js/config.js` – `FIREBASE_CONFIG`, `AI_ENDPOINT` (never put secrets here – public repo)
+- `js/radio.js` – push-to-talk voice (PeerJS media calls between the room's peers, own channel – unrelated to the glider game's LiveKit radio) + quick radio calls; voice only for age 14+
 - `js/audio.js` – synthesised FX + generative music (whale song, dolphins, echo sounder); sound modes all/fx/music/off
 - `js/vendor/` – bundled three.js, Firebase and PeerJS (built with esbuild from npm)
 
@@ -27,4 +28,4 @@ Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his ot
 - Never copy protected designs or characters (e.g. the Beatles' Yellow Submarine): the sub is an original bumblebee design.
 
 ## Testing
-`python3 -m http.server 8080`, then `?autostart=<levelId>&mode=expedition|race&age=12&lang=de` (`?nointro=1` skips the title screen). `window.HADAL` exposes `game`, `profile`, `net`, `input` for debugging.
+`python3 -m http.server 8080`, then (real P2P/voice tests: run a local PeerJS server on 127.0.0.1:9000 path /hadal and add `&peer=127.0.0.1:9000`) `?autostart=<levelId>&mode=expedition|race&age=12&lang=de` (`?nointro=1` skips the title screen). `window.HADAL` exposes `game`, `profile`, `net`, `input` for debugging.

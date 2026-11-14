@@ -83,7 +83,10 @@ export class Net {
   openPeer(id) {
     return new Promise(async (resolve, reject) => {
       const Peer = await this.peerLib();
-      const peer = id ? new Peer(id, { debug: 0 }) : new Peer({ debug: 0 });
+      const opts = { debug: 0 };
+      const ps = new URLSearchParams(location.search).get('peer'); // tests: own local signalling server
+      if (ps) Object.assign(opts, { host: ps.split(':')[0], port: Number(ps.split(':')[1]) || 9000, path: '/hadal', secure: false, config: { iceServers: [] } });
+      const peer = id ? new Peer(id, opts) : new Peer(opts);
       const to = setTimeout(() => reject(new Error('timeout')), 12000);
       const onErr = (e) => {
         clearTimeout(to);
@@ -179,7 +182,7 @@ export class Net {
     }
     if (!peer) throw new Error('p2p');
     this.leaveRoom();
-    const room = { code, meta, players: { [this.uid]: { ...info, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), peer, p2pHost: true, conns: new Map() };
+    const room = { code, meta, players: { [this.uid]: { ...info, pid: peer.id, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), peer, p2pHost: true, conns: new Map() };
     this.room = room;
     this.offset = 0;
     peer.on('connection', (conn) => {
@@ -226,7 +229,7 @@ export class Net {
         reject(new Error('full'));
       };
       conn.on('open', () => {
-        conn.send({ type: 'player', uid: this.uid, data: { ...info }, hello: true });
+        conn.send({ type: 'player', uid: this.uid, data: { ...info, pid: peer.id }, hello: true });
         // clock sync with the host (several pings, best one wins)
         for (let i = 0; i < 5; i++) setTimeout(() => conn.open && conn.send({ type: 'ping', t0: Date.now() }), 200 + i * 400);
       });
@@ -285,7 +288,7 @@ export class Net {
   }
 
   // List open rooms (all rooms are public).
-  async listRooms() {
+  async listRooms(onFound = null) {
     if (this.mode === 'firebase') {
       const { ref, get } = this.fb;
       const snap = await get(ref(this.rtdb, 'rooms'));
@@ -317,7 +320,7 @@ export class Net {
       const done = () => {
         if (--pending <= 0) resolve();
       };
-      const timer = setTimeout(resolve, 6000);
+      const timer = setTimeout(resolve, 7000);
       peer.on('error', (e) => {
         if (e.type === 'peer-unavailable') done();
       });
@@ -333,6 +336,7 @@ export class Net {
           if (m.type === 'roominfo' && !answered) {
             answered = true;
             found.push(m.room);
+            if (onFound) onFound(m.room, found);
             try {
               conn.close();
             } catch (x) {
@@ -349,7 +353,7 @@ export class Net {
           resolve();
         }
       }, 100);
-      setTimeout(() => clearInterval(check), 6500);
+      setTimeout(() => clearInterval(check), 7500);
     });
     setTimeout(() => {
       try {

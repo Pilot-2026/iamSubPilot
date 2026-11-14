@@ -16,11 +16,11 @@ const ZAX = new THREE.Vector3(0, 0, 1);
 
 export const SUB_MODELS = [
   { id: 'hummel', color: 0xffc21a, name: { en: 'HUMMEL-1', de: 'HUMMEL-1' }, desc: { en: 'The bumblebee: sturdy, full of gadgets', de: 'Die Hummel: robust und voller Technik' } },
-  { id: 'puffer', color: 0xff8a1f, name: { en: 'PUFFBALL', de: 'KUGELBLITZ' }, desc: { en: 'Round, spiky, absolutely unsinkable', de: 'Kugelrund, stachelig, unkaputtbar' } },
-  { id: 'narwhal', color: 0xcfe9ff, name: { en: 'NARWHAL-X', de: 'NARWAL-X' }, desc: { en: 'Sleek ice-blue torpedo with a spinning drill horn', de: 'Schlanker Eis-Torpedo mit Bohrer-Horn' } },
-  { id: 'octopus', color: 0x9b4dff, name: { en: 'OCTOPODA', de: 'OKTOPODA' }, desc: { en: 'Eight wiggly arms, one big window', de: 'Acht wackelnde Arme, ein großes Fenster' } },
-  { id: 'rocket', color: 0xe8392e, name: { en: 'ABYSS ROCKET', de: 'TIEFSEERAKETE' }, desc: { en: 'Retro rocket – just pointing downwards', de: 'Retro-Rakete – nur eben nach unten' } },
-  { id: 'ufo', color: 0xb8c4cf, name: { en: 'DEEP UFO', de: 'TIEFSEE-UFO' }, desc: { en: 'A flying saucer that prefers to swim', de: 'Eine fliegende Untertasse, die lieber taucht' } },
+  { id: 'puffer', color: 0xffc21a, name: { en: 'PUFFBALL', de: 'KUGELBLITZ' }, desc: { en: 'Round, spiky, absolutely unsinkable', de: 'Kugelrund, stachelig, unkaputtbar' } },
+  { id: 'narwhal', color: 0xffc21a, name: { en: 'NARWHAL-X', de: 'NARWAL-X' }, desc: { en: 'Sleek torpedo with a spinning drill horn', de: 'Schlanker Torpedo mit Bohrer-Horn' } },
+  { id: 'octopus', color: 0xffc21a, name: { en: 'OCTOPODA', de: 'OKTOPODA' }, desc: { en: 'Eight wiggly arms, one big window', de: 'Acht wackelnde Arme, ein großes Fenster' } },
+  { id: 'rocket', color: 0xffc21a, name: { en: 'ABYSS ROCKET', de: 'TIEFSEERAKETE' }, desc: { en: 'Retro rocket – just pointing downwards', de: 'Retro-Rakete – nur eben nach unten' } },
+  { id: 'ufo', color: 0xffc21a, name: { en: 'DEEP UFO', de: 'TIEFSEE-UFO' }, desc: { en: 'A flying saucer that prefers to swim', de: 'Eine fliegende Untertasse, die lieber taucht' } },
 ];
 export const subModelById = (id) => SUB_MODELS.find((m) => m.id === id) || SUB_MODELS[0];
 
@@ -212,28 +212,6 @@ function buildHummel(g, B, ctx) {
     B.add(M.stripe, new THREE.BoxGeometry(0.12, 0.09, 0.45), { p: [sx * 0.68, -1.1, -1.38], r: [-0.6, 0, 0] });
     for (const z of [-0.8, 0.2]) B.add(M.steel, new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6), { p: [sx * 0.62, -0.98, z], r: [0, 0, sx * 0.25] });
   }
-  // grabber arm + claw
-  B.add(M.steel, new THREE.CylinderGeometry(0.12, 0.12, 0.2, 10), { p: [0, -0.86, -1.15] });
-  B.add(M.steel, new THREE.BoxGeometry(0.1, 0.1, 0.62), { p: [0, -0.96, -1.45], r: [0.35, 0, 0] });
-  B.add(M.brass, new THREE.SphereGeometry(0.09, 8, 6), { p: [0, -1.07, -1.75] });
-  B.add(M.steel, new THREE.BoxGeometry(0.09, 0.09, 0.45), { p: [0, -1.02, -1.98], r: [-0.25, 0, 0] });
-  const claw = new THREE.Group();
-  claw.position.set(0, -0.96, -2.2);
-  const fingers = [];
-  for (const sx of [-1, 1]) {
-    const f = new THREE.Group();
-    const seg = new THREE.Mesh(FINGER, M.steel);
-    seg.position.set(0, 0, -0.14);
-    f.add(seg);
-    const tipF = new THREE.Mesh(FINGER_TIP, M.brass);
-    tipF.position.set(-sx * 0.05, 0, -0.3);
-    f.add(tipF);
-    f.position.x = sx * 0.06;
-    f.rotation.y = sx * 0.35;
-    claw.add(f);
-    fingers.push(f);
-  }
-  g.add(claw);
   B.add(M.stripe, new THREE.BoxGeometry(0.7, 0.04, 0.45), { p: [0, -1.18, -0.85] });
   for (const sx of [-1, 1]) B.add(M.brass, new THREE.BoxGeometry(0.03, 0.22, 0.45), { p: [sx * 0.35, -1.08, -0.85] });
   // name plates (above the pipe, nothing in front of them)
@@ -257,17 +235,17 @@ function buildHummel(g, B, ctx) {
   prop.add(hub);
   prop.position.set(0, 0, 2.62);
   g.add(prop);
-  Object.assign(g.userData, { prop, sideProps, beacon, flag, claw: fingers });
-  return { lamp: [0, -0.5, -1.9], top: 1.05, attach: [1.0, 1.1] };
+  Object.assign(g.userData, { prop, sideProps, beacon, flag });
+  return { lamp: [0, -0.5, -1.9], top: 1.05, attach: [1.0, 1.1], arm: [0, -0.98, -1.05] };
 }
 
 // ---------------- KUGELBLITZ (puffer fish ball) ----------------
 function buildPuffer(g, B, ctx) {
   const M = {
     body: std(ctx.color, { emissive: ctx.color, emissiveIntensity: 0.12 }),
-    belly: std(0xffe7bf),
-    spike: std(0xffd27a, { roughness: 0.5 }),
-    spot: std(0x9a3d0a),
+    belly: std(0xfff0b8),
+    spike: std(0x2a2a30, { roughness: 0.5 }),
+    spot: std(0x1b1b22),
     rim: std(0x2a2a30, { metalness: 0.6, roughness: 0.3 }),
     port: portMat(),
     dark: std(0x2a2a30, { metalness: 0.4 }),
@@ -310,7 +288,7 @@ function buildPuffer(g, B, ctx) {
   const fins = [];
   for (const sx of [-1, 1]) {
     const piv = new THREE.Group();
-    const f = new THREE.Mesh(new THREE.CircleGeometry(0.45, 12), std(0xffb04a, { side: THREE.DoubleSide, transparent: true, opacity: 0.85 }));
+    const f = new THREE.Mesh(new THREE.CircleGeometry(0.45, 12), std(0xffd84a, { side: THREE.DoubleSide, transparent: true, opacity: 0.9 }));
     f.scale.set(1, 0.6, 1);
     f.position.x = sx * 0.4;
     f.rotation.y = Math.PI / 2;
@@ -322,7 +300,7 @@ function buildPuffer(g, B, ctx) {
   // tail fan + prop in a ring
   B.add(M.body, new THREE.ConeGeometry(0.5, 0.6, 16).rotateX(Math.PI / 2), { p: [0, 0, 1.55] });
   B.add(M.rim, new THREE.TorusGeometry(0.55, 0.07, 8, 26), { p: [0, 0, 1.95] });
-  const tail = new THREE.Mesh(new THREE.CircleGeometry(0.6, 3), std(0xffb04a, { side: THREE.DoubleSide }));
+  const tail = new THREE.Mesh(new THREE.CircleGeometry(0.6, 3), std(0x1b1b22, { side: THREE.DoubleSide }));
   tail.rotation.set(0, Math.PI / 2, Math.PI / 2);
   tail.position.set(0, 0, 2.35);
   tail.scale.set(1, 1.3, 1);
@@ -342,20 +320,20 @@ function buildPuffer(g, B, ctx) {
     fins.forEach((f, i) => (f.rotation.y = (i ? 1 : -1) * Math.sin(t * 6) * 0.5));
     tail.rotation.y = Math.PI / 2 + Math.sin(t * 4) * 0.3;
   };
-  return { lamp: [0, -0.55, -1.35], top: 1.3, attach: [0.7, 0.7] };
+  return { lamp: [0, -0.55, -1.35], top: 1.3, attach: [0.7, 0.7], arm: [0, -1.2, -0.5] };
 }
 
 // ---------------- NARWAL-X ----------------
 function buildNarwhal(g, B, ctx) {
   const M = {
-    body: std(ctx.color, { roughness: 0.3, metalness: 0.25 }),
-    top: std(0x1f4f8a, { roughness: 0.35, metalness: 0.3 }),
-    speck: std(0x0f2c52),
+    body: std(ctx.color, { roughness: 0.3, metalness: 0.2, emissive: ctx.color, emissiveIntensity: 0.12 }),
+    top: std(0x1b1b22, { roughness: 0.35, metalness: 0.3 }),
+    speck: std(0x3a3020),
     rim: std(0xc9d6e2, { metalness: 0.85, roughness: 0.25 }),
     port: portMat(),
     horn: std(0xf3ead2, { roughness: 0.4 }),
     groove: std(0x8a7a55),
-    glow: new THREE.MeshBasicMaterial({ color: 0x55e8ff }),
+    glow: new THREE.MeshBasicMaterial({ color: 0xfff2c0 }),
   };
   B.add(M.body, new THREE.SphereGeometry(1, 28, 18), { s: [0.88, 0.8, 2.45] });
   B.add(M.top, new THREE.SphereGeometry(1, 28, 10, 0, Math.PI * 2, 0, Math.PI * 0.38), { s: [0.9, 0.82, 2.47] });
@@ -404,18 +382,18 @@ function buildNarwhal(g, B, ctx) {
   g.userData.anim = (dt, t, speed) => {
     horn.rotation.z += dt * (2 + speed * 0.8);
   };
-  return { lamp: [0, -0.4, -2.2], top: 0.82, attach: [1.0, 1.1] };
+  return { lamp: [0, -0.4, -2.2], top: 0.82, attach: [1.0, 1.1], arm: [0, -0.72, -1.2] };
 }
 
 // ---------------- OKTOPODA ----------------
 function buildOctopus(g, B, ctx) {
   const M = {
     body: std(ctx.color, { emissive: ctx.color, emissiveIntensity: 0.12, roughness: 0.3 }),
-    spot: std(0xd7a6ff),
-    tip: std(0xff9ad5, { emissive: 0x802050, emissiveIntensity: 0.4 }),
+    spot: std(0xe0a000),
+    tip: std(0x1b1b22),
     rim: std(0xd4a548, { metalness: 0.85, roughness: 0.3 }),
     port: portMat(),
-    dark: std(0x2a1b3a),
+    dark: std(0x1b1b22),
   };
   B.add(M.body, new THREE.SphereGeometry(1.2, 28, 20), { p: [0, 0.35, 0.15], s: [1, 1.12, 1.15] });
   const rnd = mulberry(3);
@@ -471,14 +449,14 @@ function buildOctopus(g, B, ctx) {
       });
     }
   };
-  return { lamp: [0, -0.2, -1.25], top: 1.7, attach: [0.6, 0.7] };
+  return { lamp: [0, -0.2, -1.25], top: 1.7, attach: [0.6, 0.7], arm: [0, -0.62, -0.7] };
 }
 
 // ---------------- TIEFSEERAKETE ----------------
 function buildRocket(g, B, ctx) {
   const M = {
     body: std(ctx.color, { emissive: ctx.color, emissiveIntensity: 0.1, roughness: 0.35 }),
-    white: std(0xf4f4f4, { roughness: 0.4 }),
+    white: std(0x1b1b22, { roughness: 0.4 }),
     rim: std(0xcfd6dd, { metalness: 0.9, roughness: 0.2 }),
     port: portMat(),
     dark: std(0x22262c, { metalness: 0.4 }),
@@ -516,7 +494,7 @@ function buildRocket(g, B, ctx) {
   // nozzle + flame
   B.add(M.rim, new THREE.CylinderGeometry(0.42, 0.6, 0.55, 20, 1, true).rotateX(Math.PI / 2), { p: [0, 0, 2.3] });
   B.add(M.dark, new THREE.CircleGeometry(0.45, 20), { p: [0, 0, 2.1], r: [0, Math.PI, 0] });
-  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.4, 16, 1, true).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x7ff0ff, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.42, 1.4, 16, 1, true).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xfff0b0, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
   flame.geometry.translate(0, 0, 0.7);
   flame.position.set(0, 0, 2.45);
   g.add(flame);
@@ -531,18 +509,18 @@ function buildRocket(g, B, ctx) {
     flame.scale.set(1, 1, 0.6 + speed * 0.05 + Math.random() * 0.25);
     flame.material.opacity = 0.3 + Math.random() * 0.2;
   };
-  return { lamp: [0, -0.3, -2.3], top: 0.97, attach: [1.1, 1.1] };
+  return { lamp: [0, -0.3, -2.3], top: 0.97, attach: [1.1, 1.1], arm: [0, -0.95, -0.95] };
 }
 
 // ---------------- TIEFSEE-UFO ----------------
 function buildUfo(g, B, ctx) {
   const M = {
-    body: std(ctx.color, { metalness: 0.8, roughness: 0.25 }),
-    dark: std(0x3a4450, { metalness: 0.7, roughness: 0.3 }),
+    body: std(ctx.color, { metalness: 0.45, roughness: 0.3, emissive: ctx.color, emissiveIntensity: 0.1 }),
+    dark: std(0x1b1b22, { metalness: 0.6, roughness: 0.3 }),
     rim: std(0xe8eef4, { metalness: 0.9, roughness: 0.15 }),
     port: portMat(),
-    ring: new THREE.MeshBasicMaterial({ color: 0x7dff6a }),
-    panel: std(0x103020, { emissive: 0x7dff6a, emissiveIntensity: 0.8 }),
+    ring: new THREE.MeshBasicMaterial({ color: 0xfff2c0 }),
+    panel: std(0x302810, { emissive: 0xffc21a, emissiveIntensity: 0.8 }),
   };
   const prof = [[0.0, 0.42], [0.9, 0.38], [1.7, 0.2], [2.2, 0.0], [1.75, -0.22], [0.9, -0.42], [0.0, -0.46]].map(([r, y]) => new THREE.Vector2(r, y));
   B.add(M.body, new THREE.LatheGeometry(prof, 40), {});
@@ -595,9 +573,9 @@ function buildUfo(g, B, ctx) {
   g.userData.sideProps = sideProps;
   g.userData.anim = (dt, t) => {
     lights.rotation.y += dt * 0.8;
-    lmats.forEach((m, i) => m.color.setHSL((t * 0.25 + i / 18) % 1, 1, Math.sin(t * 6 - i * 0.7) > 0.3 ? 0.65 : 0.25));
+    lmats.forEach((m, i) => m.color.setHex(Math.sin(t * 6 - i * 0.7) > 0.3 ? 0xfff2b0 : 0x5a4200));
   };
-  return { lamp: [0, -0.2, -2.15], top: 1.22, attach: [0.9, 0.9] };
+  return { lamp: [0, -0.2, -2.15], top: 1.22, attach: [0.9, 0.9], arm: [0, -0.62, -1.3] };
 }
 
 function mulberry(a) {
@@ -608,6 +586,143 @@ function mulberry(a) {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
+}
+
+
+// ---------------- big telescopic grabber arm (every sub) ----------------
+// shoulder -> outer tube -> two telescoping tubes -> claw with 3 fingers.
+// Retracted the claw sits under the nose; fully extended it reaches ~7.7 units.
+const ARM_REST_PITCH = -0.55;
+const ARM_BASE = 1.7; // shoulder to claw tip when retracted
+const ARM_EXT = 3.0; // per telescoping tube
+function tubeZ(r, len, mat) {
+  const geo = new THREE.CylinderGeometry(r, r, len, 14).rotateX(Math.PI / 2);
+  geo.translate(0, 0, -len / 2);
+  return new THREE.Mesh(geo, mat);
+}
+function buildArm(g, mount) {
+  const steel = std(0xa8b3bf, { metalness: 0.75, roughness: 0.3 });
+  const dark = std(0x1b1b22, { roughness: 0.5, metalness: 0.3 });
+  const yel = std(0xffc21a, { emissive: 0xffc21a, emissiveIntensity: 0.12 });
+  const root = new THREE.Group();
+  root.position.set(...mount);
+  const shoulder = new THREE.Mesh(new THREE.SphereGeometry(0.24, 14, 10), dark);
+  root.add(shoulder);
+  const aim = new THREE.Group();
+  aim.rotation.order = 'YXZ';
+  aim.rotation.x = ARM_REST_PITCH;
+  root.add(aim);
+  aim.add(tubeZ(0.15, 1.1, yel));
+  for (const z of [-0.25, -0.75]) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.155, 0.03, 6, 18), dark);
+    ring.position.z = z;
+    aim.add(ring);
+  }
+  const s2 = new THREE.Group();
+  s2.add(tubeZ(0.115, 1.35, steel));
+  aim.add(s2);
+  const s3 = new THREE.Group();
+  s3.add(tubeZ(0.085, 1.25, steel));
+  s2.add(s3);
+  const claw = new THREE.Group();
+  claw.position.z = -1.25;
+  s3.add(claw);
+  const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.16, 12).rotateX(Math.PI / 2), dark);
+  wrist.position.z = -0.08;
+  claw.add(wrist);
+  const palm = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.14, 0.14, 12).rotateX(Math.PI / 2), yel);
+  palm.position.z = -0.22;
+  claw.add(palm);
+  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff5a3a }));
+  lamp.position.set(0, 0.17, -0.2);
+  claw.add(lamp);
+  const fingers = [];
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + Math.PI / 2;
+    const base = new THREE.Group();
+    base.position.set(Math.cos(a) * 0.15, Math.sin(a) * 0.15, -0.28);
+    base.rotation.z = a - Math.PI / 2;
+    const hinge = new THREE.Group();
+    base.add(hinge);
+    const f1 = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 0.34).translate(0, 0, -0.17), steel);
+    hinge.add(f1);
+    const tip = new THREE.Group();
+    tip.position.z = -0.34;
+    tip.rotation.x = -0.6;
+    tip.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.05, 0.22).translate(0, 0, -0.11), dark));
+    hinge.add(tip);
+    claw.add(base);
+    fingers.push(hinge);
+  }
+  g.add(root);
+  return { root, aim, s2, s3, claw, fingers, ext: 0, open: 0.5, state: 'idle', target: null, onGrip: null, carry: null, t: 0 };
+}
+
+const _tw = new THREE.Vector3();
+// Start a grab: the arm reaches for targetObj (an Object3D in the world). onGrip(claw) fires when it closes.
+export function armGrab(g, targetObj, onGrip) {
+  const arm = g.userData.arm;
+  if (!arm || arm.state !== 'idle') return false;
+  arm.state = 'out';
+  arm.target = targetObj;
+  arm.onGrip = onGrip;
+  arm.t = 0;
+  return true;
+}
+export function armBusy(g) {
+  const arm = g.userData.arm;
+  return !!arm && arm.state !== 'idle';
+}
+
+function setExt(arm, e) {
+  arm.ext = e;
+  const e2 = Math.min(ARM_EXT, e);
+  const e3 = Math.max(0, Math.min(ARM_EXT, e - ARM_EXT));
+  arm.s2.position.z = -0.2 - e2;
+  arm.s3.position.z = -0.2 - e3;
+}
+
+function updateArm(g, arm, dt, t) {
+  arm.t += dt;
+  const approach = (cur, want, rate) => cur + (want - cur) * (1 - Math.exp(-dt * rate));
+  let wantYaw = 0, wantPitch = ARM_REST_PITCH, wantExt = 0, wantOpen = 0.45 + Math.sin(t * 1.3) * 0.08;
+  if (arm.state === 'out' || arm.state === 'grip') {
+    if (arm.target) {
+      g.updateMatrixWorld();
+      arm.target.getWorldPosition(_tw);
+      g.worldToLocal(_tw);
+      _tw.sub(arm.root.position);
+      const horiz = Math.hypot(_tw.x, _tw.z);
+      wantYaw = Math.atan2(-_tw.x, -_tw.z);
+      wantPitch = Math.atan2(_tw.y, horiz);
+      wantExt = clamp(_tw.length() - ARM_BASE + 0.15, 0, ARM_EXT * 2);
+    }
+    wantOpen = arm.state === 'grip' ? -0.15 : 1;
+  }
+  arm.aim.rotation.y = approach(arm.aim.rotation.y, wantYaw, arm.state === 'idle' ? 3 : 7);
+  arm.aim.rotation.x = approach(arm.aim.rotation.x, wantPitch, arm.state === 'idle' ? 3 : 7);
+  const speed = arm.state === 'in' ? 7 : 10;
+  const step = Math.sign(wantExt - arm.ext) * Math.min(Math.abs(wantExt - arm.ext), speed * dt);
+  setExt(arm, arm.ext + step);
+  arm.open = approach(arm.open, wantOpen, 10);
+  arm.fingers.forEach((f) => (f.rotation.x = -0.15 + arm.open * 0.75));
+  if (arm.state === 'out' && Math.abs(wantExt - arm.ext) < 0.05 && arm.t > 0.35) {
+    arm.state = 'grip';
+    arm.t = 0;
+  } else if (arm.state === 'grip' && arm.t > 0.28) {
+    if (arm.onGrip) arm.carry = arm.onGrip(arm.claw) || null;
+    arm.onGrip = null;
+    arm.target = null;
+    arm.state = 'in';
+    arm.t = 0;
+  } else if (arm.state === 'in' && arm.ext < 0.02 && arm.t > 0.3) {
+    if (arm.carry) {
+      arm.carry.parent && arm.carry.parent.remove(arm.carry);
+      arm.carry = null;
+    }
+    arm.state = 'idle';
+  }
+  if (arm.state === 'in' && arm.carry) arm.carry.scale.multiplyScalar(Math.exp(-dt * 0.8));
 }
 
 const BUILDERS = { hummel: buildHummel, puffer: buildPuffer, narwhal: buildNarwhal, octopus: buildOctopus, rocket: buildRocket, ufo: buildUfo };
@@ -637,7 +752,7 @@ export function buildSubModel(type = 'hummel', color = null, withLights = false)
   const glowMat = new THREE.SpriteMaterial({ map: lampGlowTexture(), color: 0xfff1c8, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, fog: false });
   const glows = [];
   const ctx = {
-    color: color ?? def.color,
+    color: def.color, // all subs are yellow (team colours only on the name tags)
     lamp(x, y, z, r, sphere = false) {
       const m = new THREE.Mesh(sphere ? new THREE.SphereGeometry(r, 10, 8) : new THREE.CircleGeometry(r, 16), lampMat);
       m.position.set(x, y, z);
@@ -652,10 +767,10 @@ export function buildSubModel(type = 'hummel', color = null, withLights = false)
   };
   const info = BUILDERS[def.id](g, B, ctx);
   B.build(g);
+  g.userData.arm = buildArm(g, info.arm || [0, -0.9, -1.1]);
   g.userData.type = def.id;
   g.userData.top = info.top;
   g.userData.attach = info.attach;
-  g.userData.grab = 0;
   g.userData.lampMat = lampMat;
   g.userData.glowMat = glowMat;
 
@@ -703,11 +818,7 @@ export function animateSubModel(g, dt, t, speed = 0, lightOn = true) {
   if (u.sideProps) u.sideProps.forEach((p, i) => (p.rotation.z += dt * (i ? 9 : -9)));
   if (u.beacon) u.beacon.material.color.setHex((t * 1.3) % 1 < 0.18 ? 0xffe14a : 0x5a3a08);
   if (u.flag) u.flag.rotation.y = Math.sin(t * 4) * 0.25;
-  if (u.grab > 0) u.grab = Math.max(0, u.grab - dt * 1.4);
-  if (u.claw) {
-    const open = 0.35 + Math.sin(u.grab * Math.PI) * 0.45;
-    u.claw.forEach((f, i) => (f.rotation.y = (i ? 1 : -1) * open));
-  }
+  if (u.arm) updateArm(g, u.arm, dt, t);
   if (u.anim) u.anim(dt, t, speed);
   u.lampMat.color.setHex(lightOn ? 0xfff4d0 : 0x333333);
 }
@@ -748,6 +859,10 @@ export class Sub {
     if (fill) fill.intensity = on ? 14 : 1;
     beam.visible = on;
     this.group.userData.glowMat.visible = on;
+  }
+
+  grab(targetObj, onGrip) {
+    return armGrab(this.group, targetObj, onGrip);
   }
 
   forward(out = new THREE.Vector3()) {
@@ -865,9 +980,27 @@ export class RemoteSub {
     this.targetYaw = 0;
     this.name = name;
     this.initialized = false;
+    this.color = color;
     this.label = makeNameSprite(name, color);
     this.label.position.set(0, 2.6, 0);
     this.group.add(this.label);
+  }
+
+  setTalking(on) {
+    if (on === this.talkOn) return;
+    this.talkOn = on;
+    this.label.visible = !on;
+    if (!this.talkLabel) {
+      this.talkLabel = makeNameSprite('🎙 ' + this.name, this.color);
+      this.talkLabel.position.copy(this.label.position);
+      this.group.add(this.talkLabel);
+    }
+    this.talkLabel.visible = on;
+  }
+
+  // briefly make the name tag big and visible through everything (quick radio call)
+  flash(sec = 6) {
+    this.flashT = sec;
   }
 
   setState(s) {
@@ -893,6 +1026,13 @@ export class RemoteSub {
     const gm = this.group.userData.glowMat;
     gm.visible = this.lightOn !== false;
     gm.opacity = 0.6 * clamp((-this.group.position.y * 10 - 100) / 400, 0, 1);
+    if (this.flashT > 0) this.flashT -= dt;
+    const big = this.flashT > 0 ? 1.8 + Math.sin(this.t * 8) * 0.3 : 1;
+    for (const l of [this.label, this.talkLabel]) {
+      if (!l) continue;
+      l.scale.set(4 * big, big, 1);
+      l.material.depthTest = !(this.flashT > 0);
+    }
     // hidden while still hanging above the water during the launch
     this.group.visible = this.group.position.y < -2.2;
   }

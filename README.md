@@ -15,17 +15,21 @@ A 3D browser game about the deepest places on Earth. Pick one of six crazy subs 
 | Sonar ping | F | Sonar |
 | Lights on/off | L | Light |
 | Photo | C or Enter | Photo |
-| Collect | G | Grab |
+| Grab with the arm (nodules, litter, sediment samples, lost lander) | G | Grab |
 | Ask Dr. Echo | H | Ask |
 | Surface (end dive) | B | Surface |
 | Look around the sub | drag with the mouse, wheel = zoom | drag on the screen |
 | Skip the launch | Space / click | tap |
+| Back to the view from behind | V | double-tap the sub |
+| Radio: talk (online, 14+) | hold R (3× tap = keep open) | hold 🎙 |
+| Quick radio calls (online) | T, then 1–8 | 📻 |
 | Sound (Music + FX / FX only / Music only / Silent) | M | sound button |
 | Pause | Esc | ❚❚ |
 
 - **Expedition:** explore, photograph, complete the missions (the first one is done within seconds), at the end choose whether to do the debrief quiz or skip it, map the trench with sonar and surface before energy, hull or oxygen run out.
+- **Grabbing:** the big telescopic arm reaches out several metres, closes its claw and pulls the find into the sample basket – manganese nodules, litter, sediment samples (yellow flags) and the lost lander count for missions and points.
 - **Abyss Race:** fly through 14 rings down to the deepest point as fast as you can.
-- **Multiplayer:** dive together (discoveries count for everyone) or race each other. All rooms are public – no codes, no private rooms: “Play now” jumps into an open room or opens a new one. A new room waits about 40 seconds for other divers (the host can start earlier or add time), and anyone who comes later simply joins the running dive (in a race, latecomers get their own start clock). Works without any setup: browsers connect directly (peer-to-peer via WebRTC/PeerJS), the host's browser keeps the room open.
+- **Multiplayer:** dive together (discoveries count for everyone) or race each other. All rooms are public – no codes, no private rooms: “Play now” jumps into an open room or opens a new one. A new room waits about 40 seconds for other divers (the host can start earlier or add time), and anyone who comes later simply joins the running dive (in a race, latecomers get their own start clock). With a built-in **radio**: push-to-talk voice for players aged 14+ (direct browser-to-browser audio, nothing is recorded, mute any diver) and quick radio calls with fixed phrases for everyone. Works without any setup: browsers connect directly (peer-to-peer via WebRTC/PeerJS), the host's browser keeps the room open.
 
 Real animals carry a blue **REAL** badge and a source. Fantasy creatures carry a rainbow **FANTASY** badge – each fantasy card also hides one real fact.
 

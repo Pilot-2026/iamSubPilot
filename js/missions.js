@@ -30,6 +30,7 @@ export function makeMissions(level, cm, rng) {
   if (cm.whale) pool.push({ type: 'whale' });
   if (cm.items.filter((i) => i.def.id === 'litter').length >= 2) pool.push({ type: 'litter', n: 2 });
   if (cm.items.filter((i) => i.def.id === 'nodule').length >= 3) pool.push({ type: 'nodule', n: 3 });
+  if (cm.items.filter((i) => i.def.id === 'sediment').length >= 3) pool.push({ type: 'sediment', n: 3 });
   pool.push({ type: 'deepest' });
   // random order
   for (let i = pool.length - 1; i > 0; i--) {
@@ -63,6 +64,8 @@ export function missionText(m) {
       return t('m_map', { p: m.p }) + ` (${Math.floor(m.progress)}%)`;
     case 'nodule':
       return t('m_nodule', { n: m.n }) + ` (${Math.min(m.progress, m.n)}/${m.n})`;
+    case 'sediment':
+      return t('m_sediment', { n: m.n }) + ` (${Math.min(m.progress, m.n)}/${m.n})`;
     case 'litter':
       return t('m_litter', { n: m.n }) + ` (${Math.min(m.progress, m.n)}/${m.n})`;
     case 'lander':
@@ -111,6 +114,10 @@ export function updateMissions(missions, s) {
       case 'nodule':
         m.progress = s.nodules;
         done = s.nodules >= m.n;
+        break;
+      case 'sediment':
+        m.progress = s.sediments || 0;
+        done = m.progress >= m.n;
         break;
       case 'litter':
         m.progress = s.litter;

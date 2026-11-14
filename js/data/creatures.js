@@ -389,6 +389,20 @@ export const CREATURES = [
 
   // ---------------- FINDS (objects) ----------------
   {
+    id: 'sediment', kind: 'object', model: 'sediment', collect: true,
+    name: { en: 'Sediment sample', de: 'Sedimentprobe' }, sci: 'Sediment core',
+    depth: [0, 11000], habitat: 'floor', count: 0, group: 1,
+    fact: {
+      en: 'Researchers take cores of seafloor mud. X-ray images of cores from 7.5 km deep in the Japan Trench show burrows that sea cucumbers and other animals dug into the sediment.',
+      de: 'Forschende stechen Kerne aus dem Schlamm des Meeresbodens. Röntgenbilder von Kernen aus 7,5 km Tiefe im Japangraben zeigen Gänge, die Seegurken und andere Tiere in das Sediment gegraben haben.',
+    },
+    more: {
+      en: 'Fresh sediment keeps sliding down into the trench from its walls. Sea cucumbers are probably among the first animals to settle on it.',
+      de: 'Von den Grabenwänden rutscht immer wieder frisches Sediment nach unten. Seegurken gehören vermutlich zu den ersten Tieren, die sich darauf ansiedeln.',
+    },
+    source: { label: 'Scimex / Nature Communications', url: 'https://www.scimex.org/newsfeed/deep-sea-creatures-are-architects-of-the-ocean-floor' },
+  },
+  {
     id: 'nodule', kind: 'object', model: 'nodule', collect: true,
     name: { en: 'Manganese nodule', de: 'Manganknolle' }, sci: 'Polymetallic nodule',
     depth: [4000, 6500], habitat: 'floor', count: 0, group: 1,
