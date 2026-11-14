@@ -12,6 +12,25 @@ const LB_PREFIX = 'hadal.lb.';
 export const PUBLIC_CODES = ['AQUA', 'BOJE', 'DELF', 'ECHO', 'FLUT', 'GRAB', 'HAIE', 'KRAB', 'LUKE', 'MANT', 'PERL', 'QUAL', 'RIFF', 'SAND', 'TANG', 'WALE', 'WOGE', 'ZONE', 'KORA', 'MOLA', 'PULS', 'SONA', 'TIEF', 'BLAU'];
 const shuffled = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
 const PEER_PREFIX = 'hadal-v1-';
+// ICE servers: Google STUN + the public PeerJS TURN relays (also over TCP, for networks that block UDP –
+// mobile networks and car modems often sit behind carrier NAT, where only a relay gets through)
+const ICE = {
+  iceServers: [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+    {
+      urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'],
+      username: 'peerjs',
+      credential: 'peerjsp',
+    },
+  ],
+  sdpSemantics: 'unified-plan',
+};
+// tests: own local signalling server (read once – the lobby removes the query string from the address)
+const PEER_SERVER = new URLSearchParams(location.search).get('peer');
+const codeFromErr = (e) => {
+  const m = /hadal-v1-([A-Z0-9]+)/.exec((e && e.message) || '');
+  return m ? m[1] : null;
+};
 
 function localTop(board, asc, n) {
   const list = JSON.parse(localStorage.getItem(LB_PREFIX + board) || '[]');
@@ -89,8 +108,8 @@ export class Net {
   openPeer(id) {
     return new Promise(async (resolve, reject) => {
       const Peer = await this.peerLib();
-      const opts = { debug: 0 };
-      const ps = new URLSearchParams(location.search).get('peer'); // tests: own local signalling server
+      const opts = { debug: 0, config: ICE };
+      const ps = PEER_SERVER;
       if (ps) Object.assign(opts, { host: ps.split(':')[0], port: Number(ps.split(':')[1]) || 9000, path: '/hadal', secure: false, config: { iceServers: [] } });
       const peer = id ? new Peer(id, opts) : new Peer(opts);
       const to = setTimeout(() => reject(new Error('timeout')), 12000);
@@ -191,6 +210,17 @@ export class Net {
     const room = { code, meta, players: { [this.uid]: { ...info, pid: peer.id, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), peer, p2pHost: true, conns: new Map() };
     this.room = room;
     this.offset = 0;
+    // room list probes arrive through the signalling server: answer with the room summary the same way
+    if (peer.socket && peer.socket.on) {
+      peer.socket.on('message', (m) => {
+        if (!m || m.type !== 'CANDIDATE' || !m.payload || !m.payload.probe || !m.src || this.room !== room) return;
+        try {
+          peer.socket.send({ type: 'CANDIDATE', payload: { room: this.roomSummary(room) }, dst: m.src });
+        } catch (e) {
+          /* ignore */
+        }
+      });
+    }
     peer.on('connection', (conn) => {
       conn.on('open', () => room.conns.set(conn.peer, conn));
       conn.on('data', (m) => this.handleMsg(room, m, conn));
@@ -219,8 +249,10 @@ export class Net {
     const room = { code, meta: null, players: {}, handlers: {}, joinedAt: Date.now(), peer, p2pHost: false };
     this.room = room;
     await new Promise((resolve, reject) => {
-      const to = setTimeout(() => reject(new Error('notfound')), 12000);
+      // no answer at all: the room exists (otherwise the server reports it gone) but the networks can't reach each other
+      const to = setTimeout(() => reject(new Error('noconn')), 20000);
       peer.on('error', (e) => {
+        if (e.type === 'peer-unavailable' && codeFromErr(e) && codeFromErr(e) !== code) return;
         clearTimeout(to);
         reject(new Error(e.type === 'peer-unavailable' ? 'notfound' : 'p2p'));
       });
@@ -318,49 +350,87 @@ export class Net {
       return out;
     }
     if (this.mode !== 'p2p') return [];
-    // ask every public code; existing rooms answer with a short summary
+    // 1) Probe: one small message per public code through the signalling server. A host answers right away
+    //    with its room summary (also through the server), so rooms show up within a moment and even when the
+    //    two networks can't open a direct connection. The server reports every code nobody holds (~5 s).
+    // 2) Codes that are taken but gave no answer (older game versions): ask over a data connection.
     const peer = await this.openPeer(null);
+    const own = this.room && this.room.code;
+    const codes = PUBLIC_CODES.filter((c) => c !== own);
     const found = [];
+    const gone = new Set();
+    const answered = new Set();
+    const tried = new Set();
     await new Promise((resolve) => {
-      let pending = PUBLIC_CODES.length;
-      const done = () => {
-        if (--pending <= 0) resolve();
+      let over = false;
+      let phase2 = null;
+      let limit = null;
+      let fallback = null;
+      const finish = () => {
+        if (over) return;
+        over = true;
+        clearTimeout(phase2);
+        clearTimeout(limit);
+        clearTimeout(fallback);
+        resolve();
       };
-      const timer = setTimeout(resolve, 7000);
-      peer.on('error', (e) => {
-        if (e.type === 'peer-unavailable') done();
-      });
-      for (const code of PUBLIC_CODES) {
-        if (this.room && this.room.code === code) {
-          done();
-          continue;
-        }
+      const settled = () => codes.every((c) => gone.has(c) || answered.has(c));
+      const add = (code, room) => {
+        if (answered.has(code) || over) return;
+        answered.add(code);
+        found.push({ ...room, code });
+        if (onFound) onFound(found[found.length - 1], found);
+        if (settled()) finish();
+      };
+      const connectTo = (code) => {
+        if (tried.has(code) || gone.has(code) || answered.has(code)) return;
+        tried.add(code);
         const conn = peer.connect(PEER_PREFIX + code, { reliable: true });
-        let answered = false;
         conn.on('open', () => conn.send({ type: 'info' }));
         conn.on('data', (m) => {
-          if (m.type === 'roominfo' && !answered) {
-            answered = true;
-            found.push(m.room);
-            if (onFound) onFound(m.room, found);
-            try {
-              conn.close();
-            } catch (x) {
-              /* ignore */
-            }
-            done();
+          if (m.type !== 'roominfo') return;
+          add(code, m.room);
+          try {
+            conn.close();
+          } catch (x) {
+            /* ignore */
           }
         });
-      }
-      const check = setInterval(() => {
-        if (pending <= 0) {
-          clearInterval(check);
-          clearTimeout(timer);
-          resolve();
+      };
+      const startPhase2 = () => {
+        if (over || limit) return;
+        const probeOk = gone.size + answered.size >= codes.length - 8;
+        for (const c of codes) if (!probeOk || !gone.has(c)) connectTo(c);
+        if (settled()) return finish();
+        limit = setTimeout(finish, 9000); // relayed connections over mobile networks can take a while
+      };
+      peer.socket.on('message', (m) => {
+        if (!m || m.type !== 'CANDIDATE' || !m.payload || !m.payload.room || typeof m.src !== 'string' || !m.src.startsWith(PEER_PREFIX)) return;
+        const code = m.src.slice(PEER_PREFIX.length);
+        if (codes.includes(code)) add(code, m.payload.room);
+      });
+      peer.on('error', (e) => {
+        if (e.type !== 'peer-unavailable') return;
+        const c = codeFromErr(e);
+        if (c) gone.add(c);
+        // all probe answers arrive within about a second of each other
+        if (!phase2) phase2 = setTimeout(startPhase2, 1300);
+        if (settled()) finish();
+      });
+      for (const c of codes) {
+        try {
+          peer.socket.send({ type: 'CANDIDATE', payload: { probe: 1 }, dst: PEER_PREFIX + c });
+        } catch (e) {
+          /* ignore */
         }
-      }, 100);
-      setTimeout(() => clearInterval(check), 7500);
+      }
+      fallback = setTimeout(startPhase2, 7500); // the server never reported the empty codes
     });
+    // taken codes that never answered: a room is there, but this network can't reach it
+    if (gone.size + answered.size >= codes.length - 8) {
+      for (const c of codes) if (!gone.has(c) && !answered.has(c)) found.push({ code: c, unreachable: true, players: 0 });
+    }
+    this.lastScan = { gone: gone.size, answered: answered.size, at: Date.now() };
     setTimeout(() => {
       try {
         peer.destroy();
@@ -369,6 +439,52 @@ export class Net {
       }
     }, 300);
     return found;
+  }
+
+  // Connection check for the multiplayer window: signalling server, public address (STUN), relay (TURN).
+  async checkConnection() {
+    const res = { webrtc: !!window.RTCPeerConnection, server: null, direct: null, relay: null };
+    if (this.mode !== 'p2p' || !res.webrtc) return res;
+    try {
+      const p = await this.openPeer(null);
+      res.server = true;
+      setTimeout(() => p.destroy(), 200);
+    } catch (e) {
+      res.server = false;
+    }
+    if (PEER_SERVER) return res; // local test server: no STUN/TURN
+    res.direct = false;
+    res.relay = false;
+    let pc;
+    try {
+      pc = new RTCPeerConnection(ICE);
+      pc.createDataChannel('check');
+      await new Promise((resolve) => {
+        const to = setTimeout(resolve, 7000);
+        pc.onicecandidate = (e) => {
+          if (!e.candidate) {
+            clearTimeout(to);
+            return resolve();
+          }
+          const c = e.candidate.candidate || '';
+          if (/ typ srflx/.test(c)) res.direct = true;
+          if (/ typ relay/.test(c)) res.relay = true;
+          if (res.direct && res.relay) {
+            clearTimeout(to);
+            resolve();
+          }
+        };
+        pc.createOffer().then((o) => pc.setLocalDescription(o)).catch(resolve);
+      });
+    } catch (e) {
+      /* ignore */
+    }
+    try {
+      pc && pc.close();
+    } catch (e) {
+      /* ignore */
+    }
+    return res;
   }
 
   async createRoom({ mode, level, name, sub, autoStartAt = 40000 }) {
