@@ -1,6 +1,7 @@
 // Title screen + menu background: a small "aquarium" with many real and
-// fantasy animals circling the word HADAL (water shader on the letters) and
-// the HUMMEL-1 sub cruising around it with its lights on.
+// fantasy animals circling the wordmark "iamSubPilot" (it assembles itself
+// letter by letter, water shader on the letters) and a fleet of subs
+// cruising around it with their lights on.
 
 import * as THREE from './vendor/three.min.js';
 import { buildModel, animUpper } from './creatures.js';
@@ -9,45 +10,87 @@ import { fishGeometry, fishMaterial, fishTime } from './schools.js';
 import { mulberry32, clamp, lerp } from './util.js';
 
 const TEXT_W = 26, TEXT_H = 6.5, TEXT_Y = 2.2;
+const WORD = 'iamSubPilot';
+const N_IAM = 3; // "iam" yellow with black outline, "SubPilot" navy
+const FONT = '"Source Sans 3", "Myriad Pro", "Segoe UI", system-ui, sans-serif';
+const F = 300; // font size on the letter canvases (px)
 
-function titleTexture() {
+const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+const easeOutBack = (x) => {
+  const c1 = 1.70158, c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+};
+
+// One canvas per letter, drawn exactly like the HTML wordmark (and a soft light halo so it reads on dark water).
+function letterCanvas(ch, iam, adv) {
+  const pad = Math.round(F * 0.28);
   const c = document.createElement('canvas');
-  c.width = 2048;
-  c.height = 512;
+  c.width = Math.ceil(adv + pad * 2);
+  c.height = Math.round(F * 1.5);
   const g = c.getContext('2d');
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.font = '900 400px system-ui, "Arial Black", sans-serif';
-  const word = 'HADAL';
-  // manual letter spacing
-  const spacing = 70;
-  const widths = [...word].map((ch) => g.measureText(ch).width);
-  const total = widths.reduce((a, b) => a + b, 0) + spacing * (word.length - 1);
-  let x = 1024 - total / 2;
-  const pos = widths.map((w) => {
-    const p = x + w / 2;
-    x += w + spacing;
-    return p;
-  });
-  const draw = (fill, blur, color) => {
-    g.shadowBlur = blur;
-    g.shadowColor = color;
-    g.fillStyle = fill;
-    [...word].forEach((ch, i) => g.fillText(ch, pos[i], 270));
-  };
-  draw('rgba(56,232,255,0.9)', 60, 'rgba(56,232,255,0.9)');
-  const grd = g.createLinearGradient(0, 80, 0, 460);
-  grd.addColorStop(0, '#f2fdff');
-  grd.addColorStop(0.45, '#5cecff');
-  grd.addColorStop(1, '#0a6f98');
-  draw(grd, 0, 'transparent');
-  g.lineWidth = 6;
-  g.strokeStyle = 'rgba(255,255,255,0.55)';
-  [...word].forEach((ch, i) => g.strokeText(ch, pos[i], 270));
-  const tex = new THREE.CanvasTexture(c);
-  tex.anisotropy = 4;
-  return tex;
+  g.font = `800 ${F}px ${FONT}`;
+  g.textBaseline = 'alphabetic';
+  g.lineJoin = 'round';
+  const x = pad, y = Math.round(F * 1.08);
+  // halo
+  g.save();
+  g.shadowColor = iam ? 'rgba(255,255,170,0.75)' : 'rgba(235,248,255,0.95)';
+  g.shadowBlur = F * 0.16;
+  g.lineWidth = iam ? F * 0.11 : F * 0.075;
+  g.strokeStyle = iam ? '#000' : '#ffffff';
+  g.strokeText(ch, x, y);
+  g.restore();
+  g.lineWidth = iam ? F * 0.11 : F * 0.075;
+  g.strokeStyle = iam ? '#000' : '#ffffff';
+  g.strokeText(ch, x, y);
+  g.fillStyle = iam ? '#ffff00' : '#000088';
+  g.fillText(ch, x, y);
+  return c;
 }
+
+function roundelCanvas() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 512;
+  const g = c.getContext('2d');
+  const r = 250;
+  for (const [f, col] of [[1, '#000088'], [0.7227, '#ffff00'], [0.3555, '#a60000']]) {
+    g.beginPath();
+    g.arc(256, 256, r * f, 0, Math.PI * 2);
+    g.fillStyle = col;
+    g.fill();
+  }
+  return c;
+}
+
+const TITLE_VS = `varying vec2 vUv; varying vec2 vP;
+  uniform float uTime; uniform float uTextY; uniform float uWave;
+  void main(){ vUv = uv; vec3 p = position;
+    vec4 wp0 = modelMatrix * vec4(p, 1.0);
+    p.z += (sin(wp0.x*0.5 + uTime*1.4)*0.18 + sin(wp0.y*0.9 + uTime*1.1)*0.08) * uWave;
+    vec4 wp = modelMatrix * vec4(p, 1.0);
+    vP = vec2(wp.x, wp.y - uTextY);
+    gl_Position = projectionMatrix * viewMatrix * wp; }`;
+const TITLE_FS = `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot[3]; uniform float uSpotI[3]; uniform float uFade; uniform float uFlash;
+  varying vec2 vUv; varying vec2 vP;
+  float caust(vec2 p){
+    float a = sin(p.x*2.1 + uTime*1.1 + sin(p.y*1.7 + uTime*0.6)*1.6);
+    float b = sin(p.y*2.6 - uTime*0.9 + sin(p.x*1.3 - uTime*0.5)*1.4);
+    float c = sin((p.x + p.y)*1.8 + uTime*0.7);
+    return pow(clamp(1.0 - abs(a + b + c) / 1.6, 0.0, 1.0), 3.0);
+  }
+  void main(){
+    vec4 tex = texture2D(map, vUv);
+    if (tex.a < 0.01) discard;
+    float cs = caust(vP*0.8);
+    vec3 col = tex.rgb * (0.92 + 0.22*cs);
+    float spot = 0.0;
+    for (int k = 0; k < 3; k++) { vec2 d = vP - uSpot[k]; spot += uSpotI[k] * exp(-dot(d, d) / 7.0); }
+    col += vec3(1.0, 0.95, 0.8) * spot * 0.55 * tex.a;
+    float band = smoothstep(0.6, 0.0, abs(fract(vP.x*0.035 - vP.y*0.012 - uTime*0.09) - 0.5) * 20.0);
+    col += vec3(1.0) * band * 0.28 * tex.a;
+    col += vec3(1.0) * uFlash * 0.6 * tex.a;
+    gl_FragColor = vec4(col, tex.a * uFade);
+  }`;
 
 // [model, scale, rx, rz, height, speed, count]
 const CAST = [
@@ -86,51 +129,24 @@ export class Aquarium {
     sun.position.set(0.3, 1, 0.4);
     this.scene.add(sun);
 
-    // HADAL with a water shader
+    // the wordmark "iamSubPilot" + roundel, built from one plane per letter (assembles itself)
     this.textU = {
-      map: { value: titleTexture() },
       uTime: { value: 0 },
+      uTextY: { value: TEXT_Y },
+      uWave: { value: 1 },
       uSpot: { value: [new THREE.Vector2(99, 99), new THREE.Vector2(99, 99), new THREE.Vector2(99, 99)] },
       uSpotI: { value: [0, 0, 0] },
       uFade: { value: 1 },
     };
-    const textMat = new THREE.ShaderMaterial({
-      uniforms: this.textU,
-      transparent: true,
-      depthWrite: false,
-      vertexShader: `varying vec2 vUv; varying vec2 vP;
-        uniform float uTime;
-        void main(){ vUv = uv; vec3 p = position; p.z += sin(p.x*0.5 + uTime*1.4)*0.25 + sin(p.y*0.9 + uTime*1.1)*0.12; vP = p.xy;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0); }`,
-      fragmentShader: `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot[3]; uniform float uSpotI[3]; uniform float uFade;
-        varying vec2 vUv; varying vec2 vP;
-        float caust(vec2 p){
-          float a = sin(p.x*2.1 + uTime*1.1 + sin(p.y*1.7 + uTime*0.6)*1.6);
-          float b = sin(p.y*2.6 - uTime*0.9 + sin(p.x*1.3 - uTime*0.5)*1.4);
-          float c = sin((p.x + p.y)*1.8 + uTime*0.7);
-          return pow(clamp(1.0 - abs(a + b + c) / 1.6, 0.0, 1.0), 3.0);
-        }
-        void main(){
-          vec2 uv = vUv;
-          uv.x += sin(uv.y*18.0 + uTime*2.2)*0.004 + sin(uv.y*7.0 - uTime*1.3)*0.003;
-          uv.y += cos(uv.x*22.0 + uTime*1.7)*0.007;
-          vec4 tex = texture2D(map, uv);
-          float cs = caust(vP*0.8);
-          vec3 col = tex.rgb * (0.7 + 0.75*cs);
-          float spot = 0.0;
-          for (int k = 0; k < 3; k++) { vec2 d = vP - uSpot[k]; spot += uSpotI[k] * exp(-dot(d, d) / 7.0); }
-          col += vec3(1.0, 0.95, 0.8) * spot * 1.9 * tex.a;
-          col += vec3(0.6, 0.9, 1.0) * spot * 0.25 * (1.0 - tex.a) * 0.0;
-          float band = smoothstep(0.035, 0.0, abs(fract(vUv.x*0.6 - vUv.y*0.25 - uTime*0.09) - 0.5));
-          col += vec3(0.75, 1.0, 1.0) * band * 0.35 * tex.a;
-          gl_FragColor = vec4(col, tex.a * uFade);
-        }`,
+    this.text = new THREE.Group();
+    this.scene.add(this.text);
+    this.letters = [];
+    this.titleT0 = -1;
+    const fontReady = document.fonts && document.fonts.load ? document.fonts.load(`800 100px ${FONT}`).catch(() => null) : Promise.resolve();
+    Promise.race([fontReady, new Promise((r) => setTimeout(r, 1800))]).then(() => {
+      this.buildTitle();
+      if (this.titleT0 < 0) this.titleT0 = this.t;
     });
-    const text = new THREE.Mesh(new THREE.PlaneGeometry(TEXT_W, TEXT_H, 60, 16), textMat);
-    text.position.y = TEXT_Y;
-    text.renderOrder = 5;
-    this.text = text;
-    this.scene.add(text);
 
     // light rays from above
     const rayTex = (() => {
@@ -241,6 +257,179 @@ export class Aquarium {
     this._s = new THREE.Vector3();
   }
 
+  buildTitle() {
+    const meas = document.createElement('canvas').getContext('2d');
+    meas.font = `800 ${F}px ${FONT}`;
+    const total = meas.measureText(WORD).width + F * (0.14 + 0.86);
+    const k = TEXT_W / total; // world units per canvas pixel
+    this.titleK = k;
+    const rng = mulberry32(77);
+    const mk = (tex, w, h, geo) => {
+      const mat = new THREE.ShaderMaterial({
+        uniforms: { ...this.textU, map: { value: tex }, uFlash: { value: 0 } },
+        transparent: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        vertexShader: TITLE_VS,
+        fragmentShader: TITLE_FS,
+      });
+      return new THREE.Mesh(geo || new THREE.PlaneGeometry(w, h, 6, 3), mat);
+    };
+    const x0 = -TEXT_W / 2;
+    [...WORD].forEach((ch, i) => {
+      const left = meas.measureText(WORD.slice(0, i)).width;
+      const adv = meas.measureText(WORD.slice(0, i + 1)).width - left;
+      const cv = letterCanvas(ch, i < N_IAM, adv);
+      const tex = new THREE.CanvasTexture(cv);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = 4;
+      const pad = Math.round(F * 0.28);
+      const m = mk(tex, cv.width * k, cv.height * k);
+      // canvas centre = letter box centre (+ the vertical offset of the baseline)
+      const cx = x0 + (left - pad + cv.width / 2) * k;
+      m.userData.home = new THREE.Vector3(cx, TEXT_Y, 0);
+      m.renderOrder = 5;
+      this.text.add(m);
+      this.letters.push(this.letterAnim(m, rng, i));
+    });
+    // roundel as a little coin that spins into place
+    const rtex = new THREE.CanvasTexture(roundelCanvas());
+    rtex.colorSpace = THREE.SRGBColorSpace;
+    const R = (F * 0.86 * k) / 2;
+    const face = mk(rtex, 0, 0, new THREE.CircleGeometry(R, 48));
+    const coin = new THREE.Group();
+    coin.add(face);
+    const back = face.clone();
+    back.rotation.y = Math.PI;
+    back.position.z = -0.12;
+    coin.add(back);
+    const rim = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.12, 48, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.06), new THREE.MeshBasicMaterial({ color: 0x000088, transparent: true }));
+    coin.add(rim);
+    this.coinRim = rim;
+    // baseline sits 0.33 F below the canvas centre; the roundel centre ~0.36 F above the baseline (like the CSS wordmark)
+    coin.userData.home = new THREE.Vector3(x0 + TEXT_W - R, TEXT_Y + (0.41 - 0.33) * F * k, 0.05);
+    coin.renderOrder = 6;
+    this.text.add(coin);
+    this.coin = coin;
+    this.coinAnim = { o: coin, delay: 0.12 * WORD.length + 0.35, dur: 1.5 };
+    // bubbles that trail the flying letters
+    const BN = 260;
+    const bg = new THREE.BufferGeometry();
+    bg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BN * 3).fill(999), 3));
+    this.trail = new THREE.Points(bg, new THREE.PointsMaterial({ color: 0xeafcff, size: 0.18, transparent: true, opacity: 0.85, depthWrite: false }));
+    this.trail.frustumCulled = false;
+    this.trailLife = new Float32Array(BN);
+    this.trailNext = 0;
+    this.scene.add(this.trail);
+    this.flashes = [];
+  }
+
+  letterAnim(m, rng, i) {
+    const home = m.userData.home;
+    const ang = rng() * Math.PI * 2;
+    const from = new THREE.Vector3(home.x + Math.cos(ang) * (10 + rng() * 10), home.y + Math.sin(ang) * (6 + rng() * 6) - 3, -18 + rng() * 26);
+    return {
+      o: m,
+      from,
+      rot: new THREE.Euler((rng() - 0.5) * 5, (rng() - 0.5) * 7, (rng() - 0.5) * 4),
+      arc: (rng() - 0.5) * 8,
+      delay: 0.12 * i + rng() * 0.12,
+      dur: 1.15 + rng() * 0.25,
+      ph: rng() * 6,
+      landed: false,
+    };
+  }
+
+  // start the assembly again (every time the title screen opens)
+  playTitle() {
+    if (!this.letters.length) return;
+    this.titleT0 = this.t;
+    for (const l of this.letters) l.landed = false;
+    if (this.coinAnim) this.coinAnim.landed = false;
+  }
+
+  emitBubble(p) {
+    if (!this.trail) return;
+    const i = this.trailNext;
+    this.trailNext = (i + 1) % this.trailLife.length;
+    const a = this.trail.geometry.attributes.position.array;
+    a[i * 3] = p.x + (Math.random() - 0.5) * 0.6;
+    a[i * 3 + 1] = p.y + (Math.random() - 0.5) * 0.6;
+    a[i * 3 + 2] = p.z + (Math.random() - 0.5) * 0.6;
+    this.trailLife[i] = 1.2 + Math.random();
+  }
+
+  updateTitle(dt) {
+    if (!this.letters.length) return;
+    const T = this.t - this.titleT0;
+    for (let i = 0; i < this.letters.length; i++) {
+      const l = this.letters[i];
+      const o = l.o;
+      const home = o.userData.home;
+      const x = clamp((T - l.delay) / l.dur, 0, 1);
+      if (x <= 0) {
+        o.visible = false;
+        continue;
+      }
+      o.visible = true;
+      const e = easeOutBack(x), ec = easeOutCubic(x);
+      o.position.lerpVectors(l.from, home, e);
+      o.position.y += Math.sin(x * Math.PI) * l.arc * (1 - x);
+      o.rotation.set(l.rot.x * (1 - ec), l.rot.y * (1 - ec), l.rot.z * (1 - ec));
+      o.scale.setScalar(0.25 + 0.75 * Math.min(1.08, e));
+      if (x < 1 && Math.random() < 0.7) this.emitBubble(o.position);
+      if (x >= 1) {
+        if (!l.landed) {
+          l.landed = true;
+          l.flash = 1;
+          if (this.onLand) this.onLand(i);
+        }
+        // alive in the water: every letter bobs a little on its own
+        o.position.y = home.y + Math.sin(this.t * 1.6 + l.ph) * 0.1;
+        o.rotation.z = Math.sin(this.t * 1.1 + l.ph) * 0.025;
+      }
+      if (l.flash > 0) l.flash = Math.max(0, l.flash - dt * 2.5);
+      o.material.uniforms.uFlash.value = l.flash || 0;
+    }
+    // the roundel coin
+    const c = this.coinAnim;
+    const x = clamp((T - c.delay) / c.dur, 0, 1);
+    const home = c.o.userData.home;
+    c.o.visible = x > 0;
+    if (x > 0) {
+      const e = easeOutBack(x), ec = easeOutCubic(x);
+      const from = new THREE.Vector3(home.x + 16, home.y + 9, -14);
+      c.o.position.lerpVectors(from, home, e);
+      c.o.rotation.set(0, (1 - ec) * Math.PI * 6, (1 - ec) * 1.2);
+      c.o.scale.setScalar(0.3 + 0.7 * Math.min(1.1, e));
+      if (x < 1) this.emitBubble(c.o.position);
+      if (x >= 1) {
+        if (!c.landed) {
+          c.landed = true;
+          c.flash = 1;
+          for (let k = 0; k < 40; k++) this.emitBubble(c.o.position);
+          if (this.onLand) this.onLand(WORD.length);
+        }
+        c.o.rotation.y = Math.sin(this.t * 0.9) * 0.35;
+        c.o.position.y = home.y + Math.sin(this.t * 1.6 + 2) * 0.1;
+      }
+      if (c.flash > 0) c.flash = Math.max(0, c.flash - dt * 2);
+      c.o.children.forEach((ch) => ch.material.uniforms && (ch.material.uniforms.uFlash.value = c.flash || 0));
+      this.coinRim.material.opacity = this.textU.uFade.value;
+    }
+    // bubbles rise and fade
+    const a = this.trail.geometry.attributes.position.array;
+    for (let i = 0; i < this.trailLife.length; i++) {
+      if (this.trailLife[i] <= 0) continue;
+      this.trailLife[i] -= dt;
+      a[i * 3 + 1] += dt * 2.2;
+      a[i * 3] += Math.sin(this.t * 3 + i) * dt * 0.3;
+      if (this.trailLife[i] <= 0) a[i * 3 + 1] = 999;
+    }
+    this.trail.geometry.attributes.position.needsUpdate = true;
+    this.trail.material.opacity = 0.85 * this.textU.uFade.value;
+  }
+
   setMode(mode) {
     this.mode = mode;
   }
@@ -266,6 +455,8 @@ export class Aquarium {
     this.textFade += (wantText - this.textFade) * (1 - Math.exp(-dt * 3));
     this.textU.uFade.value = this.textFade;
     this.text.visible = this.textFade > 0.02;
+    if (this.trail) this.trail.visible = this.text.visible;
+    this.updateTitle(dt);
 
     // camera: front view in the intro, slow drift in the menu
     const dist = this.fitDist || 32;

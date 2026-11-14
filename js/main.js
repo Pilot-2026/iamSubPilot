@@ -1,4 +1,4 @@
-// HADAL – main game controller: menu, dives, results, multiplayer.
+// iamSubPilot – main game controller: menu, dives, results, multiplayer.
 
 import * as THREE from './vendor/three.min.js';
 import { World, SCALE, axisZ } from './world.js';
@@ -19,6 +19,7 @@ import { ask, line, zoneKey } from './scientist.js';
 import { t, L, setLang, getLang, detectLang, fmtNum, fmtDec } from './i18n.js';
 import { mulberry32, clamp, escapeHtml } from './util.js';
 import { GAME_VERSION } from './config.js';
+import { shapeFor, capsuleEnds, closestSegSeg } from './collide.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -94,7 +95,10 @@ function showIntro(onDone) {
   $('#passers').innerHTML = '';
   $('#menuBg').classList.add('hidden');
   $('#c').style.visibility = 'visible';
-  if (aquarium) aquarium.setMode('intro');
+  if (aquarium) {
+    aquarium.setMode('intro');
+    aquarium.playTitle();
+  }
   const el = $('#intro');
   el.innerHTML = `
     <div class="intro-top">
@@ -106,6 +110,7 @@ function showIntro(onDone) {
       <p class="intro-dedic">${t('introDedication')}</p>
       <p class="intro-by">${t('introBy', { author: '<a href="https://www.pilotFilm.at" target="_blank" rel="noopener">Andreas Schmölzer</a>' })}
         <br><a class="intro-link" href="https://www.pilotFilm.at" target="_blank" rel="noopener">www.pilotFilm.at</a></p>
+      <p class="intro-legal"><a href="https://www.pilotfilm.at/impressum" target="_blank" rel="noopener">${t('imprint')}</a><a href="privacy.html" target="_blank" rel="noopener">${t('privacy')}</a></p>
       <button class="btn big" id="iGo">${t('introGo')}</button>
       <div class="intro-hint" id="iHint">${audio.ctx && audio.ctx.state === 'running' ? '' : t('introSoundHint')}</div>
     </div>`;
@@ -256,6 +261,23 @@ function tierLabel() {
   return { kid: t('ageTierKid'), junior: t('ageTierJunior'), adult: t('ageTierAdult') }[tier()];
 }
 
+// ======================= branding: wordmark + footer bar (same as in iamPilot) =======================
+function wordmarkHtml(tag = 'span', attrs = '') {
+  return `<${tag} class="wm" aria-label="iamSubPilot" ${attrs}><span class="wm-iam">iam</span><span class="wm-sub">SubPilot</span><span class="wm-badge"></span></${tag}>`;
+}
+function socialHtml() {
+  return `<div class="social" role="group" aria-label="Connect with Andreas Schmölzer on social media"><span class="social-t">${t('connect')} <span class="social-hug" aria-hidden="true">🤗</span></span><a class="so so-ig" href="https://www.instagram.com/schmoelzerandreas" target="_blank" rel="noopener" aria-label="Instagram: schmoelzerandreas" title="Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" fill="none" stroke="#fff" stroke-width="2.1"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="#fff" stroke-width="2.1"/><circle cx="17.3" cy="6.7" r="1.35" fill="#fff"/></svg></a><a class="so so-fb" href="https://www.facebook.com/andreas.schmoelzer" target="_blank" rel="noopener" aria-label="Facebook: andreas.schmoelzer" title="Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M13.6 21.5v-7.7h2.6l.4-3.1h-3V8.8c0-.9.3-1.5 1.5-1.5h1.6V4.5c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.3H7.9v3.1h2.6v7.7z"/></svg></a><a class="so so-tt" href="https://www.tiktok.com/@andreasschmoelzer" target="_blank" rel="noopener" aria-label="TikTok: @andreasschmoelzer" title="TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.7,-0.6)"><path fill="#25f4ee" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></g><g transform="translate(0.7,0.6)"><path fill="#fe2c55" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></g><path fill="#fff" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></svg></a><a class="so so-yt" href="https://www.youtube.com/user/pilotFilmSchmoelzer" target="_blank" rel="noopener" aria-label="YouTube: pilotFilmSchmoelzer" title="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M9.6 7.9v8.2l6.9-4.1z"/></svg></a><a class="so so-li" href="https://www.linkedin.com/in/andreasschmoelzer" target="_blank" rel="noopener" aria-label="LinkedIn: andreasschmoelzer" title="LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.9" cy="6.6" r="1.75" fill="#fff"/><rect x="5.4" y="9.4" width="3" height="9.4" fill="#fff"/><path fill="#fff" d="M10.6 9.4h2.9v1.3c.4-.8 1.5-1.6 3.1-1.6 3.2 0 3.7 2 3.7 4.7v5h-3v-4.4c0-1.1 0-2.5-1.5-2.5s-1.8 1.2-1.8 2.4v4.5h-3z"/></svg></a></div>`;
+}
+function footerHtml() {
+  const AS = 'https://www.andreas-schmoelzer.at', PF = 'https://www.pilotfilm.at';
+  const ext = 'target="_blank" rel="noopener"';
+  return `<div class="menu-foot">
+    <p class="flyreal">${t('footAi')}</p>
+    <div class="credit"><span class="credit-links"><a href="${AS}" ${ext}>www.Andreas-Schmoelzer.at</a><a href="${PF}" ${ext}>www.pilotFilm.at</a><span class="logos"><a class="logo-link as" href="${AS}" ${ext} aria-label="www.Andreas-Schmoelzer.at"><img src="assets/logo-schmoelzer.png" alt="Andreas Schmölzer Keynote-Speaker logo" width="176" height="26"></a><a class="logo-link pf" href="${PF}" ${ext} aria-label="www.pilotFilm.at"><img src="assets/logo-pilotfilm.png" alt="pilotFilm logo" width="127" height="30"></a><a class="logo-link me" href="${AS}" ${ext} aria-label="Andreas Schmölzer"><img src="assets/andreas-schmoelzer.png" alt="Portrait of Andreas Schmölzer" width="62" height="63" decoding="async" loading="lazy"></a></span></span>${socialHtml()}</div>
+    <p class="legal"><span class="ver">v${GAME_VERSION}</span><a href="${PF}/impressum" ${ext}>${t('imprint')}</a><a href="privacy.html" ${ext}>${t('privacy')}</a></p>
+  </div>`;
+}
+
 // ======================= welcome / profile =======================
 function showWelcome(onDone) {
   if (aquarium) {
@@ -263,14 +285,15 @@ function showWelcome(onDone) {
     $('#c').style.visibility = 'visible';
   }
   const html = `
-    <div class="logo" style="font-size:40px;text-align:center">HADAL</div>
+    ${wordmarkHtml('div')}
     <h1>${t('welcomeTitle')}</h1>
     <p>${t('welcomeText')}</p>
     <div class="field"><label>${t('language')}</label>
       <div class="seg" id="wLang"><button data-l="en" class="${getLang() === 'en' ? 'on' : ''}">English</button><button data-l="de" class="${getLang() === 'de' ? 'on' : ''}">Deutsch</button></div></div>
     <div class="field"><label for="wName">${t('nickname')}</label><input id="wName" type="text" maxlength="16" autocomplete="off" value="${escapeHtml(profile.name)}"><div class="hint" id="wNameHint"></div></div>
     <div class="field"><label for="wAge">${t('age')}</label><input id="wAge" type="number" min="5" max="120" inputmode="numeric" value="${profile.age || ''}"><div class="hint" id="wAgeHint"></div></div>
-    <div class="row-end"><button class="btn big" id="wGo">${t('letsGo')}</button></div>`;
+    <div class="row-end"><button class="btn big" id="wGo">${t('letsGo')}</button></div>
+    <p class="welcome-privacy">${t('welcomePrivacy')} <a href="privacy.html" target="_blank" rel="noopener">${t('privacy')}</a> · <a href="https://www.pilotfilm.at/impressum" target="_blank" rel="noopener">${t('imprint')}</a></p>`;
   showModal(html, (root) => {
     root.querySelectorAll('#wLang button').forEach((b) => {
       b.onclick = () => {
@@ -411,7 +434,6 @@ function showInfo(onDone) {
     <h1>${t('infoTitle')}</h1>
     <p>${t('infoP1')}</p>
     <p>${t('infoP2')}</p>
-    <div class="info-hadal"><b>${t('infoNameTitle')}</b><p>${t('infoP3')}</p></div>
     <p class="info-go">${t('infoP4')}</p>
     <div class="row-end"><button class="btn big" id="infoGo">${t('infoButton')}</button></div>
     <p class="info-src">${t('infoSources')}: ${src.map(([l, u]) => `<a href="${u}" target="_blank" rel="noopener">${l}</a>`).join(' · ')}</p>`, (root) => {
@@ -451,7 +473,7 @@ function renderMenu() {
   }).join('');
   $('#menu').innerHTML = `
     <div class="menu-head">
-      <div class="title"><button class="logo logo-btn" id="mLogo" title="Intro">HADAL</button><div class="tagline">${t('tagline')}</div></div>
+      <div class="title">${wordmarkHtml('button', 'id="mLogo" title="Intro"').replace('class="wm"', 'class="wm logo-btn"')}<div class="tagline">${t('tagline')}</div></div>
       <div class="chips">
         <button class="chip" id="mProfile">👤 ${escapeHtml(profile.name)} · ${tierLabel()}</button>
         <span class="chip">🔬 ${fmtNum(rpAvailable())} ${getLang() === 'de' ? 'FP' : 'RP'}</span>
@@ -476,7 +498,7 @@ function renderMenu() {
       <button class="btn secondary" id="mLog">📖 ${t('logbook')}</button>
       <button class="btn secondary" id="mLb">🏆 ${t('leaderboard')}</button>
     </div>
-    <div class="menu-foot">${t('credit').replace('www.pilotFilm.at', '<a href="https://www.pilotfilm.at" target="_blank" rel="noopener">www.pilotFilm.at</a>')} · v${GAME_VERSION}</div>`;
+    ${footerHtml()}`;
   $('#menu').classList.remove('hidden');
   schedulePasser(true);
   const selCard = $('#menu .trench.sel');
@@ -586,7 +608,7 @@ function showLogbook(tab) {
     return `<button class="logitem ${c.kind === 'fantasy' ? 'fan' : ''}" data-id="${c.id}"><b>${escapeHtml(L(c.name))}</b><small>${c.kind === 'fantasy' ? '★ ' + t('fantasy') : t('real')} · ${fmtNum(e.maxDepth)} m · ×${e.n}</small></button>`;
   }).join('');
   const count = list.filter((c) => profile.logbook[c.id]).length;
-  showModal(`<div data-wide></div><h1>📖 ${t('logbookTitle')} <small style="color:#8fb3c7;font-size:15px">${count}/${list.length}</small></h1>
+  showModal(`<div data-wide></div><h1>📖 ${t('logbookTitle')} <small style="color:var(--ink-soft);font-size:15px">${count}/${list.length}</small></h1>
     <div class="tabs"><button class="tab ${tab === 'real' ? 'on' : ''}" data-tab="real">${t('logReal')}</button><button class="tab ${tab === 'fantasy' ? 'on' : ''}" data-tab="fantasy">★ ${t('logFantasy')}</button></div>
     <div class="loggrid">${items}</div>
     <div class="row-end"><button class="btn secondary" id="lClose">${t('close')}</button></div>`, (root) => {
@@ -627,7 +649,7 @@ async function showLeaderboard(kind, levelId) {
     if (!el) return;
     const fmt = (e) => (asc ? fmtTime(e.time) : kind === 'deepest' ? `${fmtNum(e.score)} m` : fmtNum(e.score));
     const rows = res.list.map((e, i) => `<tr><td>${i + 1}.</td><td>${escapeHtml(e.name || '?')}</td><td>${fmt(e)}</td></tr>`).join('');
-    el.innerHTML = `<div style="font-size:12px;color:#8fb3c7;margin-bottom:6px">${res.online ? t('lbOnline') : t('lbLocal')}</div>` +
+    el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">${res.online ? t('lbOnline') : t('lbLocal')}</div>` +
       (rows ? `<table class="lb">${rows}</table>` : `<p>${t('lbEmpty')}</p>`);
   });
 }
@@ -825,7 +847,7 @@ function showMultiplayer() {
   }
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === selLevel ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
   showModal(`<h1>👥 ${t('mpTitle')}</h1>
-    <p style="margin-top:0;color:#bfe9f7">${t('mpPublicNote')}</p>
+    <p style="margin-top:0;color:#1d1d1d">${t('mpPublicNote')}</p>
     <button class="btn big mp-quick" id="mpQuick">⚡ ${t('mpQuickPlay')}</button>
     <div class="hint" id="mpHint" style="text-align:center">${t('mpQuickPlayDesc')}</div>
     <h2 style="margin-top:16px">${t('mpOpenRooms')} <button class="btn small secondary" id="mpRefresh" style="margin-left:8px">🔄</button></h2>
@@ -836,7 +858,7 @@ function showMultiplayer() {
       <button class="mode ${mpMode === 'race' ? 'sel' : ''}" data-mm="race"><b>🏁 ${t('mpRace')}</b><span>${t('mpRaceDesc')}</span></button>
     </div>
     <div class="askrow" style="margin-top:8px"><select id="mpLevel">${levelOpts}</select><button class="btn" id="mpCreate">${t('mpOpenBtn')}</button></div>
-    ${net.mode === 'p2p' ? `<p style="font-size:12px;color:#8fb3c7;margin-top:10px">${t('mpP2PNote')}</p>` : ''}
+    ${net.mode === 'p2p' ? `<p style="font-size:12px;color:var(--ink-soft);margin-top:10px">${t('mpP2PNote')}</p>` : ''}
     <div class="row-end"><button class="btn secondary" id="mpClose">${t('close')}</button></div>`, (root) => {
     const hint = root.querySelector('#mpHint');
     root.querySelectorAll('[data-mm]').forEach((b) => {
@@ -1004,9 +1026,9 @@ function renderLobby() {
   const meta = net.room.meta || {};
   const host = net.isHost();
   const players = Object.entries(net.room.players || {});
-  const plist = players.map(([u, p]) => `<div><i style="background:${hexColor(colorFor(u, net.room.players))}"></i>${escapeHtml(p.name || '?')} <small style="color:#8fb3c7">${escapeHtml(L(subModelById(p.sub).name))}</small>${meta.host === u ? ` <small style="color:#8fb3c7">(${t('mpHost')})</small>` : ''}${u === net.uid ? ' ←' : radio && radio.enabled ? ` <button class="mute" data-mute="${escapeHtml(u)}">${radio.mutedUids.has(u) ? '🔇' : '🔊'}</button>` : ''}</div>`).join('');
+  const plist = players.map(([u, p]) => `<div><i style="background:${hexColor(colorFor(u, net.room.players))}"></i>${escapeHtml(p.name || '?')} <small style="color:var(--ink-soft)">${escapeHtml(L(subModelById(p.sub).name))}</small>${meta.host === u ? ` <small style="color:var(--ink-soft)">(${t('mpHost')})</small>` : ''}${u === net.uid ? ' ←' : radio && radio.enabled ? ` <button class="mute" data-mute="${escapeHtml(u)}">${radio.mutedUids.has(u) ? '🔇' : '🔊'}</button>` : ''}</div>`).join('');
   const radioBox = radio
-    ? `<div class="radio-box"><div class="radio-row">${voiceAllowed() ? `<button class="radio-ptt" id="lbPtt"><span>🎙</span><small>${t('radioHold')}</small></button><button class="btn small secondary" id="lbRadioToggle">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : `<span class="hint" style="color:#8fb3c7">${t('radioKids')}</span>`}<span class="radio-who"></span></div>
+    ? `<div class="radio-box"><div class="radio-row">${voiceAllowed() ? `<button class="radio-ptt" id="lbPtt"><span>🎙</span><small>${t('radioHold')}</small></button><button class="btn small secondary" id="lbRadioToggle">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : `<span class="hint" style="color:var(--ink-soft)">${t('radioKids')}</span>`}<span class="radio-who"></span></div>
        <div class="qcs">${quickCallsHtml()}</div></div>`
     : '';
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === meta.level ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
@@ -1018,13 +1040,13 @@ function renderLobby() {
       ? `<div class="lobby-wait"><b>${t('mpRunningInfo')}</b></div>`
       : `<div class="lobby-wait"><div><span class="dots">${t('mpWaiting')}</span><span class="lb-count">${t('mpStartsIn', { t: `<b id="lbCountdown">${fmtCountdown(left)}</b>` })}</span></div>
          <div class="lb-bar"><div id="lbBar" style="width:${clamp(1 - left / LOBBY_WAIT, 0, 1) * 100}%"></div></div></div>`}
-    <p style="font-size:13px;color:#bfe9f7">${t('mpLobbyNote')}</p>
+    <p style="font-size:13px;color:#1d1d1d">${t('mpLobbyNote')}</p>
     ${host && !running ? `<div class="field"><div class="seg" id="lbMode"><button data-m="coop" class="${meta.mode !== 'race' ? 'on' : ''}">${t('mpCoop')}</button><button data-m="race" class="${meta.mode === 'race' ? 'on' : ''}">${t('mpRace')}</button></div></div><div class="field"><select id="lbLevelSel">${levelOpts}</select></div>` : ''}
     <h2>${t('mpPlayers')} (${players.length}/4)</h2><div class="players">${plist}</div>
     ${radioBox}
     <div class="row-end">
       <button class="btn secondary" id="lbLeave">${t('mpLeave')}</button>
-      ${running ? `<button class="btn big" id="lbJoinRun">⚡ ${t('mpJoinRunning')}</button>` : host ? `<button class="btn secondary" id="lbMore">${t('mpWaitMore')}</button><button class="btn big" id="lbStart">${t('mpStartNow')}</button>` : `<span style="color:#8fb3c7">${t('mpAutoStart')}</span>`}
+      ${running ? `<button class="btn big" id="lbJoinRun">⚡ ${t('mpJoinRunning')}</button>` : host ? `<button class="btn secondary" id="lbMore">${t('mpWaitMore')}</button><button class="btn big" id="lbStart">${t('mpStartNow')}</button>` : `<span style="color:var(--ink-soft)">${t('mpAutoStart')}</span>`}
     </div>`, (root) => {
     root.querySelector('#lbLeave').onclick = () => {
       closeLobby();
@@ -1085,6 +1107,29 @@ function onRoomPlayers(players) {
 
 // ======================= the dive =======================
 const ZERO_INPUT = { throttle: 0, turn: 0, vertical: 0, boost: false };
+
+// ---------- collision helpers ----------
+const NO_COLLIDE = new Set(['trieste', 'seep']); // hologram marker, flat bacteria mat
+const METAL = new Set(['lander', 'sediment', 'litter', 'toaster']);
+const CA1 = new THREE.Vector3(), CB1 = new THREE.Vector3(), CA2 = new THREE.Vector3(), CB2 = new THREE.Vector3();
+const CC1 = new THREE.Vector3(), CC2 = new THREE.Vector3(), CN = new THREE.Vector3(), CP = new THREE.Vector3();
+const _hp = new THREE.Vector3();
+// How far (and where) a point with radius r has to move to get out of the ship's hull (ship-local coordinates).
+function hullPush(H, x, y, z, r) {
+  if (z < H.zb - r || z > H.zs + r) return null;
+  const zc = clamp(z, H.zb, H.zs);
+  const beam = H.beam(zc), keel = H.keel(zc);
+  if (Math.abs(x) > beam + r || y < keel - r) return null;
+  const down = y - (keel - r);
+  const side = beam + r - Math.abs(x);
+  const aft = H.zs + r - z, fore = z - (H.zb - r);
+  const m = Math.min(down, side, aft, fore);
+  if (m <= 0) return null;
+  if (m === down) return _hp.set(0, -down, 0);
+  if (m === side) return _hp.set(Math.sign(x || 1) * side, 0, 0);
+  if (m === aft) return _hp.set(0, 0, aft);
+  return _hp.set(0, 0, -fore);
+}
 
 class Dive {
   constructor({ level, mode, seed, multi }) {
@@ -1239,6 +1284,7 @@ class Dive {
     $('#hudTR').classList.toggle('hidden', this.race);
     $('#race').classList.toggle('hidden', !this.race);
     $('#team').classList.toggle('hidden', !this.multi);
+    $('#radar').classList.toggle('hidden', !this.multi);
     $('#lEnergy').textContent = t('energy');
     $('#lHull').textContent = t('hull');
     $('#lLife').textContent = t('life');
@@ -1493,6 +1539,200 @@ class Dive {
     }
   }
 
+  // ---------- solid bodies: subs bounce off each other, animals and objects can't be passed through ----------
+  collide(dt) {
+    if (this.launch && !this.launch.done) return;
+    const sub = this.sub;
+    const S = (this.subShape ||= shapeFor('sub-' + sub.group.userData.type, sub.group));
+    if (!S) return;
+    capsuleEnds(S, sub.pos, sub.yaw, 1, CA1, CB1);
+    // teammates' subs
+    for (const [uid, r] of this.remote) {
+      if (!r.initialized || !r.group.visible) continue;
+      const rs = shapeFor('sub-' + r.group.userData.type, r.group);
+      if (!rs || r.group.position.distanceTo(sub.pos) > S.reach + rs.reach + 2) continue;
+      capsuleEnds(rs, r.group.position, r.group.rotation.y, 1, CA2, CB2);
+      const R = S.r + rs.r;
+      const d2 = closestSegSeg(CA1, CB1, CA2, CB2, CC1, CC2);
+      if (d2 < R * R) this.bounce(Math.sqrt(d2), R, r.vel, 'sub:' + uid, { sub: true, name: r.name, center: r.group.position });
+    }
+    // animals and objects
+    for (const it of this.cm.items) {
+      if (it.collected || !it.group.visible || NO_COLLIDE.has(it.def.model)) continue;
+      const list = it.members || [it.group];
+      for (const o of list) {
+        const shape = shapeFor('cr-' + it.def.model, o);
+        if (!shape || shape.flat) continue;
+        const pos = it.members ? o.getWorldPosition(CP) : o.position;
+        const sc = it.members ? it.group.scale.x * o.scale.x : o.scale.x;
+        if (pos.distanceTo(sub.pos) > S.reach + (shape.reach + shape.c.length()) * sc + 2) continue;
+        capsuleEnds(shape, pos, it.group.rotation.y + (it.members ? o.rotation.y : 0), sc, CA2, CB2);
+        const R = S.r + shape.r * sc;
+        const d2 = closestSegSeg(CA1, CB1, CA2, CB2, CC1, CC2);
+        if (d2 < R * R) this.bounce(Math.sqrt(d2), R, it.static ? null : it.vel, 'it:' + it.id, { item: it, center: pos });
+      }
+    }
+    // the ship's hull at the surface
+    const H = this.world.hull;
+    if (H && sub.pos.y > -8) {
+      const sp = this.world.ship.position;
+      let best = null;
+      for (const p of [CA1, CB1, sub.pos]) {
+        const push = hullPush(H, p.x - sp.x, p.y - sp.y, p.z - sp.z, S.r + 0.2);
+        if (push && (!best || push.lengthSq() > best.lengthSq())) best = push.clone();
+      }
+      if (best) {
+        const pen = best.length();
+        CC1.copy(sub.pos);
+        CC2.copy(sub.pos).addScaledVector(best, -1 / pen);
+        this.bounce(1 - pen, 1, null, 'ship', { ship: true, center: CC2, normal: best.divideScalar(pen) });
+      }
+    }
+  }
+
+  bounce(d, R, otherVel, key, o) {
+    const sub = this.sub;
+    const n = CN;
+    if (o.normal) n.copy(o.normal);
+    else if (d > 1e-4) n.subVectors(CC1, CC2).divideScalar(d);
+    else n.subVectors(sub.pos, o.center).setY(0.0001).normalize();
+    const pen = R - d;
+    sub.pos.addScaledVector(n, pen + 0.01);
+    const vrel = sub.vel.dot(n) - (otherVel ? otherVel.dot(n) : 0);
+    if (vrel >= -0.3) return; // just resting against it
+    const e = o.sub ? 0.85 : 0.4;
+    const share = o.sub ? 0.5 : 1; // two equal subs: each side takes half (the other player's game does its half)
+    sub.vel.addScaledVector(n, -(1 + e) * share * vrel + (o.sub ? 1.2 : 0.3));
+    if (o.item && !o.item.static) {
+      o.item.vel.addScaledVector(n, -Math.min(3, -vrel * 0.6));
+      o.item.retarget = 0;
+    }
+    const strength = clamp(-vrel / 7, 0.25, 1);
+    this.bumpT ||= {};
+    if (this.time - (this.bumpT[key] ?? -9) > 0.6 && this.time - (this.lastBump ?? -9) > 0.22) {
+      this.bumpT[key] = this.time;
+      this.lastBump = this.time;
+      const model = o.item ? o.item.def.model : '';
+      const metal = o.sub || o.ship || METAL.has(model);
+      audio.bump(strength, metal);
+      this.shake = Math.max(this.shake, 0.15 + strength * 0.35);
+      if (isTouch && navigator.vibrate) navigator.vibrate(o.sub ? 40 : 20);
+      this.world.bubbleBurst(CC1.clone().lerp(CC2, 0.5), 18, 0.8);
+      if (o.sub && !this.flags.bumpSub) {
+        this.flags.bumpSub = true;
+        echoSay(t('bumpSub', { name: o.name || '?' }));
+      } else if (!o.sub && !this.flags.bumpThing && strength > 0.4) {
+        this.flags.bumpThing = true;
+        echoSay(t('bumpThing'));
+      }
+    }
+  }
+
+  // ---------- radar: where are the other subs? (multiplayer) ----------
+  drawRadar(dt) {
+    const cv = $('#radar');
+    if (!cv || cv.classList.contains('hidden')) return;
+    const g = cv.getContext('2d');
+    const W = cv.width, C = W / 2, R = C - 6;
+    const RANGE = 120; // world units = 1,200 m
+    this.radarSweep = ((this.radarSweep || 0) + dt * 1.6) % (Math.PI * 2);
+    const sw = this.radarSweep;
+    g.clearRect(0, 0, W, W);
+    // dish
+    const bg = g.createRadialGradient(C, C, 0, C, C, R);
+    bg.addColorStop(0, 'rgba(0,30,80,0.82)');
+    bg.addColorStop(1, 'rgba(0,0,60,0.9)');
+    g.fillStyle = bg;
+    g.beginPath();
+    g.arc(C, C, R, 0, Math.PI * 2);
+    g.fill();
+    g.lineWidth = 6;
+    g.strokeStyle = '#ffed00';
+    g.stroke();
+    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255,237,0,0.35)';
+    for (const f of [1 / 3, 2 / 3]) {
+      g.beginPath();
+      g.arc(C, C, R * f, 0, Math.PI * 2);
+      g.stroke();
+    }
+    g.beginPath();
+    g.moveTo(C - R, C); g.lineTo(C + R, C); g.moveTo(C, C - R); g.lineTo(C, C + R);
+    g.stroke();
+    // sweep with a fading trail
+    for (let k = 0; k < 24; k++) {
+      const a0 = sw - (k + 1) * 0.045, a1 = sw - k * 0.045;
+      g.fillStyle = `rgba(125,255,200,${0.28 * (1 - k / 24)})`;
+      g.beginPath();
+      g.moveTo(C, C);
+      g.arc(C, C, R - 3, a0 - Math.PI / 2, a1 - Math.PI / 2);
+      g.closePath();
+      g.fill();
+    }
+    // range label
+    g.fillStyle = 'rgba(255,237,0,0.8)';
+    g.font = 'bold 15px system-ui, sans-serif';
+    g.textAlign = 'center';
+    g.fillText(`${fmtDec((RANGE * SCALE) / 1000, 1)} km`, C, C - R + 26);
+    // other subs: heading-up view
+    const me = this.sub.pos, yaw = this.sub.yaw;
+    const cs = Math.cos(yaw), sn = Math.sin(yaw);
+    let n = 0;
+    for (const [uid, r] of this.remote) {
+      if (!r.initialized) continue;
+      n++;
+      const dx = r.group.position.x - me.x, dz = r.group.position.z - me.z;
+      // into the sub's frame: forward (-z local) points up on the dish
+      const lx = dx * cs - dz * sn, lz = dx * sn + dz * cs;
+      let px = lx / RANGE, py = lz / RANGE;
+      const len = Math.hypot(px, py);
+      const edge = len > 0.92;
+      if (edge) {
+        px *= 0.92 / len;
+        py *= 0.92 / len;
+      }
+      const x = C + px * R, y = C + py * R;
+      const col = hexColor(r.color);
+      // brighter right after the sweep passed over it
+      const ang = (Math.atan2(px, -py) + Math.PI * 2) % (Math.PI * 2);
+      const since = (sw - ang + Math.PI * 4) % (Math.PI * 2);
+      const glow = 1 - Math.min(1, since / 2.5);
+      g.save();
+      g.shadowColor = col;
+      g.shadowBlur = 8 + glow * 14;
+      g.fillStyle = col;
+      g.beginPath();
+      if (edge) {
+        const a = Math.atan2(py, px);
+        g.translate(x, y);
+        g.rotate(a);
+        g.moveTo(10, 0); g.lineTo(-6, -8); g.lineTo(-6, 8);
+        g.closePath();
+      } else g.arc(x, y, 9 + glow * 3, 0, Math.PI * 2);
+      g.fill();
+      g.restore();
+      // initial + up/down hint
+      const dyM = (r.group.position.y - me.y) * SCALE;
+      g.fillStyle = '#fff';
+      g.font = 'bold 15px system-ui, sans-serif';
+      g.fillText(((r.name || '?')[0] || '?').toUpperCase() + (dyM > 60 ? '▲' : dyM < -60 ? '▼' : ''), x, y - 14);
+    }
+    // me in the centre
+    g.fillStyle = '#ffed00';
+    g.strokeStyle = '#000';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.moveTo(C, C - 11); g.lineTo(C + 8, C + 9); g.lineTo(C, C + 5); g.lineTo(C - 8, C + 9);
+    g.closePath();
+    g.fill();
+    g.stroke();
+    if (!n) {
+      g.fillStyle = 'rgba(255,255,255,0.75)';
+      g.font = '14px system-ui, sans-serif';
+      g.fillText(t('radarNone'), C, C + R * 0.62);
+    }
+  }
+
   // ---------- per frame ----------
   update(dt) {
     if (this.paused) return;
@@ -1590,6 +1830,7 @@ class Dive {
     // creatures, targets
     const light = this.sub.lightInfo();
     this.cm.update(dt, this.sub, light);
+    this.collide(dt);
     this.target = this.race ? null : this.cm.findPhotoTarget(this.sub, light);
     this.grabTarget = this.race ? null : this.cm.findGrabTarget(this.sub);
     if (!this.flags.fantasyNear) {
@@ -1634,6 +1875,7 @@ class Dive {
 
     // remote subs + network
     for (const r of this.remote.values()) r.update(dt);
+    if (this.multi) this.drawRadar(dt);
     if (this.multi) {
       this.netTimer -= dt;
       if (this.netTimer <= 0) {
@@ -2008,7 +2250,7 @@ function startDive(opts) {
   $('#radio').classList.toggle('hidden', !showRadio);
   $('#radioPtt').style.display = showRadio && voiceAllowed() ? '' : 'none';
   $('#radioMenu').classList.add('hidden');
-  window.HADAL.game = game;
+  window.SUBPILOT.game = game;
   input.enabled = true;
 }
 
@@ -2018,7 +2260,7 @@ function endGame() {
   if (!game) return;
   game.dispose();
   game = null;
-  window.HADAL.game = null;
+  window.SUBPILOT.game = null;
   $('#hud').classList.add('hidden');
   input.enabled = false;
 }
@@ -2222,7 +2464,7 @@ function showPause() {
       ${radio && voiceAllowed() ? `<button class="btn secondary" id="pRadio">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : ''}
       <button class="btn secondary" id="pAbort">⚠ ${t('abort')}</button>
     </div>
-    <p style="font-size:12px;color:#8fb3c7;margin-top:14px">${t('keysHint')}</p>`, (root) => {
+    <p style="font-size:12px;color:var(--ink-soft);margin-top:14px">${t('keysHint')}</p>`, (root) => {
     root.querySelector('#pResume').onclick = resume;
     root.querySelector('#pAsk').onclick = () => {
       closeModal();
@@ -2433,8 +2675,9 @@ function bindCameraDrag() {
 
 // ======================= boot =======================
 async function boot() {
-  window.HADAL = { game: null, profile, net, startDive, levels: LEVELS, input };
-  Object.defineProperty(window.HADAL, 'radio', { get: () => radio });
+  window.SUBPILOT = { game: null, profile, net, startDive, levels: LEVELS, input };
+  window.HADAL = window.SUBPILOT; // old name, kept for the test scripts
+  Object.defineProperty(window.SUBPILOT, 'radio', { get: () => radio });
   try {
     initRenderer();
   } catch (e) {
@@ -2446,7 +2689,10 @@ async function boot() {
   try {
     aquarium = new Aquarium();
     aquarium.resize(window.innerWidth, window.innerHeight);
-    window.HADAL.aquarium = aquarium;
+    aquarium.onLand = (i) => {
+      if (audio.ctx && audio.ctx.state === 'running' && !$('#intro').classList.contains('hidden')) audio.pop(i);
+    };
+    window.SUBPILOT.aquarium = aquarium;
   } catch (e) {
     console.warn('Intro scene failed', e);
     aquarium = null;

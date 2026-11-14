@@ -13,10 +13,10 @@ function shipNameTexture() {
   c.height = 102;
   const g = c.getContext('2d');
   g.fillStyle = '#ffffff';
-  g.font = 'bold 80px system-ui, sans-serif';
+  g.font = 'bold 72px system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('R/V HADAL', 256, 54);
+  g.fillText('R/V SUBPILOT', 256, 54, 496);
   return new THREE.CanvasTexture(c);
 }
 
@@ -431,7 +431,7 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
     this.splashes = this.splashes.filter((s) => !s.dead);
   }
 
-  // ---------------- research vessel R/V HADAL ----------------
+  // ---------------- research vessel R/V SUBPILOT ----------------
   // Local frame: bow at -z, stern at +z, deck ~2.6 above the waterline (y = 0).
   buildShip() {
     const g = new THREE.Group();
@@ -465,6 +465,8 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
     const keelAt = (t) => (t < 0.07 ? -0.9 - (t / 0.07) * 0.9 : t > 0.86 ? -1.8 + ((t - 0.86) / 0.14) ** 1.5 * 1.7 : -1.8);
     const expAt = (t) => (t > 0.55 ? 6 - 4 * Math.min(1, (t - 0.55) / 0.4) : t < 0.07 ? 3.5 + (t / 0.07) * 2.5 : 6);
     this.deckAt = (z) => deckAt(clamp(tOf(z), 0, 1));
+    // hull outline for collisions (ship-local z): half beam and keel depth
+    this.hull = { zb: ZB, zs: ZS, beam: (z) => beamAt(clamp(tOf(z), 0, 1)), keel: (z) => keelAt(clamp(tOf(z), 0, 1)) };
     const sectionRows = (D, K) => {
       const l = (a, b, f) => a + (b - a) * f;
       return [

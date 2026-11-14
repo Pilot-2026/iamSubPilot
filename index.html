@@ -3,14 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#020d1a">
+  <meta name="theme-color" content="#000088">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <title>HADAL – Expedition into the deep-sea trenches</title>
+  <title>iamSubPilot – Expedition into the deep-sea trenches</title>
   <meta name="description" content="Steer a research submersible into the deepest trenches on Earth. A 3D browser game about the deep sea by Andreas Schmölzer (pilotFilm).">
-  <meta property="og:title" content="HADAL – Expedition into the deep-sea trenches">
+  <meta property="og:title" content="iamSubPilot – Expedition into the deep-sea trenches">
   <meta property="og:description" content="Dive into the deepest trenches on Earth, discover real deep-sea life (and a few crazy fantasy creatures) – alone or with friends.">
   <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="fonts/source-sans-3-latin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -18,8 +19,8 @@
   <canvas id="c"></canvas>
 
   <div id="loading" class="screen">
-    <div class="logo">HADAL</div>
-    <div id="loadingText" style="color:#8fb3c7">Loading…</div>
+    <div class="load-card"><h1 class="wm" aria-label="iamSubPilot"><span class="wm-iam">iam</span><span class="wm-sub">SubPilot</span><span class="wm-badge"></span></h1>
+    <div id="loadingText">Loading…</div></div>
   </div>
 
   <div id="menu" class="screen hidden"></div>
@@ -59,8 +60,9 @@
     <div id="warn"></div>
     <div id="ringArrow">➤</div>
     <div id="countdown"></div>
+    <canvas id="radar" class="hidden" width="240" height="240" aria-label="Radar"></canvas>
     <div id="controls">
-      <div id="joystick"><div id="joyKnob"></div></div>
+      <div id="joystick"><i class="ja ja-u">▲</i><i class="ja ja-d">▼</i><i class="ja ja-l">◀</i><i class="ja ja-r">▶</i><div id="joyKnob"><svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 5l5 7h-10zM20 35l-5-7h10zM5 20l7-5v10zM35 20l-7 5v-10z"/></svg></div></div>
       <div id="vbtns">
         <button class="cbtn" id="btnUp">▲<small id="tUp">Up</small></button>
         <button class="cbtn" id="btnDown">▼<small id="tDown">Down</small></button>

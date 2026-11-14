@@ -626,6 +626,7 @@ function buildArm(g, mount) {
   s2.add(s3);
   const claw = new THREE.Group();
   claw.position.z = -1.25;
+  claw.scale.setScalar(1.35); // big claw, easy to see open and close
   s3.add(claw);
   const wrist = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.12, 0.16, 12).rotateX(Math.PI / 2), dark);
   wrist.position.z = -0.08;
@@ -685,7 +686,7 @@ function setExt(arm, e) {
 function updateArm(g, arm, dt, t) {
   arm.t += dt;
   const approach = (cur, want, rate) => cur + (want - cur) * (1 - Math.exp(-dt * rate));
-  let wantYaw = 0, wantPitch = ARM_REST_PITCH, wantExt = 0, wantOpen = 0.45 + Math.sin(t * 1.3) * 0.08;
+  let wantYaw = 0, wantPitch = ARM_REST_PITCH, wantExt = 0, wantOpen = 0.22 + Math.sin(t * 1.3) * 0.06;
   if (arm.state === 'out' || arm.state === 'grip') {
     if (arm.target) {
       g.updateMatrixWorld();
@@ -697,19 +698,22 @@ function updateArm(g, arm, dt, t) {
       wantPitch = Math.atan2(_tw.y, horiz);
       wantExt = clamp(_tw.length() - ARM_BASE + 0.15, 0, ARM_EXT * 2);
     }
-    wantOpen = arm.state === 'grip' ? -0.15 : 1;
+    // wide open on the way out, then the claw snaps shut around the find
+    wantOpen = arm.state === 'grip' ? 0 : 1;
   }
+  if (arm.state === 'in' && arm.carry) wantOpen = 0;
   arm.aim.rotation.y = approach(arm.aim.rotation.y, wantYaw, arm.state === 'idle' ? 3 : 7);
   arm.aim.rotation.x = approach(arm.aim.rotation.x, wantPitch, arm.state === 'idle' ? 3 : 7);
   const speed = arm.state === 'in' ? 7 : 10;
   const step = Math.sign(wantExt - arm.ext) * Math.min(Math.abs(wantExt - arm.ext), speed * dt);
   setExt(arm, arm.ext + step);
-  arm.open = approach(arm.open, wantOpen, 10);
-  arm.fingers.forEach((f) => (f.rotation.x = -0.15 + arm.open * 0.75));
-  if (arm.state === 'out' && Math.abs(wantExt - arm.ext) < 0.05 && arm.t > 0.35) {
+  arm.open = approach(arm.open, wantOpen, arm.state === 'grip' ? 9 : 5);
+  // open: fingers splay ~60° outwards; closed: the tips meet in the middle
+  arm.fingers.forEach((f) => (f.rotation.x = -0.12 + arm.open * 1.17));
+  if (arm.state === 'out' && Math.abs(wantExt - arm.ext) < 0.05 && arm.t > 0.55) {
     arm.state = 'grip';
     arm.t = 0;
-  } else if (arm.state === 'grip' && arm.t > 0.28) {
+  } else if (arm.state === 'grip' && arm.t > 0.5) {
     if (arm.onGrip) arm.carry = arm.onGrip(arm.claw) || null;
     arm.onGrip = null;
     arm.target = null;
@@ -977,6 +981,7 @@ export class RemoteSub {
     this.group.userData.beam.material.uniforms.opacity.value = 0.08;
     scene.add(this.group);
     this.target = new THREE.Vector3();
+    this.vel = new THREE.Vector3();
     this.targetYaw = 0;
     this.name = name;
     this.initialized = false;
@@ -1004,6 +1009,17 @@ export class RemoteSub {
   }
 
   setState(s) {
+    // estimate the teammate's velocity from successive updates (used for bouncing off each other)
+    const now = performance.now();
+    if (this.lastStateT && this.initialized) {
+      const dts = (now - this.lastStateT) / 1000;
+      if (dts > 0.03 && dts < 1) {
+        this._v = this._v || new THREE.Vector3();
+        this._v.set(s.x - this.target.x, s.y - this.target.y, s.z - this.target.z).divideScalar(dts);
+        this.vel.lerp(this._v, 0.6);
+      }
+    }
+    this.lastStateT = now;
     this.target.set(s.x, s.y, s.z);
     this.targetYaw = s.yaw;
     if (!this.initialized) {

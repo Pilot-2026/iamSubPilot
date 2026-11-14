@@ -1,13 +1,13 @@
 # Firebase einrichten (Bestenliste online + Mehrspieler)
 
-Ohne Firebase läuft HADAL komplett offline: Die Bestenliste wird nur auf dem eigenen Gerät gespeichert, und der Mehrspieler-Modus ist ausgeschaltet. Mit diesen Schritten bekommt das Spiel ein **eigenes, neues Firebase-Projekt** – getrennt vom Segelflugspiel.
+Ohne Firebase läuft iamSubPilot komplett offline: Die Bestenliste wird nur auf dem eigenen Gerät gespeichert, und der Mehrspieler-Modus ist ausgeschaltet. Mit diesen Schritten bekommt das Spiel ein **eigenes, neues Firebase-Projekt** – getrennt vom Segelflugspiel.
 
 Dauer: etwa 10 Minuten. Kosten: Der kostenlose Spark-Tarif reicht für den Start.
 
 ## 1. Projekt anlegen
 
 1. Öffne <https://console.firebase.google.com> und melde dich mit deinem Google-Konto an.
-2. **Projekt hinzufügen** → Name: `hadal` → Google Analytics kannst du ausschalten → **Projekt erstellen**.
+2. **Projekt hinzufügen** → Name: `iamsubpilot` → Google Analytics kannst du ausschalten → **Projekt erstellen**.
 
 ## 2. Anonyme Anmeldung einschalten
 
@@ -32,7 +32,7 @@ Die Spieler melden sich damit nur mit ihrem Spitznamen an – ohne E-Mail oder P
 ## 5. Web-App registrieren und Konfiguration kopieren
 
 1. Oben links auf das Zahnrad → **Projekteinstellungen**.
-2. Unten bei **Meine Apps** auf das Symbol **`</>`** (Web) klicken → Name: `hadal-web` → Firebase Hosting **nicht** anhaken → **App registrieren**.
+2. Unten bei **Meine Apps** auf das Symbol **`</>`** (Web) klicken → Name: `iamsubpilot-web` → Firebase Hosting **nicht** anhaken → **App registrieren**.
 3. Es erscheint ein Code-Block mit `const firebaseConfig = { ... }`. Diesen Block kopieren.
 4. Prüfen, dass darin eine Zeile `databaseURL: "https://...firebasedatabase.app"` steht. Falls nicht: Seite neu laden, nachdem die Realtime Database (Schritt 4) angelegt ist.
 
@@ -45,10 +45,10 @@ Den kopierten Block an Claude schicken – oder selbst in [`js/config.js`](js/co
 ```js
 export const FIREBASE_CONFIG = {
   apiKey: "...",
-  authDomain: "hadal-xxxx.firebaseapp.com",
-  databaseURL: "https://hadal-xxxx-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "hadal-xxxx",
-  storageBucket: "hadal-xxxx.appspot.com",
+  authDomain: "iamsubpilot-xxxx.firebaseapp.com",
+  databaseURL: "https://iamsubpilot-xxxx-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "iamsubpilot-xxxx",
+  storageBucket: "iamsubpilot-xxxx.appspot.com",
   messagingSenderId: "...",
   appId: "..."
 };

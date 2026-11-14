@@ -398,6 +398,26 @@ class AudioFX {
     this.tone(90, 0.3, { type: 'sine', vol: 0.4, toFreq: 40 });
     this.noise(0.2, { vol: 0.2, freq: 300, q: 0.5 });
   }
+  // two hulls bump into each other: dull boom + metallic clang that rings out + a few bubbles
+  bump(strength = 0.6, metal = true) {
+    const v = Math.max(0.25, Math.min(1, strength));
+    this.tone(70, 0.45, { type: 'sine', vol: 0.45 * v, toFreq: 38 });
+    this.noise(0.18, { vol: 0.22 * v, freq: 260, q: 0.6 });
+    if (metal) {
+      this.tone(523, 0.9, { type: 'triangle', vol: 0.09 * v, toFreq: 500, echo: true, when: 0.01 });
+      this.tone(1307, 0.6, { type: 'sine', vol: 0.05 * v, toFreq: 1250, when: 0.015 });
+      this.tone(2210, 0.35, { type: 'sine', vol: 0.03 * v, when: 0.02 });
+    } else {
+      this.tone(160, 0.25, { type: 'sine', vol: 0.18 * v, toFreq: 320 });
+    }
+    for (let i = 0; i < 4; i++) this.tone(700 + Math.random() * 900, 0.06, { type: 'sine', vol: 0.05, toFreq: 1600, when: 0.08 + i * 0.05 + Math.random() * 0.03 });
+  }
+  // a letter of the title lands
+  pop(i = 0) {
+    const f = 520 * Math.pow(2, ((i * 2) % 12) / 12);
+    this.tone(f, 0.12, { type: 'sine', vol: 0.12, toFreq: f * 1.6 });
+    this.tone(f * 2, 0.08, { type: 'triangle', vol: 0.04, when: 0.02 });
+  }
   quake() {
     this.noise(2.5, { vol: 0.35, freq: 80, q: 0.3, type: 'lowpass' });
   }

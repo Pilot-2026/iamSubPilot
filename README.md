@@ -1,18 +1,18 @@
-# HADAL – Expedition into the deep-sea trenches
+# iamSubPilot – Expedition into the deep-sea trenches
 
 A 3D browser game about the deepest places on Earth. Pick one of six crazy subs (bumblebee HUMMEL-1, pufferfish ball, narwhal with drill horn, octopus, retro rocket or deep-sea UFO). It is lowered from the research ship on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles and huge fish schools near the surface, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
 
 **A game by Andreas Schmölzer · [www.pilotFilm.at](https://www.pilotfilm.at)**
 
-▶ Play: <https://pilot-2026.github.io/hadal/>
+▶ Play: <https://pilot-2026.github.io/iamSubPilot/>
 
 ## How to play
 
 | Action | Keyboard | Touch |
 | --- | --- | --- |
-| Steer | W A S D / arrow keys | Joystick (left) |
-| Up / down | Space / Shift (hold Shift to dive fast) | ▲ / ▼ |
-| Sonar ping | F | Sonar |
+| Steer | W A S D / arrow keys | yellow joystick (right) |
+| Up / down | Space / Shift (hold Shift to dive fast) | ▲ / ▼ (next to the joystick) |
+| Sonar ping | F | Sonar (buttons on the left) |
 | Lights on/off | L | Light |
 | Photo | C or Enter | Photo |
 | Grab with the arm (nodules, litter, sediment samples, lost lander) | G | Grab |
@@ -28,8 +28,9 @@ A 3D browser game about the deepest places on Earth. Pick one of six crazy subs 
 
 - **Expedition:** explore, photograph, complete the missions (the first one is done within seconds), at the end choose whether to do the debrief quiz or skip it, map the trench with sonar and surface before energy, hull or oxygen run out.
 - **Grabbing:** the big telescopic arm reaches out several metres, closes its claw and pulls the find into the sample basket – manganese nodules, litter, sediment samples (yellow flags) and the lost lander count for missions and points.
+- **Solid bodies:** subs, animals, the lost lander, sediment markers and the ship's hull can't be passed through. Two subs that collide bounce off each other with a clang.
 - **Abyss Race:** fly through 14 rings down to the deepest point as fast as you can.
-- **Multiplayer:** dive together (discoveries count for everyone) or race each other. All rooms are public – no codes, no private rooms: “Play now” jumps into an open room or opens a new one. A new room waits about 40 seconds for other divers (the host can start earlier or add time), and anyone who comes later simply joins the running dive (in a race, latecomers get their own start clock). With a built-in **radio**: push-to-talk voice for players aged 14+ (direct browser-to-browser audio, nothing is recorded, mute any diver) and quick radio calls with fixed phrases for everyone. Works without any setup: browsers connect directly (peer-to-peer via WebRTC/PeerJS), the host's browser keeps the room open.
+- **Multiplayer:** dive together (discoveries count for everyone) or race each other. All rooms are public – no codes, no private rooms: “Play now” jumps into an open room or opens a new one. A new room waits about 40 seconds for other divers (the host can start earlier or add time), and anyone who comes later simply joins the running dive (in a race, latecomers get their own start clock). With a built-in **radio**: push-to-talk voice for players aged 14+ (direct browser-to-browser audio, nothing is recorded, mute any diver) and quick radio calls with fixed phrases for everyone. A **radar** shows where the other subs are (heading-up, 1.2 km range, ▲/▼ when someone is far above or below). Works without any setup: browsers connect directly (peer-to-peer via WebRTC/PeerJS), the host's browser keeps the room open.
 
 Real animals carry a blue **REAL** badge and a source. Fantasy creatures carry a rainbow **FANTASY** badge – each fantasy card also hides one real fact.
 
@@ -39,6 +40,8 @@ Real animals carry a blue **REAL** badge and a source. Fantasy creatures carry a
 - Hosted on GitHub Pages straight from the `main` branch.
 - Multiplayer rooms: peer-to-peer with [PeerJS](https://peerjs.com) (bundled in `js/vendor/`, uses the free public PeerJS signalling server). Optional: with a dedicated Firebase project, rooms run over the Realtime Database instead and the leaderboard goes online (Firestore). Setup: [FIREBASE-SETUP.md](FIREBASE-SETUP.md). Without Firebase the leaderboard is local.
 - Dr. Echo answers from a built-in knowledge base. A real AI model can be connected later through a small server function (`AI_ENDPOINT` in `js/config.js`); API keys never go into this public repository.
+- Wordmark font: Source Sans 3 (SIL Open Font License, self-hosted in `fonts/`). Footer bar with logos and social links is the same as in iamPilot (`assets/`).
+- Privacy policy: [privacy.html](privacy.html) · Imprint: <https://www.pilotfilm.at/impressum>
 - Sounds and music are synthesised with the Web Audio API (music: whale-song glides, dolphin whistles and clicks, echo-sounder pings, soft pads).
 
 ## Local development

@@ -1,4 +1,4 @@
-// HADAL – configuration
+// iamSubPilot – configuration
 //
 // 1) Online features (leaderboard, multiplayer) need a Firebase project.
 //    Paste the web config from the Firebase console here (see FIREBASE-SETUP.md).
@@ -13,4 +13,4 @@ export const FIREBASE_CONFIG = null;
 
 export const AI_ENDPOINT = null;
 
-export const GAME_VERSION = '0.4.0';
+export const GAME_VERSION = '0.5.0';

@@ -4,35 +4,50 @@
 import * as THREE from './vendor/three.min.js';
 import { mulberry32, clamp } from './util.js';
 import { SCALE } from './world.js';
+import { loftBody, prof, finGeo } from './detail.js';
 
 let fishGeo = null;
+// A small fish: smooth body (dark back, silver flank, white belly, eye), dorsal fin, forked tail, side fins.
 export function fishGeometry() {
   if (fishGeo) return fishGeo;
-  const body = new THREE.SphereGeometry(0.5, 10, 7).toNonIndexed();
-  body.scale(0.3, 0.46, 1.0);
-  const tail = new THREE.ConeGeometry(0.3, 0.42, 4).toNonIndexed();
-  tail.rotateX(-Math.PI / 2);
-  tail.scale(0.14, 1, 1);
-  tail.translate(0, 0, 0.62);
-  const fin = new THREE.ConeGeometry(0.12, 0.3, 3).toNonIndexed();
-  fin.scale(0.2, 1, 1.4);
-  fin.rotateX(-0.5);
-  fin.translate(0, 0.27, 0.05);
-  const parts = [body, tail, fin];
+  const w = prof([[0, 0.03], [0.1, 0.1], [0.32, 0.16], [0.62, 0.11], [0.88, 0.035], [1, 0.03]]);
+  const h = prof([[0, 0.03], [0.1, 0.13], [0.32, 0.24], [0.62, 0.17], [0.88, 0.05], [1, 0.04]]);
+  const paint = (t, a, out) => {
+    const up = Math.cos(a);
+    out.setScalar(up > 0.35 ? 0.42 : up > -0.25 ? 0.86 : 1.0);
+    if (up > 0.1 && up < 0.35) out.setScalar(0.62);
+    // eye: a dark spot with a light ring on both sides of the head
+    const side = Math.abs(Math.sin(a));
+    if (t > 0.1 && t < 0.17 && side > 0.75 && up > 0.05 && up < 0.5) out.setScalar(t > 0.115 && t < 0.155 && up > 0.12 && up < 0.42 ? 0.04 : 1.0);
+    // a faint lateral line
+    if (Math.abs(up + 0.02) < 0.05 && t > 0.2 && t < 0.85) out.multiplyScalar(0.8);
+  };
+  const body = loftBody({ len: 1.2, w, h, y: () => 0, seg: 16, rad: 12, paint }).toNonIndexed();
+  const fins = [
+    finGeo([[0, 0], [0.08, 0.16], [0.2, 0.0]], 'dorsal'), // dorsal
+    finGeo([[0, 0], [0.16, 0.2, 0.22, 0.26], [0.1, 0.0], [0.22, -0.26], [0.16, -0.2, 0, 0]], 'dorsal'), // forked tail
+    finGeo([[0, 0], [0.12, 0.1], [0.08, 0]], 'side', 1),
+    finGeo([[0, 0], [0.12, 0.1], [0.08, 0]], 'side', -1),
+    finGeo([[0, 0], [0.05, 0.08], [0.12, 0]], 'dorsal'), // anal (flipped below)
+  ];
+  fins[0].translate(0, 0.21, -0.1);
+  fins[1].translate(0, 0, 0.56);
+  fins[2].translate(0.1, -0.06, -0.25);
+  fins[3].translate(-0.1, -0.06, -0.25);
+  fins[4].rotateZ(Math.PI);
+  fins[4].translate(0, -0.16, 0.15);
+  const parts = [body, ...fins.map((f) => f.toNonIndexed())];
   let n = 0;
   parts.forEach((p) => (n += p.attributes.position.count));
   const pos = new Float32Array(n * 3), nor = new Float32Array(n * 3), col = new Float32Array(n * 3);
   let o = 0;
-  for (const p of parts) {
+  parts.forEach((p, k) => {
     pos.set(p.attributes.position.array, o * 3);
     nor.set(p.attributes.normal.array, o * 3);
+    if (k === 0) col.set(p.attributes.color.array, o * 3);
+    else col.fill(0.7, o * 3, (o + p.attributes.position.count) * 3);
     o += p.attributes.position.count;
-  }
-  for (let i = 0; i < n; i++) {
-    const y = pos[i * 3 + 1];
-    const c = y > 0.04 ? 0.5 : y > -0.06 ? 0.85 : 1.0; // dark back, silver side, white belly
-    col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = c;
-  }
+  });
   fishGeo = new THREE.BufferGeometry();
   fishGeo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   fishGeo.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
@@ -49,6 +64,7 @@ export function fishMaterial(glow = false) {
   if (mats[key]) return mats[key];
   const m = new THREE.MeshStandardMaterial({
     vertexColors: true,
+    side: THREE.DoubleSide,
     roughness: 0.4,
     metalness: 0.12,
     emissive: glow ? 0x3fb8ff : 0x000000,

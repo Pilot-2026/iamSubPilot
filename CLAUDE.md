@@ -1,17 +1,23 @@
-# HADAL – notes for working on this repo
+# iamSubPilot – notes for working on this repo
+
+(Formerly called HADAL. Internal names such as the `hadal.*` localStorage keys and the PeerJS prefix `hadal-v1-` stay as they are, so saved progress and rooms keep working.)
 
 Browser game (three.js, plain ES modules, no build step), hosted on GitHub Pages from `main`.
-Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his other games (own repo, own Firebase project).
+Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his other games (own repo, own Firebase project). Touch controls: joystick + up/down on the right, action buttons on the left.
 
 ## Structure
-- `index.html`, `style.css` – shell, HUD markup, styles (mobile + desktop)
-- `js/main.js` – menu, profile, `Dive` class (game loop per dive), results, quiz, multiplayer lobby
+- `index.html`, `style.css` – shell, HUD markup, styles (mobile + desktop); menus and dialogs are yellow glass (`--sun-glass`), wordmark `.wm` ("iam" #ffff00 with black outline, "SubPilot" #000088, roundel `assets/roundel.svg`)
+- `privacy.html` – privacy policy (DE + EN); imprint is https://www.pilotfilm.at/impressum
+- `assets/` – roundel, logos and portrait for the footer bar (identical to iamPilot's), `fonts/` – Source Sans 3 (self-hosted, no Google Fonts)
+- `js/main.js` – menu (footer bar = `footerHtml()`, same links/logos/social buttons as iamPilot), profile, `Dive` class (game loop per dive, `collide()` + `drawRadar()`), results, quiz, multiplayer lobby
+- `js/collide.js` – capsule shapes worked out from the 3D models, segment–segment tests (subs bounce off each other, animals/objects/ship hull are solid)
 - `js/world.js` – trench terrain (heightfield), light/fog by depth, sonar mapping shader, marine snow
 - `js/sub.js` – six original sub designs (`SUB_MODELS`: hummel, puffer, narwhal, octopus, rocket, ufo; merged parts via `js/parts.js`), movement; `RemoteSub` for teammates (model sent as player field `sub`)
 - `js/launch.js` – launch from the ship: A-frame, chains, splash, underwater transition (skippable)
 - `js/schools.js` – instanced fish schools (decorative, upper ocean + twilight glow shoals)
-- `js/intro.js` – title screen / menu background aquarium (HADAL with water shader, animals, sub)
-- `js/creatures.js` – creature models (built from primitives), spawning, behaviour, photo/grab targeting
+- `js/intro.js` – title screen / menu background aquarium (the wordmark assembles itself letter by letter: one plane per letter + roundel coin, water shader, animals, subs)
+- `js/creatures.js` – fantasy creature models, spawning, behaviour, photo/grab targeting
+- `js/models.js` + `js/detail.js` – detailed real animals and seafloor objects (lofted, vertex-painted bodies, fins, eyes); keep the userData animation hooks (fluke, tail, wings, flips, fins, bell, eyes, ears, cape, glow, strobe)
 - `js/scientist.js` + `js/data/knowledge.js` – Dr. Echo (local knowledge base, optional `AI_ENDPOINT`)
 - `js/data/*.js` – levels, creatures (facts EN/DE + sources), quiz (age tiers kid/junior/adult)
 - `js/net.js` – rooms: Firebase RTDB if configured, else peer-to-peer (PeerJS, host relays, all rooms public: codes from `PUBLIC_CODES`, `listRooms()` asks every code, `window.__FAKE_PEER__` hook for tests); `?local=1` = BroadcastChannel between tabs; Firestore leaderboard or local

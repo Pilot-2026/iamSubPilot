@@ -42,7 +42,7 @@ export class Input {
     const knob = root.querySelector('#joyKnob');
     let joyId = null;
     let cx = 0, cy = 0;
-    const R = 50;
+    const R = 42;
     const start = (e) => {
       const t = e.changedTouches ? e.changedTouches[0] : e;
       joyId = t.identifier ?? 'mouse';
@@ -126,7 +126,7 @@ export class Input {
     if (k.has('KeyS') || k.has('ArrowDown')) throttle -= 0.6;
     if (k.has('KeyA') || k.has('ArrowLeft')) turn -= 1;
     if (k.has('KeyD') || k.has('ArrowRight')) turn += 1;
-    if (k.has('Space') || k.has('KeyE') || k.has('KeyR')) vertical += 1;
+    if (k.has('Space') || k.has('KeyE')) vertical += 1;
     if (k.has('ShiftLeft') || k.has('ShiftRight') || k.has('KeyQ') || k.has('KeyX')) vertical -= 1;
     if (this.joy.active) {
       throttle += this.joy.y > 0 ? this.joy.y : this.joy.y * 0.6;

@@ -1,4 +1,4 @@
-// HADAL radio ("Funk"): push-to-talk voice between the divers of a room.
+// iamSubPilot radio ("Funk"): push-to-talk voice between the divers of a room.
 // Its own channel: audio travels directly between the browsers (WebRTC media
 // calls over the room's PeerJS connection). No server, no keys, nothing shared
 // with any other game. Voice is never stored.
