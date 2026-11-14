@@ -1010,10 +1010,10 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
     } else {
       // near Atlantis (magic 0..1) the water gets clearer and a little violet, the city glows from afar
       const mg = this.magic || 0;
-      if (mg > 0) col.lerp(MAGIC_COL, mg * 0.6);
+      if (mg > 0) col.lerp(this.magicCol || MAGIC_COL, mg * (this.magicCol ? 1 : 0.6));
       this.scene.fog.color.copy(col);
       this.scene.background.copy(col);
-      this.scene.fog.density = (0.0045 + 0.0145 * smoothstep(0, 1500, depth)) * (1 - 0.72 * mg);
+      this.scene.fog.density = (0.0045 + 0.0145 * smoothstep(0, 1500, depth)) * (1 - 0.86 * mg);
       this.hemi.intensity = 1.3 * surf + 0.05 + 0.9 * mg;
       this.sun.intensity = 2.0 * surf;
     }

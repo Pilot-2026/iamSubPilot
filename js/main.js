@@ -1839,14 +1839,14 @@ class Dive {
   raiseAtlantis() {
     if (this.atlantis || this.ended) return;
     const spot = this.teamAtl || atlantisSpot(this.world, this.sub);
-    this.atlantis = new Atlantis(this.scene, this.world, spot, (this.seed ^ 0xa71a) >>> 0);
+    this.atlantis = new Atlantis(this.scene, this.world, spot, (this.seed ^ 0xa71a) >>> 0, this.level.id);
     if (this.multi && this.multi.coop && net.room) net.setPlayer({ atl: [Math.round(spot.x), Math.round(spot.z)] });
     this.energy = this.hull = this.life = 100;
     this.flags.lowEnergy = false;
     audio.fanfare();
     diveFx();
     echoSay(t('atlWelcome'), { now: true });
-    toast('🏛️ Atlantis', t('atlToast'));
+    toast(`🏛️ Atlantis · ${L(this.atlantis.theme.name)}`, t('atlToast'));
   }
 
   // ---------- network ----------
@@ -2285,7 +2285,7 @@ class Dive {
     // Atlantis
     if (this.atlantis) {
       const da = Math.hypot(this.sub.pos.x - this.atlantis.center.x, this.sub.pos.z - this.atlantis.center.z);
-      this.world.magic = Math.min(1, Math.max(0, 1 - (da - 80) / 140)) * this.atlantis.rise;
+      this.world.magic = Math.min(1, Math.max(0, 1 - (da - 150) / 220)) * this.atlantis.rise;
       const hello = this.atlantis.update(dt, this.time, this.sub);
       this.atlantis.clampSub(this.sub);
       if (hello === 'neptune') {
@@ -2629,6 +2629,7 @@ class Dive {
     $('#skipHint').classList.add('hidden');
     this.contactEls.forEach((e) => e.remove());
     for (const r of this.remote.values()) r.dispose(this.scene);
+    if (this.atlantis) this.atlantis.dispose();
     this.world.dispose();
     $('#countdown').style.display = 'none';
     $('#ringArrow').style.display = 'none';

@@ -19,4 +19,4 @@ export const AI_ENDPOINT = null;
 //    reachable, rooms fall back to direct browser-to-browser connections (PeerJS).
 export const MP_SITE = 'https://iamsubpilot.netlify.app';
 
-export const GAME_VERSION = '0.9.3';
+export const GAME_VERSION = '0.9.4';
