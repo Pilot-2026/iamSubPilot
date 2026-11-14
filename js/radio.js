@@ -48,9 +48,12 @@ export class Radio {
     if (this.lkRoom) {
       const r = this.lkRoom;
       const tr = this.stream.getAudioTracks()[0];
-      if (tr && r.lk && r.LK) {
+      const publish = () => {
+        if (this.destroyed || !tr || !r.lk || !r.LK) return;
         r.lk.localParticipant.publishTrack(tr, { source: r.LK.Track.Source.Microphone, name: 'radio', dtx: true }).then((pub) => (this.lkPub = pub)).catch(() => this.onError('mic'));
-      }
+      };
+      publish();
+      r.onRejoin = publish; // after a lost connection the track has to be published again
       r.onAudio = (uid, track) => this.attachLk(uid, track);
       r.onAudioGone = (uid) => this.detachLk(uid);
       for (const [uid, track] of r.audio) this.attachLk(uid, track);
@@ -259,7 +262,7 @@ export class Radio {
     if (this.peer) this.peer.off('call', this.onCall);
     for (const uid of [...this.lkEls.keys()]) this.detachLk(uid);
     if (this.lkRoom) {
-      this.lkRoom.onAudio = this.lkRoom.onAudioGone = null;
+      this.lkRoom.onAudio = this.lkRoom.onAudioGone = this.lkRoom.onRejoin = null;
       if (this.lkPub && this.lkRoom.lk && this.lkRoom.lk.state !== 'disconnected') this.lkRoom.lk.localParticipant.unpublishTrack(this.lkPub.track, false).catch(() => {});
     }
     if (this.mic) this.mic.getTracks().forEach((tr) => tr.stop());

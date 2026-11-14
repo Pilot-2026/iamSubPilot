@@ -1,6 +1,6 @@
 {
   "name": "iamsubpilot",
-  "version": "0.9.2",
+  "version": "0.9.3",
   "private": true,
   "description": "iamSubPilot – 3D deep-sea sub game. The game itself needs no build step; this file only lists what the Netlify functions (online rooms) need.",
   "type": "module",

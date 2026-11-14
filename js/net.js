@@ -148,6 +148,9 @@ export class Net {
     const lk = new LK.Room({ adaptiveStream: false, dynacast: false, disconnectOnPageLeave: true });
     room.LK = LK;
     room.lk = lk;
+    room.res = res; // the token stays valid for hours: used again to reconnect
+    room.away = room.away || new Map(); // uid -> timer: participants that dropped out (they may come back)
+    room.conn = 'ok';
     lk.on(LK.RoomEvent.DataReceived, (payload, p) => {
       if (!p) return;
       let m;
@@ -158,9 +161,23 @@ export class Net {
       }
       this.handleLk(room, m, p.identity);
     });
-    lk.on(LK.RoomEvent.ParticipantDisconnected, (p) => this.handleLk(room, { type: 'leave', uid: p.identity }, p.identity));
+    // Mobile networks drop out now and then (tunnel, switching to another app, screen off). Somebody who drops out
+    // is kept for a while – LiveKit brings them back with the same identity – instead of being thrown out at once.
+    lk.on(LK.RoomEvent.ParticipantConnected, (p) => this.lkBack(room, p.identity));
+    lk.on(LK.RoomEvent.ParticipantDisconnected, (p) => this.lkAway(room, p.identity));
+    lk.on(LK.RoomEvent.Reconnecting, () => this.lkConn(room, 'reconnecting'));
+    lk.on(LK.RoomEvent.Reconnected, () => {
+      this.lkConn(room, 'ok');
+      this.lkHello(room); // the others (and the host's room state) catch up with us again
+    });
     lk.on(LK.RoomEvent.Disconnected, () => {
-      if (this.room === room && !room.leaving) room.handlers.closed && room.handlers.closed();
+      if (this.room === room && !room.leaving) this.lkRejoin(room);
+    });
+    lk.on(LK.RoomEvent.ConnectionStateChanged, (st) => {
+      if (st === 'connected' && room.conn !== 'ok' && !room.rejoining) {
+        this.lkConn(room, 'ok');
+        this.lkHello(room);
+      }
     });
     // radio: the other divers' voices
     lk.on(LK.RoomEvent.TrackSubscribed, (track, pub, p) => {
@@ -177,10 +194,107 @@ export class Net {
   }
 
   lkSend(room, msg, to = null) {
-    if (!room || !room.lk || room.lk.state === 'disconnected') return;
+    // not while (re)connecting from scratch – that would break the new connection; my whole record follows anyway
+    if (!room || !room.lk || room.lk.state === 'disconnected' || room.lk.state === 'connecting') return;
     // position updates may get lost (the next one follows a moment later), everything else must arrive
     const reliable = !(msg.type === 'player' && msg.data && 's' in msg.data && Object.keys(msg.data).length === 1);
     room.lk.localParticipant.publishData(enc.encode(JSON.stringify(msg)), { reliable, ...(to ? { destinationIdentities: [to] } : {}) }).catch(() => {});
+  }
+
+  lkConn(room, state) {
+    if (room.conn === state) return;
+    room.conn = state;
+    room.handlers.conn && room.handlers.conn(state);
+  }
+
+  // my whole player record (name, sub, missions, photos, …) – everybody who gets it is up to date again
+  lkHello(room, hello = true) {
+    if (room.players[this.uid]) this.lkSend(room, { type: 'player', uid: this.uid, data: room.players[this.uid], ...(hello ? { hello: true } : {}) });
+  }
+
+  lkPresent(room, id) {
+    return !!id && (id === this.uid || !!(room.lk && room.lk.remoteParticipants.has(id)));
+  }
+
+  hostPresent() {
+    const room = this.room;
+    if (!room) return false;
+    if (!room.isLk) return true;
+    return this.lkPresent(room, room.meta && room.meta.host);
+  }
+
+  // Who answers newcomers (room state, clock): the host – or, while the host is away, whoever has been in the room
+  // longest (the server's join time, the same for everybody), so the others can still be joined.
+  lkResponder(room) {
+    if (this.isHost()) return true;
+    if (!room.lk || this.lkPresent(room, room.meta && room.meta.host)) return false;
+    const me = room.lk.localParticipant;
+    const t = (p) => (p.joinedAt ? p.joinedAt.getTime() : 9e15);
+    let best = me;
+    for (const p of room.lk.remoteParticipants.values()) if (t(p) < t(best) || (t(p) === t(best) && p.identity < best.identity)) best = p;
+    return best === me;
+  }
+
+  lkAway(room, id) {
+    if (this.room !== room || !room.players[id] || room.away.has(id)) return;
+    const lobbyHost = id === (room.meta && room.meta.host) && (room.meta || {}).status !== 'running';
+    room.away.set(id, setTimeout(() => {
+      room.away.delete(id);
+      if (this.room === room && !this.lkPresent(room, id)) this.lkDrop(room, id);
+    }, lobbyHost ? 15000 : 45000));
+  }
+
+  lkBack(room, id) {
+    const tm = room.away.get(id);
+    if (tm) {
+      clearTimeout(tm);
+      room.away.delete(id);
+    }
+  }
+
+  lkDrop(room, id) {
+    const tm = room.away.get(id);
+    if (tm) clearTimeout(tm);
+    room.away.delete(id);
+    const h = room.handlers;
+    if (room.players[id]) {
+      delete room.players[id];
+      h.players && h.players(room.players);
+    }
+    if (id === (room.meta && room.meta.host)) h.closed && h.closed('host');
+  }
+
+  // our own connection is gone (LiveKit gave up): try again with the same token for about a minute and a half
+  async lkRejoin(room) {
+    if (room.rejoining) return;
+    room.rejoining = true;
+    this.lkConn(room, 'reconnecting');
+    for (const wait of [800, 1500, 2500, 4000, 6000, 8000, 12000, 15000, 20000, 20000]) {
+      await new Promise((r) => setTimeout(r, wait));
+      if (this.room !== room || room.leaving) return;
+      try {
+        await room.lk.connect(room.res.url, room.res.token, { autoSubscribe: true });
+        room.rejoining = false;
+        this.lkConn(room, 'ok');
+        this.lkHello(room);
+        room.onRejoin && room.onRejoin();
+        return;
+      } catch (e) {
+        /* next try */
+      }
+    }
+    room.rejoining = false;
+    this.lkConn(room, 'lost');
+    if (this.room === room) room.handlers.closed && room.handlers.closed('lost');
+  }
+
+  // every few seconds: my whole record again (reliable). Whatever got lost on the way is put right this way.
+  lkKeepFresh(room) {
+    clearInterval(room.freshTimer);
+    room.freshTimer = setInterval(() => {
+      if (this.room !== room || room.leaving) return clearInterval(room.freshTimer);
+      if (room.lk && room.lk.state === 'connected') this.lkHello(room, false);
+    }, 4000);
   }
 
   // A room message over LiveKit. Everyone gets every message straight from the server; the host answers newcomers
@@ -194,7 +308,7 @@ export class Net {
       room.players[from] = { ...(room.players[from] || {}), ...m.data };
       if (m.hello) {
         room.players[from].joined = room.players[from].joined || Date.now();
-        if (this.isHost()) {
+        if (this.lkResponder(room)) {
           if (Object.keys(room.players).length > 4) {
             delete room.players[from];
             this.lkSend(room, { type: 'full' }, from);
@@ -205,10 +319,8 @@ export class Net {
       }
       h.players && h.players(room.players);
     } else if (m.type === 'leave') {
-      if (!room.players[m.uid] || m.uid === this.uid) return;
-      delete room.players[m.uid];
-      h.players && h.players(room.players);
-      if (m.uid === hostId) h.closed && h.closed();
+      if (m.uid !== from || m.uid === this.uid) return;
+      this.lkDrop(room, from);
     } else if (m.type === 'meta') {
       if (from !== hostId) return;
       room.meta = m.meta;
@@ -216,14 +328,14 @@ export class Net {
     } else if (m.type === 'event') {
       h.event && h.event(m.ev);
     } else if (m.type === 'sync') {
-      if (hostId && from !== hostId) return;
+      if (hostId && from !== hostId && this.lkPresent(room, hostId)) return;
       room.meta = m.meta;
       room.players = { ...m.players, [this.uid]: { ...(m.players || {})[this.uid], ...room.players[this.uid] } };
       room.synced && room.synced();
       h.meta && h.meta(room.meta);
       h.players && h.players(room.players);
     } else if (m.type === 'ping') {
-      if (this.isHost()) this.lkSend(room, { type: 'pong', t0: m.t0, th: Date.now() }, from);
+      if (this.lkResponder(room)) this.lkSend(room, { type: 'pong', t0: m.t0, th: Date.now() }, from);
     } else if (m.type === 'pong') {
       const t1 = Date.now();
       if (!room.bestRtt || t1 - m.t0 < room.bestRtt) {
@@ -233,7 +345,7 @@ export class Net {
     } else if (m.type === 'full') {
       room.fullErr && room.fullErr();
     } else if (m.type === 'closed') {
-      if (from === hostId) h.closed && h.closed();
+      if (from === hostId) this.lkDrop(room, from);
     }
   }
 
@@ -260,6 +372,7 @@ export class Net {
       this.leaveRoom();
       throw new Error('timeout');
     }
+    this.lkKeepFresh(room);
     setTimeout(() => {
       room.handlers.meta && room.handlers.meta(room.meta);
       room.handlers.players && room.handlers.players(room.players);
@@ -277,7 +390,7 @@ export class Net {
     try {
       await this.lkConnect(res, room);
       const hostId = room.meta.host;
-      if (hostId && !room.lk.remoteParticipants.has(hostId)) throw new Error('notfound'); // the host has just left
+      if (!room.lk.remoteParticipants.size) throw new Error('notfound'); // everybody has just left
       await new Promise((resolve, reject) => {
         // the first data message waits until the connection to the server is fully set up – say hello again
         // every 2 s until the host has answered with the room state
@@ -295,7 +408,8 @@ export class Net {
           if (room.isSynced) return;
           room.isSynced = true;
           stop();
-          for (let i = 0; i < 5; i++) setTimeout(() => this.room === room && this.lkSend(room, { type: 'ping', t0: Date.now() }, hostId), 100 + i * 400);
+          const clock = this.lkPresent(room, hostId) ? hostId : null; // without the host: everybody's clock answers, the fastest wins
+          for (let i = 0; i < 5; i++) setTimeout(() => this.room === room && this.lkSend(room, { type: 'ping', t0: Date.now() }, clock), 100 + i * 400);
           resolve();
         };
         room.fullErr = () => {
@@ -308,6 +422,7 @@ export class Net {
       this.leaveRoom();
       throw e.message === 'notfound' || e.message === 'full' || e.message === 'noconn' ? e : new Error('timeout');
     }
+    this.lkKeepFresh(room);
     return room;
   }
 
@@ -915,6 +1030,8 @@ export class Net {
     } else if (room.isLk) {
       room.leaving = true;
       clearTimeout(room.metaTimer);
+      clearInterval(room.freshTimer);
+      for (const tm of (room.away || new Map()).values()) clearTimeout(tm);
       const host = room.meta && room.meta.host === this.uid;
       this.lkSend(room, host ? { type: 'closed' } : { type: 'leave', uid: this.uid });
       const lk = room.lk;

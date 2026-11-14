@@ -688,6 +688,7 @@ body.touch #skipHint { bottom: calc(50% - 20px); }
 .radio-box .radio-ptt { width: 64px; height: 64px; }
 .mute { background: none; border: 0; font-size: 14px; cursor: pointer; padding: 0 4px; pointer-events: auto; }
 #team { pointer-events: auto; }
+#team .team-conn { color: #ffd76a; font-size: 12px; margin-top: 2px; }
 body.touch #radio { top: auto; bottom: calc(196px + var(--safe-b, 0px)); }
 @media (max-height: 500px) { body.touch #radio { bottom: auto; top: 96px; left: auto; right: calc(10px + var(--safe-r, 0px)); flex-direction: row-reverse; } body.touch #radioMenu { left: auto; right: 0; } }
 

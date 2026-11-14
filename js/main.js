@@ -1174,13 +1174,28 @@ function openLobby(autoJoin = false) {
   net.on('players', onRoomPlayers);
   net.on('event', (ev) => (ev.type === 'radio' ? onQuickCall(ev) : game && game.onNetEvent(ev)));
   createRadio();
-  net.on('closed', () => {
+  net.on('closed', (reason) => {
+    // the host has surfaced and left during a team dive: the others keep diving together
+    if (reason === 'host' && game && game.multi && !game.ended && net.room) {
+      toast(t('mpHostLeftDive'));
+      return;
+    }
+    closeLobby();
+    leaveRoomAll();
+    toast(t(reason === 'lost' ? 'mpLost' : 'mpHostLeft'));
+    if (!game) closeModal();
+  });
+  net.on('conn', onRoomConn);
+  history.replaceState(null, '', location.pathname);
+  // back in the room after a dive, but the host has gone in the meantime
+  const st = net.room && net.room.meta && net.room.meta.status;
+  if (net.room && net.room.isLk && !net.isHost() && !net.hostPresent() && !(autoJoin && st === 'running')) {
     closeLobby();
     leaveRoomAll();
     toast(t('mpHostLeft'));
-    if (!game) closeModal();
-  });
-  history.replaceState(null, '', location.pathname);
+    closeModal();
+    return;
+  }
   // joining a room whose dive is already running: jump straight in
   if (autoJoin && net.room && net.room.meta && net.room.meta.status === 'running') return joinRunningDive();
   renderLobby();
@@ -1282,6 +1297,23 @@ function onRoomMeta(meta) {
   }
 }
 
+// connection wobbles (mobile network): say so only if it lasts a moment, and when it is back
+let connTimer = null;
+let connWarned = false;
+function onRoomConn(state) {
+  clearTimeout(connTimer);
+  if (state === 'reconnecting') {
+    connTimer = setTimeout(() => {
+      connWarned = true;
+      toast('📡 ' + t('mpReconnecting'));
+    }, 2500);
+  } else if (state === 'ok' && connWarned) {
+    connWarned = false;
+    toast('📡 ' + t('mpReconnected'));
+  }
+  if (game && net.room) game.renderTeam(net.room.players);
+}
+
 let crewSig = '';
 function onRoomPlayers(players) {
   if (radio) radio.sync(players);
@@ -1364,6 +1396,9 @@ class Dive {
     this.time = 0;
     this.sonarCooldown = 0;
     this.photographed = new Set();
+    this.myPh = []; // my own photos (shared with the team as player field ph)
+    this.myCol = []; // my own finds [item id, kind] (player field col)
+    this.teamCol = new Set(); // finds of teammates already counted
     this.found = [];
     this.realCount = 0;
     this.fantasyCount = 0;
@@ -1431,7 +1466,11 @@ class Dive {
       setTimeout(() => h.remove(), 5200);
     }
     toast(L(level.name), L(level.ocean));
-    if (this.multi && net.room) this.syncPlayers(net.room.players);
+    if (this.multi && net.room) {
+      // team data belongs to this dive (dv = its seed): nothing from an earlier dive in the same room counts
+      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false });
+      this.syncPlayers(net.room.players);
+    }
   }
 
   // ---------- race ----------
@@ -1612,7 +1651,20 @@ class Dive {
     this.countCollect(it.def.id);
     if (!this.photographed.has(it.def.id)) this.discover(it.def, {});
     else toast(`✋ +1 ${L(it.def.name)}`);
-    if (this.multi && this.multi.coop) net.sendEvent({ type: 'collect', item: it.id, kind: it.def.id, name: profile.name });
+    if (this.multi && this.multi.coop && net.room) {
+      this.myCol.push([it.id, it.def.id]);
+      net.setPlayer({ col: this.myCol });
+      net.sendEvent({ type: 'collect', item: it.id, kind: it.def.id, name: profile.name });
+    }
+  }
+
+  // a teammate's find (from the event or from their player data – whichever comes first)
+  teamCollect(id, kind) {
+    if (this.teamCol.has(id) || this.myCol.some((c) => c[0] === id)) return;
+    this.teamCol.add(id);
+    const it = this.cm.byId(id);
+    if (it && !it.collected) this.cm.remove(it);
+    this.countCollect(kind);
   }
 
   countCollect(kind) {
@@ -1645,7 +1697,7 @@ class Dive {
     echoSay(`${t('emergency')} ${t('emergencyWhy_' + reason)}`, { now: true });
   }
 
-  discover(def, { team = false, by = null } = {}) {
+  discover(def, { team = false, by = null, quiet = false } = {}) {
     if (this.photographed.has(def.id)) {
       if (!team) toast(L(def.name), t('alreadyFound'));
       return;
@@ -1659,11 +1711,13 @@ class Dive {
     this.found.push({ def, isNew, team, depth, pos: this.sub.pos.clone() });
     if (def.kind === 'real') this.realCount++;
     if (def.kind === 'fantasy') this.fantasyCount++;
-    if (def.kind === 'fantasy') audio.fantasy(def.sound);
-    else audio.discovery();
-    if (team) toast(t('teamFound', { name: by || '?', what: L(def.name) }));
-    else toast(isNew ? t('newDiscovery') : L(def.name), isNew ? L(def.name) : '');
-    showCard(def, { depth, isNew, by: team ? by : null, big: !team, pause: !team });
+    if (!quiet) {
+      if (def.kind === 'fantasy') audio.fantasy(def.sound);
+      else audio.discovery();
+      if (team) toast(t('teamFound', { name: by || '?', what: L(def.name) }));
+      else toast(isNew ? t('newDiscovery') : L(def.name), isNew ? L(def.name) : '');
+      showCard(def, { depth, isNew, by: team ? by : null, big: !team, pause: !team });
+    }
     if (!team) {
       if (def.kind === 'fantasy') {
         echoSay(L({ en: 'Ha! That one is pure fantasy – but its card hides a real fact.', de: 'Ha! Das ist reine Fantasie – aber seine Karte verrät einen echten Fakt.' }));
@@ -1671,7 +1725,11 @@ class Dive {
         const first = (L(def.fact).match(/[^.!?]+[.!?]/) || [L(def.fact)])[0];
         echoSay(`${L(def.name)}! ${first}`);
       }
-      if (this.multi && this.multi.coop) net.sendEvent({ type: 'discover', id: def.id, name: profile.name });
+      if (this.multi && this.multi.coop && net.room) {
+        this.myPh.push(def.id);
+        net.setPlayer({ ph: this.myPh });
+        net.sendEvent({ type: 'discover', id: def.id, name: profile.name });
+      }
     }
     this.checkMissions();
   }
@@ -1792,21 +1850,44 @@ class Dive {
   }
 
   // ---------- network ----------
+  // is this teammate in my dive? (dv = seed of their dive; older versions don't send it)
+  sameDive(p) {
+    return p.dv === undefined || p.dv === this.seed;
+  }
+
   syncPlayers(players) {
-    if (!players) return;
+    if (!players || this.ended) return;
     const ids = new Set();
     for (const [uid, p] of Object.entries(players)) {
-      if (uid === net.uid) continue;
+      if (uid === net.uid || !this.sameDive(p)) continue;
       ids.add(uid);
       let r = this.remote.get(uid);
+      const model = subModelById(p.sub).id;
+      // name or sub only known now (or changed): build the teammate's sub again
+      if (r && (r.model !== model || r.name !== (p.name || '?'))) {
+        r.dispose(this.scene);
+        this.remote.delete(uid);
+        r = null;
+      }
       if (!r) {
-        r = new RemoteSub(this.scene, colorFor(uid, players), p.name || '?', subModelById(p.sub).id);
+        r = new RemoteSub(this.scene, colorFor(uid, players), p.name || '?', model);
+        r.model = model;
         this.remote.set(uid, r);
       }
       r.data = p;
       if (p.s) r.setState(p.s);
       r.setTalking(!!p.talk);
       if (Array.isArray(p.atl) && !this.teamAtl) this.teamAtl = { x: p.atl[0], z: p.atl[1] };
+      if (this.multi && this.multi.coop && !this.race) {
+        if (Array.isArray(p.ph)) {
+          const fresh = p.ph.map((id) => CREATURES.find((c) => c.id === id)).filter((d) => d && !this.photographed.has(d.id));
+          // somebody joins later or a message got lost: take over everything at once, without a card for each
+          const quiet = fresh.length > 2;
+          for (const d of fresh) this.discover(d, { team: true, by: p.name || '?', quiet });
+          if (quiet) toast(t('teamFoundMany', { name: p.name || '?', n: fresh.length }));
+        }
+        if (Array.isArray(p.col)) for (const c of p.col) if (Array.isArray(c)) this.teamCollect(c[0], c[1]);
+      }
       if (p.md && p.md.join(',') !== r.mdSig) {
         r.mdSig = p.md.join(',');
         this.applyTeamMissions(uid, p);
@@ -1824,11 +1905,13 @@ class Dive {
   renderTeam(players) {
     if (!this.multi) return;
     const rows = Object.entries(players || {}).map(([uid, p]) => {
-      const d = p.s ? fmtNum(Math.max(0, -p.s.y * SCALE)) + ' m' : '';
+      const d = !this.sameDive(p) ? '⚓' : p.s ? fmtNum(Math.max(0, -p.s.y * SCALE)) + ' m' : '';
       const extra = this.race && p.finish ? ` ✓ ${fmtTime(p.finish)}` : '';
       const mute = radio && radio.enabled && uid !== net.uid ? ` <button class="mute" data-mute="${escapeHtml(uid)}">${radio.mutedUids.has(uid) ? '🔇' : '🔊'}</button>` : '';
       return `<div><i style="background:${hexColor(colorFor(uid, players))}"></i>${p.talk ? '🎙 ' : ''}${escapeHtml(p.name || '?')}${uid === net.uid ? '' : ' · ' + d}${extra}${mute}</div>`;
     });
+    const conn = net.room && net.room.conn;
+    if (conn === 'reconnecting' || conn === 'lost') rows.push(`<div class="team-conn">📡 ${t(conn === 'lost' ? 'mpLostShort' : 'mpReconnectingShort')}</div>`);
     const html = rows.join('');
     if (html !== this.teamHtml) {
       this.teamHtml = html;
@@ -1843,9 +1926,7 @@ class Dive {
       const def = CREATURES.find((c) => c.id === ev.id);
       if (def) this.discover(def, { team: true, by: ev.name });
     } else if (ev.type === 'collect' && this.multi.coop) {
-      const it = this.cm.byId(ev.item);
-      if (it && !it.collected) this.cm.remove(it);
-      this.countCollect(ev.kind);
+      this.teamCollect(ev.item, ev.kind);
     } else if (ev.type === 'map' && this.multi.coop) {
       this.world.applyCells(ev.cells || [], ev.circle);
       this.checkMissions();
@@ -2849,7 +2930,9 @@ function renderRaceStandings() {
   const inRoom = !!(g.multi && net.room);
   let standings = '';
   if (inRoom) {
-    const list = Object.entries(net.room.players || {}).map(([u, p]) => ({ name: p.name, finish: p.finish, me: u === net.uid }));
+    const list = Object.entries(net.room.players || {})
+      .filter(([u, p]) => u === net.uid || p.dv === undefined || p.dv === g.seed) // only who raced this race
+      .map(([u, p]) => ({ name: p.name, finish: p.finish, me: u === net.uid }));
     list.sort((a, b) => (a.finish ?? 1e9) - (b.finish ?? 1e9));
     standings = `<table class="lb">${list.map((p, i) => `<tr><td>${i + 1}.</td><td>${escapeHtml(p.name || '?')}${p.me ? ' ←' : ''}</td><td>${p.finish ? fmtTime(p.finish) : '…'}</td></tr>`).join('')}</table>`;
   }
