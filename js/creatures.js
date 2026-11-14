@@ -394,11 +394,11 @@ const BUILD = {
 Object.assign(BUILD, MODELS);
 
 // Which models glow by themselves (visible without our lights).
-const SELF_GLOW = new Set(['lanternfish', 'angler', 'gulper', 'lander', 'trieste', 'seep', 'sediment', 'bristlemouth', 'hatchetfish', 'barreleye']);
+const SELF_GLOW = new Set(['cookiecutter', 'ninjashark', 'lanternfish', 'angler', 'gulper', 'lander', 'trieste', 'seep', 'sediment', 'bristlemouth', 'hatchetfish', 'barreleye']);
 
-const SPEED = { dolphin: 4.5, humpback: 1.3, spermwhale: 1.2, whaleshark: 1.1, turtle: 1.0, manta: 1.6, tuna: 4, moonjelly: 0.25, sunfish: 0.5, hatchetfish: 1.0, barreleye: 0.3, bristlemouth: 1.2, seacucumber: 0.08, lanternfish: 2.4, combjelly: 0.6, vampire: 0.9, gulper: 1.2, angler: 0.7, seapig: 0.25, grenadier: 1.4, dumbo: 0.8, supergiant: 0.6, amphipod: 1.5, snailfish: 1.0 };
+const SPEED = { whiteshark: 2.6, hammerhead: 2.4, blueshark: 3.0, cookiecutter: 1.2, goblin: 1.0, frilled: 0.9, ninjashark: 1.1, sixgill: 1.1, greenland: 0.6, dogfish: 1.0, dolphin: 4.5, humpback: 1.3, spermwhale: 1.2, whaleshark: 1.1, turtle: 1.0, manta: 1.6, tuna: 4, moonjelly: 0.25, sunfish: 0.5, hatchetfish: 1.0, barreleye: 0.3, bristlemouth: 1.2, seacucumber: 0.08, lanternfish: 2.4, combjelly: 0.6, vampire: 0.9, gulper: 1.2, angler: 0.7, seapig: 0.25, grenadier: 1.4, dumbo: 0.8, supergiant: 0.6, amphipod: 1.5, snailfish: 1.0 };
 const HOVER = { seacucumber: 0.25, seapig: 0, grenadier: 1.6, dumbo: 1.8, supergiant: 0.5, amphipod: 0.9, snailfish: 1.0, xeno: 0, sockopus: 0, spaghetti: 0, sheep: 0.6, pancake: 0 };
-const RADIUS = { sediment: 1, dolphin: 3, humpback: 7, spermwhale: 6, whaleshark: 6, turtle: 1.6, manta: 3.5, tuna: 2.5, moonjelly: 2, sunfish: 2, hatchetfish: 1.6, barreleye: 1.1, bristlemouth: 1.8, seacucumber: 1.6, lanternfish: 2.2, combjelly: 1, vampire: 1.3, gulper: 2.6, angler: 1.3, seapig: 2.2, grenadier: 2, dumbo: 1.4, supergiant: 1.6, amphipod: 2.2, snailfish: 1.6, xeno: 1, tubeworm: 3, clam: 2.5, nodule: 0.6, litter: 1, whale: 10, seep: 5, lander: 2, trieste: 3, jellyphant: 2.5, sockopus: 2.4, toaster: 2.2, grumpus: 2, duckangler: 2, spaghetti: 2.5, sheep: 1.8, pancake: 2 };
+const RADIUS = { whiteshark: 3.5, hammerhead: 3, blueshark: 2.8, cookiecutter: 1, goblin: 2.8, frilled: 2.2, ninjashark: 1, sixgill: 3.8, greenland: 4.2, dogfish: 1.5, sediment: 1, dolphin: 3, humpback: 7, spermwhale: 6, whaleshark: 6, turtle: 1.6, manta: 3.5, tuna: 2.5, moonjelly: 2, sunfish: 2, hatchetfish: 1.6, barreleye: 1.1, bristlemouth: 1.8, seacucumber: 1.6, lanternfish: 2.2, combjelly: 1, vampire: 1.3, gulper: 2.6, angler: 1.3, seapig: 2.2, grenadier: 2, dumbo: 1.4, supergiant: 1.6, amphipod: 2.2, snailfish: 1.6, xeno: 1, tubeworm: 3, clam: 2.5, nodule: 0.6, litter: 1, whale: 10, seep: 5, lander: 2, trieste: 3, jellyphant: 2.5, sockopus: 2.4, toaster: 2.2, grumpus: 2, duckangler: 2, spaghetti: 2.5, sheep: 1.8, pancake: 2 };
 const STATIC = new Set(['sediment', 'xeno', 'tubeworm', 'clam', 'nodule', 'litter', 'whale', 'seep', 'lander', 'trieste']);
 
 
@@ -806,7 +806,7 @@ export class CreatureManager {
       const p = it.group.position;
       const to = p.clone().sub(sub.pos);
       const d = to.length();
-      const maxD = ['whale', 'humpback', 'whaleshark', 'spermwhale'].includes(it.def.model) ? 45 : 30;
+      const maxD = ['whale', 'humpback', 'whaleshark', 'spermwhale', 'whiteshark', 'greenland', 'sixgill'].includes(it.def.model) ? 45 : 30;
       if (d > maxD) continue;
       const flat = new THREE.Vector3(to.x, to.y * 0.6, to.z).normalize();
       const ang = Math.acos(clamp(flat.dot(fwd), -1, 1));

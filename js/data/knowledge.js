@@ -130,6 +130,12 @@ export const KNOWLEDGE = [
       en: 'Most deep-sea animals are small and harmless to us. They look strange because they are adapted to darkness, cold and pressure – not because they are monsters.',
       de: 'Die meisten Tiefseetiere sind klein und für uns harmlos. Sie sehen seltsam aus, weil sie an Dunkelheit, Kälte und Druck angepasst sind – nicht, weil sie Monster wären.',
     } },
+  { id: 'sharks',
+    kw: { en: ['shark', 'sharks'], de: ['hai', 'haie'] },
+    a: {
+      en: 'Sharks live from the surface down to about 3,700 m – the Portuguese dogfish is the deepest one we know. Below about 3,000 m sharks are absent or very rare, so in the trenches there are none at all. Scientists think their oil-filled livers, which keep them afloat, need more food than the abyss can offer (Priede et al., 2006).',
+      de: 'Haie leben von der Oberfläche bis etwa 3.700 m Tiefe – der Portugiesenhai ist der tiefste, den wir kennen. Unter etwa 3.000 m fehlen Haie oder sind sehr selten, in den Gräben gibt es also gar keine. Forschende vermuten, dass ihre ölgefüllte Leber, die ihnen Auftrieb gibt, mehr Nahrung braucht, als die Tiefsee bietet (Priede u. a., 2006).',
+    } },
   { id: 'controls',
     kw: { en: ['how to play', 'controls', 'steer', 'help', 'what do i do', 'mission'], de: ['wie spielt', 'steuer', 'hilfe', 'was soll ich', 'was muss ich', 'mission'] },
     a: {

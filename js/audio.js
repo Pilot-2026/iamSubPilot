@@ -2,13 +2,18 @@
 // Two buses: sound effects and music. Sound modes: all | fx | music | off.
 
 export const SOUND_MODES = ['all', 'fx', 'music', 'off'];
-const PENTA = [0, 2, 5, 7, 9]; // D minor-ish pentatonic steps
-const CHORDS = [
-  [50, 57, 62, 65, 69], // Dm9-ish
-  [46, 53, 58, 62, 69], // Bbmaj7
-  [53, 57, 60, 64, 67], // F add9
-  [48, 55, 60, 62, 67], // C sus
+// Music: several cheerful pieces (major / mixolydian / lydian keys) that take turns.
+// Whale song and dolphin whistles stay part of every piece.
+const SCALES = { major: [0, 2, 4, 5, 7, 9, 11], mixo: [0, 2, 4, 5, 7, 9, 10], lydian: [0, 2, 4, 6, 7, 9, 11] };
+// progression = scale degrees (0-based) of chord roots; chords are built from the scale (triad + 7th/9th colour)
+const TRACKS = [
+  { name: 'Sunny Reef', root: 60, scale: 'major', prog: [0, 4, 5, 3], bpm: 96, beats: 4, arp: [0, 2, 1, 3, 2, 1, 3, 4], melody: 0.55, sparkle: 0.35 },
+  { name: 'Bubble Waltz', root: 65, scale: 'major', prog: [0, 3, 4, 0, 5, 3, 4, 4], bpm: 132, beats: 3, arp: [0, 1, 2, 3, 2, 1], melody: 0.45, sparkle: 0.3 },
+  { name: 'Dolphin Dance', root: 55, scale: 'mixo', prog: [0, 6, 3, 0], bpm: 112, beats: 4, arp: [0, 2, 3, 2, 4, 2, 3, 1], melody: 0.6, sparkle: 0.25, dolphins: 2 },
+  { name: 'Floating Lights', root: 62, scale: 'lydian', prog: [0, 1, 0, 4], bpm: 84, beats: 4, arp: [0, 1, 2, 4, 3, 2, 1, 2], melody: 0.4, sparkle: 0.55 },
+  { name: "Explorer's March", root: 57, scale: 'major', prog: [0, 3, 5, 4], bpm: 104, beats: 4, arp: [0, 2, 4, 2, 1, 2, 3, 2], melody: 0.6, sparkle: 0.3 },
 ];
+const BARS_PER_TRACK = 28; // about 1–1.5 minutes, then the next piece follows
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
 
 class AudioFX {
@@ -117,15 +122,35 @@ class AudioFX {
     this.scene = scene;
     if (!this.ctx) return;
     this.applyMode();
+    if (scene && this.timer && this.track) {
+      // new scene (title, menu, dive): a new piece starts
+      this.setTrack((this.trackIdx + 1) % TRACKS.length, this.ctx.currentTime + 0.3);
+      try { localStorage.setItem('hadal.track', String(this.trackIdx)); } catch (e) { /* ignore */ }
+    }
     if (scene) this.startScheduler();
     else this.stopScheduler();
   }
 
   startScheduler() {
     if (this.timer) return;
+    // every start begins with a different piece (remembered on this device)
+    let idx = Number(localStorage.getItem('hadal.track'));
+    idx = Number.isFinite(idx) ? (idx + 1) % TRACKS.length : Math.floor(Math.random() * TRACKS.length);
+    try { localStorage.setItem('hadal.track', String(idx)); } catch (e) { /* storage may be blocked */ }
+    this.setTrack(idx, this.ctx.currentTime + 0.15);
     const now = this.ctx.currentTime;
-    this.next = { chord: now + 0.1, whale: now + 2.5, dolphin: now + 6, ping: now + 1.2, bell: now + 4, chordIdx: 0 };
-    this.timer = setInterval(() => this.schedule(), 200);
+    this.next.whale = now + 3;
+    this.next.dolphin = now + 7;
+    this.next.ping = now + 2;
+    this.timer = setInterval(() => this.schedule(), 150);
+  }
+
+  setTrack(idx, t0) {
+    this.trackIdx = idx;
+    const tr = TRACKS[idx];
+    this.track = tr;
+    this.spb = 60 / tr.bpm;
+    this.next = { ...(this.next || {}), beat: t0, beatIdx: 0, motif: null };
   }
 
   stopScheduler() {
@@ -133,66 +158,233 @@ class AudioFX {
     this.timer = null;
   }
 
+  // chord tones (midi) for scale degree d of the current track
+  chordOf(d, extra = true) {
+    const tr = this.track, sc = SCALES[tr.scale];
+    const note = (k) => tr.root + sc[(d + k) % 7] + 12 * Math.floor((d + k) / 7);
+    const ch = [note(0), note(2), note(4)];
+    if (extra) ch.push(note(6), note(8)); // 7th and 9th for a soft, open sound
+    return ch;
+  }
+
+  scaleNote(step) {
+    const tr = this.track, sc = SCALES[tr.scale];
+    return tr.root + sc[((step % 7) + 7) % 7] + 12 * Math.floor(step / 7);
+  }
+
   schedule() {
     if (!this.ctx || !this.scene) return;
+    const N = this.next;
+    const now = this.ctx.currentTime;
     if (this.mode === 'fx' || this.mode === 'off' || document.hidden) {
       // keep the clock moving without playing
-      const now = this.ctx.currentTime;
-      for (const k of ['chord', 'whale', 'dolphin', 'ping', 'bell']) if (this.next[k] < now) this.next[k] = now + 1;
+      if (N.beat < now) N.beat = now + 0.2;
+      for (const k of ['whale', 'dolphin', 'ping']) if (N[k] < now) N[k] = now + 1;
       return;
     }
-    const ahead = this.ctx.currentTime + 0.4;
+    const ahead = now + 0.45;
     const intro = this.scene !== 'dive';
-    const N = this.next;
-    if (N.chord < ahead) {
-      this.padChord(CHORDS[N.chordIdx % CHORDS.length], N.chord, 9.5, intro ? 0.05 : 0.035);
-      N.chordIdx++;
-      N.chord += 8;
+    const tr = this.track;
+    const spb = this.spb;
+    const dens = intro ? 1 : 0.6;
+    while (N.beat < ahead) {
+      const b = N.beatIdx;
+      const t = N.beat;
+      const bar = Math.floor(b / tr.beats);
+      const beatInBar = b % tr.beats;
+      const deg = tr.prog[bar % tr.prog.length];
+      const chord = this.chordOf(deg);
+      if (beatInBar === 0) {
+        this.pad(chord, t, tr.beats * spb + 1.2, intro ? 0.032 : 0.022);
+        this.bass(chord[0] - 24, t, tr.beats * spb * 0.9, intro ? 0.11 : 0.08);
+        if (bar % 2 === 0) N.motif = this.makeMotif(deg);
+      } else if (tr.beats === 4 && beatInBar === 2) {
+        this.bass(chord[0] - 24 + 7, t, spb * 1.6, intro ? 0.06 : 0.045);
+      }
+      // arpeggio in eighth notes (kalimba / marimba)
+      for (let half = 0; half < 2; half++) {
+        const k = (beatInBar * 2 + half) % tr.arp.length;
+        if (Math.random() < 0.9 * dens) this.pluck(chord[tr.arp[k] % chord.length] + (tr.arp[k] >= chord.length ? 12 : 0), t + half * spb * 0.5, intro ? 0.06 : 0.042);
+      }
+      // a little tune on top
+      if (N.motif && Math.random() < tr.melody * dens) {
+        const m = N.motif[(bar % 2) * tr.beats + beatInBar];
+        if (m != null) this.lead(m, t + (Math.random() < 0.3 ? spb * 0.5 : 0), spb * 1.4, intro ? 0.05 : 0.035);
+      }
+      // sparkling bells now and then
+      if (Math.random() < tr.sparkle * dens * 0.35) this.bell(this.scaleNote(14 + Math.floor(Math.random() * 7)), t + spb * 0.25, 0.03);
+      // soft shaker on the off-beats
+      if (intro) this.shaker(t + spb * 0.5, 0.012);
+      N.beat += spb;
+      N.beatIdx++;
+      if (N.beatIdx >= BARS_PER_TRACK * tr.beats) {
+        // next piece: a short bell flourish, then the new key
+        [0, 2, 4, 7].forEach((st, i) => this.bell(this.scaleNote(14 + st), N.beat + i * 0.12, 0.03));
+        this.setTrack((this.trackIdx + 1) % TRACKS.length, N.beat + 0.9);
+        try { localStorage.setItem('hadal.track', String(this.trackIdx)); } catch (e) { /* ignore */ }
+        break;
+      }
     }
     if (N.whale < ahead) {
       this.whale(N.whale);
-      N.whale += (intro ? 5 : 9) + Math.random() * (intro ? 6 : 10);
+      N.whale += (intro ? 7 : 11) + Math.random() * (intro ? 7 : 10);
     }
     if (N.dolphin < ahead) {
       this.dolphins(N.dolphin);
-      N.dolphin += (intro ? 6 : 12) + Math.random() * 9;
+      N.dolphin += ((intro ? 6 : 11) + Math.random() * 8) / (tr.dolphins || 1);
     }
     if (N.ping < ahead) {
       this.sounder(N.ping);
-      N.ping += intro ? 4 : 6.5;
-    }
-    if (N.bell < ahead) {
-      if (intro || Math.random() < 0.5) this.bells(N.bell, CHORDS[(N.chordIdx + 3) % CHORDS.length]);
-      N.bell += 2 + Math.random() * 3;
+      N.ping += intro ? 8 : 9;
     }
   }
 
-  padChord(notes, t0, dur, vol) {
+  // 8-step tune from the scale, leaning on chord tones, with rests
+  makeMotif(deg) {
+    const steps = [];
+    let cur = deg + 7 + [0, 2, 4][Math.floor(Math.random() * 3)];
+    for (let i = 0; i < 8; i++) {
+      if (Math.random() < 0.3) {
+        steps.push(null);
+        continue;
+      }
+      cur += [-2, -1, 1, 1, 2, 0][Math.floor(Math.random() * 6)];
+      cur = Math.max(deg + 5, Math.min(deg + 14, cur));
+      steps.push(this.scaleNote(cur));
+    }
+    return steps;
+  }
+
+  pad(notes, t0, dur, vol) {
     const c = this.ctx;
     const f = c.createBiquadFilter();
     f.type = 'lowpass';
-    f.frequency.setValueAtTime(500, t0);
-    f.frequency.linearRampToValueAtTime(900, t0 + dur * 0.5);
-    f.frequency.linearRampToValueAtTime(450, t0 + dur);
+    f.frequency.setValueAtTime(900, t0);
+    f.frequency.linearRampToValueAtTime(1700, t0 + dur * 0.5);
+    f.frequency.linearRampToValueAtTime(1000, t0 + dur);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.linearRampToValueAtTime(vol, t0 + 3);
-    g.gain.setValueAtTime(vol, t0 + dur - 3);
+    g.gain.linearRampToValueAtTime(vol, t0 + Math.min(1.2, dur * 0.3));
+    g.gain.setValueAtTime(vol, Math.max(t0 + 1.2, t0 + dur - 1.2));
     g.gain.linearRampToValueAtTime(0.0001, t0 + dur);
     f.connect(g);
     g.connect(this.musicBus);
     g.connect(this.reverb);
-    for (const n of notes) {
-      for (const det of [-6, 6]) {
+    for (const n of notes.slice(0, 4)) {
+      for (const det of [-5, 5]) {
         const o = c.createOscillator();
-        o.type = 'triangle';
-        o.frequency.value = mtof(n - 12);
+        o.type = det < 0 ? 'sine' : 'triangle';
+        o.frequency.value = mtof(n);
         o.detune.value = det;
         o.connect(f);
         o.start(t0);
         o.stop(t0 + dur + 0.1);
       }
     }
+  }
+
+  // kalimba / marimba-like pluck
+  pluck(midi, t, vol) {
+    const c = this.ctx;
+    const f0 = mtof(midi);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9);
+    g.connect(this.musicBus);
+    g.connect(this.reverb);
+    const o = c.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = f0;
+    o.connect(g);
+    const o2 = c.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.value = f0 * 4.02;
+    const g2 = c.createGain();
+    g2.gain.setValueAtTime(vol * 0.35, t);
+    g2.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    o2.connect(g2);
+    g2.connect(this.musicBus);
+    o.start(t);
+    o2.start(t);
+    o.stop(t + 1);
+    o2.stop(t + 0.15);
+  }
+
+  lead(midi, t, dur, vol) {
+    const c = this.ctx;
+    const o = c.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = mtof(midi);
+    const vib = c.createOscillator();
+    vib.frequency.value = 5.2;
+    const vg = c.createGain();
+    vg.gain.value = mtof(midi) * 0.006;
+    vib.connect(vg);
+    vg.connect(o.frequency);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(vol * 0.6, t + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(this.musicBus);
+    g.connect(this.mDelay);
+    o.start(t);
+    vib.start(t);
+    o.stop(t + dur + 0.05);
+    vib.stop(t + dur + 0.05);
+  }
+
+  bass(midi, t, dur, vol) {
+    const c = this.ctx;
+    const o = c.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = mtof(midi);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.05);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g);
+    g.connect(this.musicBus);
+    o.start(t);
+    o.stop(t + dur + 0.05);
+  }
+
+  bell(midi, t, vol) {
+    const c = this.ctx;
+    const o = c.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = mtof(midi);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+    o.connect(g);
+    g.connect(this.reverb);
+    g.connect(this.mDelay);
+    o.start(t);
+    o.stop(t + 2.3);
+  }
+
+  shaker(t, vol) {
+    const c = this.ctx;
+    if (!this.shakeBuf) {
+      this.shakeBuf = c.createBuffer(1, Math.floor(c.sampleRate * 0.06), c.sampleRate);
+      const d = this.shakeBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+    }
+    const s = c.createBufferSource();
+    s.buffer = this.shakeBuf;
+    const hp = c.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 7000;
+    const g = c.createGain();
+    g.gain.value = vol;
+    s.connect(hp);
+    hp.connect(g);
+    g.connect(this.musicBus);
+    s.start(t);
   }
 
   // Long gliding moans like humpback song units, with vibrato and lots of reverb.
@@ -202,12 +394,15 @@ class AudioFX {
     let t = t0;
     for (let p = 0; p < phrases; p++) {
       const dur = 1.6 + Math.random() * 2.4;
-      const base = Math.random() < 0.35 ? 70 + Math.random() * 60 : 160 + Math.random() * 220;
+      // glide between notes of the current key (friendly, singing range)
+      const step = Math.floor(Math.random() * 7);
+      const base = mtof((this.track ? this.scaleNote(step) : 60 + step) - (Math.random() < 0.3 ? 12 : 0));
       const o = c.createOscillator();
       o.type = Math.random() < 0.5 ? 'sine' : 'triangle';
       o.frequency.setValueAtTime(base, t);
-      o.frequency.exponentialRampToValueAtTime(base * (1.3 + Math.random() * 1.2), t + dur * 0.45);
-      o.frequency.exponentialRampToValueAtTime(base * (0.7 + Math.random() * 0.5), t + dur);
+      const up = [1.122, 1.26, 1.335, 1.498][Math.floor(Math.random() * 4)]; // a 2nd, 3rd, 4th or 5th up
+      o.frequency.exponentialRampToValueAtTime(base * up, t + dur * 0.45);
+      o.frequency.exponentialRampToValueAtTime(base * (Math.random() < 0.5 ? 1 : up * 0.94), t + dur);
       const lfo = c.createOscillator();
       lfo.frequency.value = 4 + Math.random() * 3;
       const lg = c.createGain();
@@ -220,7 +415,7 @@ class AudioFX {
       bp.Q.value = 0.7;
       const g = c.createGain();
       g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.16, t + dur * 0.3);
+      g.gain.exponentialRampToValueAtTime(0.11, t + dur * 0.3);
       g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
       o.connect(bp);
       bp.connect(g);
@@ -294,7 +489,7 @@ class AudioFX {
     const c = this.ctx;
     const o = c.createOscillator();
     o.type = 'sine';
-    o.frequency.setValueAtTime(1480, t0);
+    o.frequency.setValueAtTime(this.track ? mtof(this.track.root + 24 + 7) : 1480, t0);
     const g = c.createGain();
     g.gain.setValueAtTime(0.0001, t0);
     g.gain.exponentialRampToValueAtTime(0.06, t0 + 0.01);
@@ -306,27 +501,6 @@ class AudioFX {
     o.stop(t0 + 0.75);
   }
 
-  bells(t0, chord) {
-    const c = this.ctx;
-    const root = chord[0] + 24;
-    const n = 1 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < n; i++) {
-      const note = root + PENTA[Math.floor(Math.random() * PENTA.length)] + (Math.random() < 0.3 ? 12 : 0);
-      const t = t0 + i * (0.35 + Math.random() * 0.3);
-      const o = c.createOscillator();
-      o.type = 'triangle';
-      o.frequency.value = mtof(note);
-      const g = c.createGain();
-      g.gain.setValueAtTime(0.0001, t);
-      g.gain.exponentialRampToValueAtTime(0.05, t + 0.01);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + 2.4);
-      o.connect(g);
-      g.connect(this.reverb);
-      g.connect(this.mDelay);
-      o.start(t);
-      o.stop(t + 2.5);
-    }
-  }
 
   tone(freq, dur, { type = 'sine', vol = 0.3, attack = 0.01, toFreq = null, echo = false, when = 0 } = {}) {
     if (!this.ctx) return;

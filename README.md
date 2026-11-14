@@ -1,6 +1,6 @@
 # iamSubPilot – Expedition into the deep-sea trenches
 
-A 3D browser game about the deepest places on Earth. Pick one of six crazy subs (bumblebee HUMMEL-1, pufferfish ball, narwhal with drill horn, octopus, retro rocket or deep-sea UFO). It is lowered from the research ship on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles and huge fish schools near the surface, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
+A 3D browser game about the deepest places on Earth. Pick one of seven crazy subs (bumblebee HUMMEL-1, shark-shaped WOLFSHARK, pufferfish ball, narwhal with drill horn, octopus, retro rocket or deep-sea UFO). It is lowered from the research ship on chains, splashes into the sea and dives into seven real ocean trenches. Meet dolphins, whales, turtles, ten kinds of sharks (hammerheads, great white, blue shark, goblin, frilled, cookiecutter, ninja lanternshark, sixgill, Greenland shark and the deepest one, the Portuguese dogfish) and huge fish schools, photograph real deep-sea animals (and a few clearly marked, completely crazy fantasy creatures), ask the onboard AI scientist Dr. Echo anything, and answer age-adapted questions after each dive. Alone or with up to four friends.
 
 **A game by Andreas Schmölzer · [www.pilotFilm.at](https://www.pilotfilm.at)**
 
@@ -42,7 +42,7 @@ Real animals carry a blue **REAL** badge and a source. Fantasy creatures carry a
 - Dr. Echo answers from a built-in knowledge base. A real AI model can be connected later through a small server function (`AI_ENDPOINT` in `js/config.js`); API keys never go into this public repository.
 - Wordmark font: Source Sans 3 (SIL Open Font License, self-hosted in `fonts/`). Footer bar with logos and social links is the same as in iamPilot (`assets/`).
 - Privacy policy: [privacy.html](privacy.html) · Imprint: <https://www.pilotfilm.at/impressum>
-- Sounds and music are synthesised with the Web Audio API (music: whale-song glides, dolphin whistles and clicks, echo-sounder pings, soft pads).
+- Sounds and music are synthesised with the Web Audio API: five cheerful pieces (kalimba arpeggios, pads, bass, little tunes, bells) that take turns – every start begins with a different one – always with whale song, dolphin whistles and echo-sounder pings. Sound modes (Music + FX / FX only / Music only / Silent) in the menu, in the pause menu and with the 🔊 button during the dive (key M).
 
 ## Local development
 

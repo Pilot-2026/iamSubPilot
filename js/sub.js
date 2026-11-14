@@ -4,6 +4,7 @@ import * as THREE from './vendor/three.min.js';
 import { clamp, lerp } from './util.js';
 import { WX, WZ } from './world.js';
 import { PartBuilder } from './parts.js';
+import { loftBody, prof, thickFin } from './detail.js';
 
 // ---------------------------------------------------------------------------
 // Six original submarine designs. Static parts are merged per material
@@ -16,6 +17,7 @@ const ZAX = new THREE.Vector3(0, 0, 1);
 
 export const SUB_MODELS = [
   { id: 'hummel', color: 0xffc21a, name: { en: 'HUMMEL-1', de: 'HUMMEL-1' }, desc: { en: 'The bumblebee: sturdy, full of gadgets', de: 'Die Hummel: robust und voller Technik' } },
+  { id: 'wolfshark', color: 0xffc21a, name: { en: 'WOLFSHARK', de: 'WOLFSHARK' }, desc: { en: 'Shark-shaped and nimble – with a friendly grin', de: 'In Haiform, flink und wendig – mit freundlichem Grinsen' } },
   { id: 'puffer', color: 0xffc21a, name: { en: 'PUFFBALL', de: 'KUGELBLITZ' }, desc: { en: 'Round, spiky, absolutely unsinkable', de: 'Kugelrund, stachelig, unkaputtbar' } },
   { id: 'narwhal', color: 0xffc21a, name: { en: 'NARWHAL-X', de: 'NARWAL-X' }, desc: { en: 'Sleek torpedo with a spinning drill horn', de: 'Schlanker Torpedo mit Bohrer-Horn' } },
   { id: 'octopus', color: 0xffc21a, name: { en: 'OCTOPODA', de: 'OKTOPODA' }, desc: { en: 'Eight wiggly arms, one big window', de: 'Acht wackelnde Arme, ein großes Fenster' } },
@@ -24,9 +26,9 @@ export const SUB_MODELS = [
 ];
 export const subModelById = (id) => SUB_MODELS.find((m) => m.id === id) || SUB_MODELS[0];
 
-let nameTex = null;
-function namePlateTexture() {
-  if (nameTex) return nameTex;
+const nameTex = {};
+function namePlateTexture(text = 'HUMMEL-1') {
+  if (nameTex[text]) return nameTex[text];
   const c = document.createElement('canvas');
   c.width = 512;
   c.height = 128;
@@ -42,9 +44,9 @@ function namePlateTexture() {
   g.font = '900 82px system-ui, sans-serif';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.fillText('HUMMEL-1', 256, 68);
-  nameTex = new THREE.CanvasTexture(c);
-  return nameTex;
+  g.fillText(text, 256, 68, 460);
+  nameTex[text] = new THREE.CanvasTexture(c);
+  return nameTex[text];
 }
 
 const RIVET = new THREE.SphereGeometry(0.035, 6, 4);
@@ -237,6 +239,89 @@ function buildHummel(g, B, ctx) {
   g.add(prop);
   Object.assign(g.userData, { prop, sideProps, beacon, flag });
   return { lamp: [0, -0.5, -1.9], top: 1.05, attach: [1.0, 1.1], arm: [0, -0.98, -1.05] };
+}
+
+// ---------------- WOLFSHARK (shark-shaped sub) ----------------
+function buildWolfShark(g, B, ctx) {
+  const M = {
+    body: std(ctx.color, { emissive: ctx.color, emissiveIntensity: 0.13, roughness: 0.32 }),
+    dark: std(0x1b1b22, { roughness: 0.45, metalness: 0.25 }),
+    steel: std(0x8b98a6, { roughness: 0.35, metalness: 0.7 }),
+    white: std(0xf4f1ea, { roughness: 0.35 }),
+    rim: std(0xd4a548, { metalness: 0.85, roughness: 0.3 }),
+    port: portMat(),
+  };
+  const L = 5.4, HW = 0.95, HH = 1.0;
+  const wf = prof([[0, 0.06], [0.06, 0.45], [0.18, 0.84], [0.4, 1.0], [0.66, 0.8], [0.86, 0.4], [1, 0.2]]);
+  const hf = prof([[0, 0.06], [0.06, 0.42], [0.18, 0.82], [0.4, 1.0], [0.66, 0.78], [0.86, 0.4], [1, 0.22]]);
+  const yf = prof([[0, 0.22], [0.15, 0.08], [0.4, 0], [1, 0.08]]);
+  const w = (t) => wf(t) * HW, h = (t) => hf(t) * HH, z = (t) => -L / 2 + t * L;
+  const hull = loftBody({ len: L, w, h, y: yf, seg: 40, rad: 32, paint: (t, a, out) => out.setRGB(1, 1, 1) });
+  hull.deleteAttribute('color');
+  B.add(M.body, hull, {});
+  // dark back stripe and fin tips, like a real shark's darker back
+  for (const t of [0.3, 0.5, 0.7]) B.add(M.dark, new THREE.TorusGeometry(1, 0.035, 6, 32, Math.PI * 0.5), { p: [0, yf(t), z(t)], r: [0, 0, Math.PI / 4], s: [w(t) * 1.005, h(t) * 1.005, 1] });
+  // friendly painted grin with white teeth under the nose
+  const mt = 0.09;
+  B.add(M.dark, new THREE.TorusGeometry(1, 0.05, 6, 24, Math.PI), { p: [0, yf(mt) - h(mt) * 0.15, z(mt) + 0.05], r: [Math.PI / 2 + 0.35, 0, Math.PI], s: [w(mt) * 0.98, w(mt) * 1.1, 1] });
+  for (let i = 0; i < 9; i++) {
+    const a = Math.PI * (0.12 + (0.76 * i) / 8);
+    B.add(M.white, new THREE.ConeGeometry(0.045, 0.12, 4), { p: [Math.cos(a) * w(mt) * 0.96, yf(mt) - h(mt) * 0.15 + 0.03 - Math.sin(a) * 0.02, z(mt) + 0.05 - Math.sin(a) * w(mt) * 0.38], r: [Math.PI, 0, 0] });
+  }
+  // gill slits (cooling vents)
+  for (const sx of [-1, 1]) for (let i = 0; i < 5; i++) {
+    const t = 0.24 + i * 0.035;
+    B.add(M.dark, new THREE.BoxGeometry(0.03, h(t) * 0.75, 0.07), { p: [sx * w(t) * 0.99, yf(t) - 0.05, z(t)], r: [0.12, 0, 0] });
+  }
+  // eyes = glowing portholes, cockpit dome on top
+  for (const sx of [-1, 1]) porthole(B, M, [sx * w(0.13) * 0.93, yf(0.13) + h(0.13) * 0.3, z(0.13)], new THREE.Vector3(sx, 0.25, -0.35).normalize(), 0.15);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 22, 14, 0, Math.PI * 2, 0, Math.PI / 2), glassMat());
+  dome.scale.set(0.42, 0.34, 0.62);
+  dome.position.set(0, yf(0.22) + h(0.22) * 0.88, z(0.22));
+  dome.renderOrder = 2;
+  g.add(dome);
+  B.add(M.rim, new THREE.TorusGeometry(1, 0.035, 6, 28), { p: [0, yf(0.22) + h(0.22) * 0.88, z(0.22)], r: [Math.PI / 2, 0, 0], s: [0.43, 0.63, 1] });
+  // dorsal fin with a black tip and the beacon on top
+  const dY = yf(0.42) + h(0.42) * 0.85, dZ = z(0.42);
+  B.add(M.body, thickFin([[0, 0], [0.45, 1.05], [0.62, 1.12], [0.66, 0.72], [1.05, 0]], 'dorsal', 1, 0.12), { p: [0, dY, dZ] });
+  B.add(M.dark, thickFin([[0.43, 0.98], [0.62, 1.12], [0.64, 0.86]], 'dorsal', 1, 0.15), { p: [0, dY, dZ] });
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffa21a }));
+  beacon.position.set(0, dY + 1.16, dZ + 0.62);
+  g.add(beacon);
+  // pectoral fins = dive planes
+  for (const sx of [-1, 1]) {
+    const pY = yf(0.34) - h(0.34) * 0.45, pX = sx * w(0.34) * 0.88;
+    B.add(M.body, thickFin([[0, 0], [0.35, 1.2], [0.75, 1.3], [0.8, 0]], 'side', sx, 0.1), { p: [pX, pY, z(0.34)], r: [0, 0, sx * -0.35] });
+    B.add(M.dark, new THREE.SphereGeometry(0.07, 10, 8), { p: [pX + sx * 1.24 * Math.cos(0.35), pY - 1.24 * Math.sin(0.35), z(0.34) + 0.55] });
+    ctx.lamp(sx * 0.32, yf(0.03) - 0.1, z(0.03) + 0.05, 0.1);
+  }
+  // name plates "WOLFSHARK"
+  const plateMat = new THREE.MeshBasicMaterial({ map: namePlateTexture('WOLFSHARK'), transparent: true, fog: true });
+  const tp = 0.56;
+  for (const sx of [-1, 1]) {
+    const pl = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.32), plateMat);
+    pl.position.set(sx * (w(tp) * 1.01 + 0.01), yf(tp) + 0.08, z(tp));
+    pl.rotation.y = sx * (Math.PI / 2 - 0.1);
+    g.add(pl);
+  }
+  // tail: vertical shark tail (wags) with the propeller in a ring duct
+  const tail = new THREE.Group();
+  const TB = new PartBuilder();
+  TB.add(M.body, thickFin([[0, 0.1], [0.55, 1.15, 0.95, 1.55], [0.7, 0.7], [0.42, 0], [0.75, -0.95], [0.25, -0.55, 0, -0.1]], 'dorsal', 1, 0.11), {});
+  TB.add(M.dark, thickFin([[0.76, 1.28], [0.95, 1.55], [0.86, 1.08]], 'dorsal', 1, 0.14), {});
+  TB.build(tail);
+  tail.position.set(0, yf(0.95), z(0.95));
+  g.add(tail);
+  B.add(M.rim, new THREE.TorusGeometry(0.34, 0.06, 8, 24), { p: [0, yf(1) - 0.02, z(1) + 0.1] });
+  const prop = propeller(4, BLADE_M, [M.dark, M.steel], 0.18);
+  prop.scale.setScalar(0.8);
+  prop.position.set(0, yf(1) - 0.02, z(1) + 0.12);
+  g.add(prop);
+  Object.assign(g.userData, { prop, beacon });
+  g.userData.anim = (dt, t, speed) => {
+    tail.rotation.y = Math.sin(t * (2.2 + speed * 0.25)) * 0.28;
+  };
+  return { lamp: [0, yf(0.03) - 0.1, z(0.03)], top: 1.0, attach: [1.2, 1.0], arm: [0, -0.92, -1.25] };
 }
 
 // ---------------- KUGELBLITZ (puffer fish ball) ----------------
@@ -729,7 +814,7 @@ function updateArm(g, arm, dt, t) {
   if (arm.state === 'in' && arm.carry) arm.carry.scale.multiplyScalar(Math.exp(-dt * 0.8));
 }
 
-const BUILDERS = { hummel: buildHummel, puffer: buildPuffer, narwhal: buildNarwhal, octopus: buildOctopus, rocket: buildRocket, ufo: buildUfo };
+const BUILDERS = { hummel: buildHummel, wolfshark: buildWolfShark, puffer: buildPuffer, narwhal: buildNarwhal, octopus: buildOctopus, rocket: buildRocket, ufo: buildUfo };
 
 let glowTex = null;
 function lampGlowTexture() {

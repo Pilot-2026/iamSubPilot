@@ -32,19 +32,34 @@ function letterCanvas(ch, iam, adv) {
   g.textBaseline = 'alphabetic';
   g.lineJoin = 'round';
   const x = pad, y = Math.round(F * 1.08);
-  // halo
-  g.save();
-  g.shadowColor = iam ? 'rgba(255,255,170,0.75)' : 'rgba(235,248,255,0.95)';
-  g.shadowBlur = F * 0.16;
-  g.lineWidth = iam ? F * 0.11 : F * 0.075;
-  g.strokeStyle = iam ? '#000' : '#ffffff';
-  g.strokeText(ch, x, y);
-  g.restore();
-  g.lineWidth = iam ? F * 0.11 : F * 0.075;
-  g.strokeStyle = iam ? '#000' : '#ffffff';
-  g.strokeText(ch, x, y);
-  g.fillStyle = iam ? '#ffff00' : '#000088';
-  g.fillText(ch, x, y);
+  if (iam) {
+    // "iam": 100 % yellow with a black outline (and a faint warm halo)
+    g.save();
+    g.shadowColor = 'rgba(255,240,120,0.7)';
+    g.shadowBlur = F * 0.14;
+    g.lineWidth = F * 0.11;
+    g.strokeStyle = '#000';
+    g.strokeText(ch, x, y);
+    g.restore();
+    g.lineWidth = F * 0.11;
+    g.strokeStyle = '#000';
+    g.strokeText(ch, x, y);
+    g.fillStyle = '#ffff00';
+    g.fillText(ch, x, y);
+  } else {
+    // "SubPilot": navy, no outline – lit warmly from behind so it stands out from the dark water
+    g.save();
+    g.fillStyle = '#ffd84a';
+    g.shadowColor = 'rgba(255,214,60,1)';
+    for (const [blur, a] of [[F * 0.34, 0.55], [F * 0.18, 0.75], [F * 0.08, 0.9]]) {
+      g.shadowBlur = blur;
+      g.globalAlpha = a;
+      g.fillText(ch, x, y);
+    }
+    g.restore();
+    g.fillStyle = '#000088';
+    g.fillText(ch, x, y);
+  }
   return c;
 }
 
@@ -62,6 +77,65 @@ function roundelCanvas() {
   return c;
 }
 
+// A glassy air bubble: clear inside, bright rim, a curved highlight and a tiny sparkle.
+let bubTex = null;
+function bubbleTexture() {
+  if (bubTex) return bubTex;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const R = 60;
+  const body = g.createRadialGradient(64, 64, R * 0.55, 64, 64, R);
+  body.addColorStop(0, 'rgba(200,240,255,0.06)');
+  body.addColorStop(0.75, 'rgba(210,245,255,0.28)');
+  body.addColorStop(0.93, 'rgba(240,252,255,0.85)');
+  body.addColorStop(1, 'rgba(240,252,255,0)');
+  g.fillStyle = body;
+  g.beginPath();
+  g.arc(64, 64, R, 0, Math.PI * 2);
+  g.fill();
+  // curved highlight (top left) and a sparkle
+  g.strokeStyle = 'rgba(255,255,255,0.9)';
+  g.lineWidth = 7;
+  g.lineCap = 'round';
+  g.beginPath();
+  g.arc(64, 64, R * 0.72, Math.PI * 1.05, Math.PI * 1.45);
+  g.stroke();
+  const sp = g.createRadialGradient(44, 40, 0, 44, 40, 12);
+  sp.addColorStop(0, 'rgba(255,255,255,1)');
+  sp.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = sp;
+  g.fillRect(28, 24, 32, 32);
+  // soft reflected light at the bottom right
+  g.strokeStyle = 'rgba(190,240,255,0.5)';
+  g.lineWidth = 4;
+  g.beginPath();
+  g.arc(64, 64, R * 0.78, Math.PI * 0.15, Math.PI * 0.45);
+  g.stroke();
+  bubTex = new THREE.CanvasTexture(c);
+  bubTex.colorSpace = THREE.SRGBColorSpace;
+  return bubTex;
+}
+
+const BUBBLE_VS = `attribute float aSize; attribute float aPh;
+  uniform float uTime; uniform float uPx;
+  varying float vA;
+  void main(){
+    vec3 p = position;
+    p.x += sin(uTime * 1.7 + aPh) * 0.18 * (0.5 + aSize);
+    p.z += cos(uTime * 1.3 + aPh * 1.7) * 0.12;
+    vec4 mv = modelViewMatrix * vec4(p, 1.0);
+    gl_PointSize = aSize * uPx / max(0.1, -mv.z);
+    vA = smoothstep(80.0, 20.0, -mv.z);
+    gl_Position = projectionMatrix * mv;
+  }`;
+const BUBBLE_FS = `uniform sampler2D map; uniform float uOpacity; varying float vA;
+  void main(){
+    vec2 uv = gl_PointCoord; uv.y = 1.0 - uv.y;
+    vec4 t = texture2D(map, uv);
+    gl_FragColor = vec4(t.rgb, t.a * uOpacity * vA);
+  }`;
+
 const TITLE_VS = `varying vec2 vUv; varying vec2 vP;
   uniform float uTime; uniform float uTextY; uniform float uWave;
   void main(){ vUv = uv; vec3 p = position;
@@ -70,7 +144,7 @@ const TITLE_VS = `varying vec2 vUv; varying vec2 vP;
     vec4 wp = modelMatrix * vec4(p, 1.0);
     vP = vec2(wp.x, wp.y - uTextY);
     gl_Position = projectionMatrix * viewMatrix * wp; }`;
-const TITLE_FS = `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot[3]; uniform float uSpotI[3]; uniform float uFade; uniform float uFlash;
+const TITLE_FS = `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot[3]; uniform float uSpotI[3]; uniform float uFade; uniform float uFlash; uniform float uKeep;
   varying vec2 vUv; varying vec2 vP;
   float caust(vec2 p){
     float a = sin(p.x*2.1 + uTime*1.1 + sin(p.y*1.7 + uTime*0.6)*1.6);
@@ -82,19 +156,23 @@ const TITLE_FS = `uniform sampler2D map; uniform float uTime; uniform vec2 uSpot
     vec4 tex = texture2D(map, vUv);
     if (tex.a < 0.01) discard;
     float cs = caust(vP*0.8);
-    vec3 col = tex.rgb * (0.92 + 0.22*cs);
+    float keep = 1.0 - 0.85 * uKeep;
+    vec3 col = tex.rgb * mix(1.0, 0.92 + 0.22*cs, keep);
     float spot = 0.0;
     for (int k = 0; k < 3; k++) { vec2 d = vP - uSpot[k]; spot += uSpotI[k] * exp(-dot(d, d) / 7.0); }
-    col += vec3(1.0, 0.95, 0.8) * spot * 0.55 * tex.a;
+    col += vec3(1.0, 0.95, 0.8) * spot * 0.55 * tex.a * keep;
     float band = smoothstep(0.6, 0.0, abs(fract(vP.x*0.035 - vP.y*0.012 - uTime*0.09) - 0.5) * 20.0);
-    col += vec3(1.0) * band * 0.28 * tex.a;
-    col += vec3(1.0) * uFlash * 0.6 * tex.a;
+    col += vec3(1.0) * band * 0.28 * tex.a * keep;
+    col += vec3(1.0) * uFlash * 0.6 * tex.a * keep;
     gl_FragColor = vec4(col, tex.a * uFade);
   }`;
 
 // [model, scale, rx, rz, height, speed, count]
 const CAST = [
   ['whaleshark', 0.5, 20, 12, -5.5, 0.07, 1],
+  ['hammerhead', 0.9, 18, 13, 3.0, -0.12, 3],
+  ['whiteshark', 0.75, 23, 11, -3.4, 0.09, 1],
+  ['blueshark', 0.85, 15, 14, 8.4, 0.14, 1],
   ['humpback', 0.42, 25, 15, 9, -0.05, 1],
   ['manta', 0.95, 15, 10, -2.8, 0.13, 1],
   ['turtle', 1.25, 12.5, 9, 6.2, -0.17, 1],
@@ -187,16 +265,28 @@ export class Aquarium {
     sg.setAttribute('position', new THREE.BufferAttribute(p, 3));
     this.snow = new THREE.Points(sg, new THREE.PointsMaterial({ color: 0xcfefff, size: 0.12, transparent: true, opacity: 0.6, depthWrite: false }));
     this.scene.add(this.snow);
-    const BN = 60;
-    const bp = new Float32Array(BN * 3);
+    // lots of transparent, glassy bubbles of different sizes rising through the scene
+    const BN = 170;
+    const bpos = new Float32Array(BN * 3), bsize = new Float32Array(BN), bph = new Float32Array(BN);
+    this.bubSpeed = new Float32Array(BN);
     for (let i = 0; i < BN; i++) {
-      bp[i * 3] = (rng() - 0.5) * TEXT_W;
-      bp[i * 3 + 1] = TEXT_Y - 3 + rng() * 12;
-      bp[i * 3 + 2] = -0.5 + rng() * 1.5;
+      const near = i < 70; // more of them around the title
+      bpos[i * 3] = (rng() - 0.5) * (near ? TEXT_W * 1.3 : 70);
+      bpos[i * 3 + 1] = -14 + rng() * 30;
+      bpos[i * 3 + 2] = near ? -3 + rng() * 9 : (rng() - 0.5) * 50;
+      const big = rng() < 0.12;
+      bsize[i] = big ? 0.55 + rng() * 0.45 : 0.12 + rng() * 0.32;
+      bph[i] = rng() * 20;
+      this.bubSpeed[i] = 0.9 + bsize[i] * 2.2 + rng() * 0.4;
     }
     const bg = new THREE.BufferGeometry();
-    bg.setAttribute('position', new THREE.BufferAttribute(bp, 3));
-    this.bubbles = new THREE.Points(bg, new THREE.PointsMaterial({ color: 0xe8fbff, size: 0.22, transparent: true, opacity: 0.75, depthWrite: false }));
+    bg.setAttribute('position', new THREE.BufferAttribute(bpos, 3));
+    bg.setAttribute('aSize', new THREE.BufferAttribute(bsize, 1));
+    bg.setAttribute('aPh', new THREE.BufferAttribute(bph, 1));
+    this.bubU = { uTime: { value: 0 }, uPx: { value: 400 }, map: { value: bubbleTexture() }, uOpacity: { value: 0.95 } };
+    this.bubbles = new THREE.Points(bg, new THREE.ShaderMaterial({ uniforms: this.bubU, vertexShader: BUBBLE_VS, fragmentShader: BUBBLE_FS, transparent: true, depthWrite: false }));
+    this.bubbles.frustumCulled = false;
+    this.bubbles.renderOrder = 7;
     this.scene.add(this.bubbles);
 
     // animals
@@ -234,6 +324,7 @@ export class Aquarium {
       ['octopus', 22, 9, -1.8, -0.09, 1.0, false],
       ['narwhal', 18, 15, 8.6, 0.16, 3.3, false],
       ['puffer', 10.5, 12, 4.2, -0.21, 5.2, false],
+      ['wolfshark', 17, 11, -3.6, 0.13, 2.7, false],
     ];
     this.subs = FLEET.map(([model, R, Rz, h, speed, ph, light]) => {
       const g = buildSubModel(model, null, light);
@@ -264,9 +355,9 @@ export class Aquarium {
     const k = TEXT_W / total; // world units per canvas pixel
     this.titleK = k;
     const rng = mulberry32(77);
-    const mk = (tex, w, h, geo) => {
+    const mk = (tex, w, h, geo, keep = 0) => {
       const mat = new THREE.ShaderMaterial({
-        uniforms: { ...this.textU, map: { value: tex }, uFlash: { value: 0 } },
+        uniforms: { ...this.textU, map: { value: tex }, uFlash: { value: 0 }, uKeep: { value: keep } },
         transparent: true,
         depthWrite: false,
         side: THREE.DoubleSide,
@@ -284,7 +375,7 @@ export class Aquarium {
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
       const pad = Math.round(F * 0.28);
-      const m = mk(tex, cv.width * k, cv.height * k);
+      const m = mk(tex, cv.width * k, cv.height * k, null, i < N_IAM ? 0 : 1);
       // canvas centre = letter box centre (+ the vertical offset of the baseline)
       const cx = x0 + (left - pad + cv.width / 2) * k;
       m.userData.home = new THREE.Vector3(cx, TEXT_Y, 0);
@@ -296,16 +387,9 @@ export class Aquarium {
     const rtex = new THREE.CanvasTexture(roundelCanvas());
     rtex.colorSpace = THREE.SRGBColorSpace;
     const R = (F * 0.86 * k) / 2;
-    const face = mk(rtex, 0, 0, new THREE.CircleGeometry(R, 48));
+    const face = mk(rtex, 0, 0, new THREE.CircleGeometry(R, 48), 1);
     const coin = new THREE.Group();
     coin.add(face);
-    const back = face.clone();
-    back.rotation.y = Math.PI;
-    back.position.z = -0.12;
-    coin.add(back);
-    const rim = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.12, 48, 1, true).rotateX(Math.PI / 2).translate(0, 0, -0.06), new THREE.MeshBasicMaterial({ color: 0x000088, transparent: true }));
-    coin.add(rim);
-    this.coinRim = rim;
     // baseline sits 0.33 F below the canvas centre; the roundel centre ~0.36 F above the baseline (like the CSS wordmark)
     coin.userData.home = new THREE.Vector3(x0 + TEXT_W - R, TEXT_Y + (0.41 - 0.33) * F * k, 0.05);
     coin.renderOrder = 6;
@@ -316,7 +400,7 @@ export class Aquarium {
     const BN = 260;
     const bg = new THREE.BufferGeometry();
     bg.setAttribute('position', new THREE.BufferAttribute(new Float32Array(BN * 3).fill(999), 3));
-    this.trail = new THREE.Points(bg, new THREE.PointsMaterial({ color: 0xeafcff, size: 0.18, transparent: true, opacity: 0.85, depthWrite: false }));
+    this.trail = new THREE.Points(bg, new THREE.PointsMaterial({ map: bubbleTexture(), size: 0.32, transparent: true, opacity: 0.9, depthWrite: false }));
     this.trail.frustumCulled = false;
     this.trailLife = new Float32Array(BN);
     this.trailNext = 0;
@@ -415,7 +499,6 @@ export class Aquarium {
       }
       if (c.flash > 0) c.flash = Math.max(0, c.flash - dt * 2);
       c.o.children.forEach((ch) => ch.material.uniforms && (ch.material.uniforms.uFlash.value = c.flash || 0));
-      this.coinRim.material.opacity = this.textU.uFade.value;
     }
     // bubbles rise and fade
     const a = this.trail.geometry.attributes.position.array;
@@ -437,6 +520,7 @@ export class Aquarium {
   resize(w, h) {
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    if (this.bubU) this.bubU.uPx.value = (h * (this.pixelRatio || 1)) / (2 * Math.tan((this.camera.fov * Math.PI) / 360));
     const vfov = (this.camera.fov * Math.PI) / 180;
     const hfov = 2 * Math.atan(Math.tan(vfov / 2) * this.camera.aspect);
     const needW = (TEXT_W * 1.12) / 2 / Math.tan(hfov / 2);
@@ -444,6 +528,18 @@ export class Aquarium {
     this.fitDist = Math.max(needW, needH, 22);
     // keep the letters clear of the text block at the bottom
     this.lookY = h < 520 ? TEXT_Y - 3.4 : w / h < 0.8 ? TEXT_Y - 1.6 : TEXT_Y - 0.6;
+  }
+
+  // Fit the title into the free band of the screen between topPx and bottomPx (above the text block).
+  layout(topPx, bottomPx, w, h) {
+    const tanV = Math.tan((this.camera.fov * Math.PI) / 360);
+    const hfov = 2 * Math.atan(tanV * (w / h));
+    const band = Math.max(60, bottomPx - topPx);
+    const needW = (TEXT_W * (w < h ? 1.22 : 1.1)) / 2 / Math.tan(hfov / 2);
+    const needH = (4.8 * h) / (band * 2 * tanV);
+    this.fitDist = Math.max(needW, needH, 20);
+    const ndc = 1 - (2 * (topPx + bottomPx)) / 2 / h;
+    this.lookY = TEXT_Y - ndc * this.fitDist * tanV;
   }
 
   update(dt) {
@@ -477,10 +573,10 @@ export class Aquarium {
     for (const r of this.rays) r.rotation.z = r.userData.base + Math.sin(t * 0.3 + r.userData.ph) * 0.08;
     this.snow.position.y = -((t * 0.4) % 10);
     const bp = this.bubbles.geometry.attributes.position.array;
-    for (let i = 0; i < bp.length; i += 3) {
-      bp[i + 1] += dt * (1 + ((i * 7) % 5) * 0.3);
-      bp[i] += Math.sin(t * 2 + i) * dt * 0.15;
-      if (bp[i + 1] > TEXT_Y + 10) bp[i + 1] = TEXT_Y - 3;
+    this.bubU.uTime.value = t;
+    for (let i = 0, n = bp.length / 3; i < n; i++) {
+      bp[i * 3 + 1] += dt * this.bubSpeed[i];
+      if (bp[i * 3 + 1] > 17) bp[i * 3 + 1] = -14 - Math.random() * 4;
     }
     this.bubbles.geometry.attributes.position.needsUpdate = true;
 

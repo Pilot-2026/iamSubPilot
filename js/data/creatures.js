@@ -47,6 +47,150 @@ export const CREATURES = [
     },
     source: { label: 'Save Our Seas Foundation', url: 'https://saveourseas.com/worldofsharks/species/whale-shark' },
   },
+  // ---------------- REAL: sharks (many species, from the surface down to the deepest shark) ----------------
+  {
+    id: 'hammerhead', kind: 'real', model: 'hammerhead', spawn: 'drop',
+    name: { en: 'Scalloped hammerhead', de: 'Bogenstirn-Hammerhai' }, sci: 'Sphyrna lewini',
+    depth: [8, 270], habitat: 'mid', count: 2, group: 5,
+    fact: {
+      en: 'The flat "hammer" head carries the eyes far apart and is full of sensors that feel the tiny electric fields of prey.',
+      de: 'Der flache „Hammer“-Kopf trägt die Augen weit auseinander und steckt voller Sensoren, die winzige elektrische Felder von Beutetieren spüren.',
+    },
+    more: {
+      en: 'Hammerheads often swim alone, but scalloped hammerheads also gather in big schools. They are shy and rarely come close to divers. The species is threatened by fishing.',
+      de: 'Hammerhaie schwimmen oft allein, Bogenstirn-Hammerhaie bilden aber auch große Schulen. Sie sind scheu und kommen Tauchern selten nahe. Die Art ist durch Fischerei bedroht.',
+    },
+    source: { label: 'Hawaiʻi Division of Aquatic Resources', url: 'https://dar.hawaii.gov/?p=7983' },
+  },
+  {
+    id: 'whiteshark', kind: 'real', model: 'whiteshark', spawn: 'drop',
+    name: { en: 'Great white shark', de: 'Weißer Hai' }, sci: 'Carcharodon carcharias',
+    depth: [10, 250], habitat: 'mid', count: 1, group: 1,
+    fact: {
+      en: 'The great white shark is partly warm-blooded: it can keep its body warmer than the water around it.',
+      de: 'Der Weiße Hai ist teilweise warmblütig: Er kann seinen Körper wärmer halten als das Wasser um ihn herum.',
+    },
+    more: {
+      en: 'It lives in temperate and subtropical seas all over the world and often migrates with the seasons to stay in water of about 10 to 27 °C. In the USA it is fully protected.',
+      de: 'Er lebt in gemäßigten und subtropischen Meeren auf der ganzen Welt und wandert oft mit den Jahreszeiten, um in Wasser von etwa 10 bis 27 °C zu bleiben. In den USA steht er unter vollem Schutz.',
+    },
+    source: { label: 'NOAA Fisheries', url: 'https://www.fisheries.noaa.gov/species/white-shark' },
+  },
+  {
+    id: 'blueshark', kind: 'real', model: 'blueshark', spawn: 'drop',
+    name: { en: 'Blue shark', de: 'Blauhai' }, sci: 'Prionace glauca',
+    depth: [10, 400], habitat: 'mid', count: 3, group: 1,
+    fact: {
+      en: 'Blue sharks are long-distance swimmers: tagged blue sharks have crossed whole oceans.',
+      de: 'Blauhaie sind Langstreckenschwimmer: Markierte Blauhaie haben schon ganze Ozeane durchquert.',
+    },
+    more: {
+      en: 'One tagged blue shark swam all the way across the South Atlantic from South America towards Africa. Because they travel so far, countries on both sides of the ocean have to protect them together.',
+      de: 'Ein markierter Blauhai schwamm quer durch den Südatlantik von Südamerika Richtung Afrika. Weil sie so weit reisen, müssen Länder auf beiden Seiten des Ozeans sie gemeinsam schützen.',
+    },
+    source: { label: 'Florida Museum of Natural History', url: 'https://www.floridamuseum.ufl.edu/science/researchers-track-ocean-crossing-migration-of-blue-shark' },
+  },
+  {
+    id: 'cookiecutter', kind: 'real', model: 'cookiecutter',
+    name: { en: 'Cookiecutter shark', de: 'Zigarrenhai' }, sci: 'Isistius brasiliensis',
+    depth: [300, 3000], habitat: 'mid', count: 4, group: 3,
+    fact: {
+      en: 'This small shark bites round "cookies" out of whales and big fish – it has even bitten the rubber sonar domes of submarines!',
+      de: 'Dieser kleine Hai beißt runde „Kekse“ aus Walen und großen Fischen – er hat sogar schon die Gummi-Sonarkuppeln von U-Booten angeknabbert!',
+    },
+    more: {
+      en: 'It grows to only about 50 cm. Its belly glows green, except for a dark collar around the throat. It probably rises from 2,000–3,000 m to shallower water at night.',
+      de: 'Er wird nur etwa 50 cm lang. Sein Bauch leuchtet grün – bis auf einen dunklen Kragen um die Kehle. Wahrscheinlich steigt er nachts aus 2.000–3.000 m Tiefe nach oben.',
+    },
+    source: { label: 'Shark Research Institute', url: 'https://www.sharks.org/cookiecutter-shark-isistius-brasiliensis' },
+  },
+  {
+    id: 'goblin', kind: 'real', model: 'goblin',
+    name: { en: 'Goblin shark', de: 'Koboldhai' }, sci: 'Mitsukurina owstoni',
+    depth: [270, 1300], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'The goblin shark shoots its jaws forward like a slingshot to snap up prey – faster than any other fish we know.',
+      de: 'Der Koboldhai schleudert seine Kiefer wie eine Steinschleuder nach vorn, um Beute zu schnappen – schneller als jeder andere bekannte Fisch.',
+    },
+    more: {
+      en: 'Scientists filmed it for the first time in 2008 and 2011: the jaws shot out at up to 3.1 m per second, almost a tenth of the shark’s body length. It was discovered off Japan in 1898.',
+      de: 'Forschende filmten das 2008 und 2011 zum ersten Mal: Die Kiefer schossen mit bis zu 3,1 m pro Sekunde fast ein Zehntel der Körperlänge nach vorn. Entdeckt wurde der Hai 1898 vor Japan.',
+    },
+    source: { label: 'Hokkaido University (Scientific Reports 2016)', url: 'https://www.global.hokudai.ac.jp/blog/unraveling-the-jaw-dropping-goblin-shark/' },
+    source2: { label: 'Nakaya et al. 2016, Scientific Reports', url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC4901258' },
+  },
+  {
+    id: 'frilled', kind: 'real', model: 'frilled',
+    name: { en: 'Frilled shark', de: 'Krausenhai' }, sci: 'Chlamydoselachus anguineus',
+    depth: [500, 1500], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'The frilled shark looks like a sea serpent: an eel-like body, six frilly gill slits and about 300 needle-sharp teeth.',
+      de: 'Der Krausenhai sieht aus wie eine Seeschlange: aalartiger Körper, sechs gekräuselte Kiemenspalten und rund 300 nadelspitze Zähne.',
+    },
+    more: {
+      en: 'It is called a "living fossil" because it has changed very little over millions of years. Its pregnancy can last up to 42 months – the longest known of any animal with a backbone.',
+      de: 'Man nennt ihn ein „lebendes Fossil“, weil er sich über Millionen Jahre kaum verändert hat. Seine Tragzeit kann bis zu 42 Monate dauern – die längste bekannte bei einem Wirbeltier.',
+    },
+    source: { label: 'BBC Wildlife (Discover Wildlife)', url: 'https://www.discoverwildlife.com/animal-facts/marine-animals/frilled-shark' },
+  },
+  {
+    id: 'ninjashark', kind: 'real', model: 'ninjashark',
+    name: { en: 'Ninja lanternshark', de: 'Ninja-Laternenhai' }, sci: 'Etmopterus benchleyi',
+    depth: [830, 1450], habitat: 'mid', count: 3, group: 2,
+    fact: {
+      en: 'A jet-black little shark that glows faintly in the dark. Kids helped to name it – because ninjas are awesome!',
+      de: 'Ein pechschwarzer kleiner Hai, der im Dunkeln schwach leuchtet. Kinder haben ihm seinen Namen gegeben – weil Ninjas einfach cool sind!',
+    },
+    more: {
+      en: 'It was only described in 2015, from sharks caught off Central America at 836–1,443 m. It is about half a metre long, and its glow probably works like camouflage seen from below.',
+      de: 'Er wurde erst 2015 beschrieben – nach Haien, die vor Mittelamerika in 836–1.443 m Tiefe gefangen wurden. Er ist etwa einen halben Meter lang, sein Leuchten tarnt ihn vermutlich von unten gesehen.',
+    },
+    source: { label: 'Journal of the Ocean Science Foundation (2015)', url: 'http://www.oceansciencefoundation.org/josf/josf17d.pdf' },
+    source2: { label: 'IBTimes UK (naming by young shark fans)', url: 'https://www.ibtimes.co.uk/ninja-lanternshark-glowing-shark-discovered-1km-deep-pacific-ocean-off-costa-rica-coast-1535422' },
+  },
+  {
+    id: 'sixgill', kind: 'real', model: 'sixgill',
+    name: { en: 'Bluntnose sixgill shark', de: 'Stumpfnasen-Sechskiemerhai' }, sci: 'Hexanchus griseus',
+    depth: [300, 2490], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'Most sharks have five gill slits on each side – this big, ancient shark has six.',
+      de: 'Die meisten Haie haben auf jeder Seite fünf Kiemenspalten – dieser große, urtümliche Hai hat sechs.',
+    },
+    more: {
+      en: 'Sixgill sharks belong to the deepest sharks of all: in the Mediterranean Sea they were found as deep as 2,490 m.',
+      de: 'Sechskiemerhaie gehören zu den am tiefsten lebenden Haien: Im Mittelmeer wurden sie noch in 2.490 m Tiefe gefunden.',
+    },
+    source: { label: 'CIESM News (Priede et al., Proc. R. Soc. B 2006)', url: 'https://ciesm.org/news/mscience/abyss.htm' },
+  },
+  {
+    id: 'greenland', kind: 'real', model: 'greenland',
+    name: { en: 'Greenland shark', de: 'Grönlandhai' }, sci: 'Somniosus microcephalus',
+    depth: [200, 2200], habitat: 'mid', count: 2, group: 1,
+    fact: {
+      en: 'The Greenland shark can live for at least 272 years – longer than any other animal with a backbone that we know.',
+      de: 'Der Grönlandhai kann mindestens 272 Jahre alt werden – älter als jedes andere bekannte Wirbeltier.',
+    },
+    more: {
+      en: 'Scientists dated the lenses of their eyes with radiocarbon. The largest shark, 5 m long, was about 392 years old (give or take 120 years). They only have young at around 150 years.',
+      de: 'Forschende datierten die Augenlinsen mit Radiokarbon. Der größte Hai, 5 m lang, war etwa 392 Jahre alt (plus/minus 120 Jahre). Nachwuchs bekommen sie erst mit rund 150 Jahren.',
+    },
+    source: { label: 'Science 2016 (Nielsen et al.)', url: 'https://pubmed.ncbi.nlm.nih.gov/27516602/' },
+  },
+  {
+    id: 'dogfish', kind: 'real', model: 'dogfish',
+    name: { en: 'Portuguese dogfish', de: 'Portugiesenhai' }, sci: 'Centroscymnus coelolepis',
+    depth: [700, 3700], habitat: 'mid', count: 4, group: 1,
+    fact: {
+      en: 'The deepest shark we know: the Portuguese dogfish lives as deep as 3,700 m. Deeper down, in the trenches, there are no sharks at all.',
+      de: 'Der am tiefsten lebende bekannte Hai: Der Portugiesenhai kommt bis in 3.700 m Tiefe vor. Noch tiefer, in den Gräben, gibt es gar keine Haie mehr.',
+    },
+    more: {
+      en: 'It lives on continental slopes and abyssal plains from Iceland to South Africa and from Japan to Tasmania. Scientists think sharks avoid the abyss because their oily livers, which keep them afloat, need more food than the deep sea offers.',
+      de: 'Er lebt an Kontinentalhängen und Tiefseeebenen von Island bis Südafrika und von Japan bis Tasmanien. Forschende vermuten, dass Haie die Tiefsee meiden, weil ihre ölige Leber, die ihnen Auftrieb gibt, mehr Nahrung braucht, als es dort gibt.',
+    },
+    source: { label: 'NatureScot – Sharks and Skates of Scotland', url: 'https://www.nature.scot/doc/sharks-and-skates-scotland-report-portuguese-dogfish-centroscymnus-coelolepis' },
+    source2: { label: 'Priede et al. 2006: The absence of sharks from abyssal regions', url: 'https://eprints.gla.ac.uk/4788' },
+  },
   {
     id: 'turtle', kind: 'real', model: 'turtle', spawn: 'drop',
     name: { en: 'Green sea turtle', de: 'Grüne Meeresschildkröte' }, sci: 'Chelonia mydas',

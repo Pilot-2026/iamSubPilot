@@ -248,7 +248,7 @@ h2 { margin: 6px 0 2px; font-size: 18px; letter-spacing: 0.04em; color: #bfefff;
 #gauge {
   position: absolute;
   right: 14px;
-  top: calc(12px + var(--safe-t));
+  top: calc(92px + var(--safe-t));
   bottom: 180px;
   width: 10px;
   border-radius: 99px;
@@ -415,6 +415,9 @@ h2 { margin: 6px 0 2px; font-size: 18px; letter-spacing: 0.04em; color: #bfefff;
 #vbtns .cbtn small { color: #111; }
 #vbtns .cbtn:active, #vbtns .cbtn.pressed { background: #ffed00; }
 #btnPause { position: absolute; top: calc(10px + var(--safe-t)); right: 10px; width: 30px; height: 30px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); pointer-events: auto; font-size: 12px; }
+#btnSound { position: absolute; top: calc(46px + var(--safe-t)); right: 10px; width: 30px; height: 30px; border-radius: 8px; background: var(--panel); border: 1px solid var(--line); pointer-events: auto; font-size: 15px; line-height: 1; padding: 0; }
+body.touch #btnPause, body.touch #btnSound { width: 34px; height: 34px; }
+body.touch #btnSound { top: calc(50px + var(--safe-t)); }
 #keysHint { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 11px; color: rgba(200, 230, 245, 0.55); white-space: nowrap; }
 
 body:not(.touch) #joystick, body:not(.touch) #vbtns { display: none; }
@@ -834,3 +837,22 @@ body:not(.touch) #team { top: calc(244px + var(--safe-t)); }
   body.touch #radio { right: calc(150px + var(--safe-r, 0px)); }
 }
 .sheet .radio-who { color: #b0102a; text-shadow: none; }
+
+/* title screen: the same logo bar as the menu footer (without the red bar) */
+.intro-credit { width: min(820px, 100%); margin-top: 8px; padding: 10px 14px 8px; border-radius: 16px; background: var(--sun-glass); color: var(--ink); text-align: left;
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); box-shadow: 0 8px 26px rgba(0, 0, 0, 0.3); display: grid; gap: 6px; animation: introIn 1s ease-out both 2.2s; cursor: default; }
+.intro-credit .credit { border-top: 0; padding-top: 0; }
+@media (max-height: 640px) {
+  .intro-credit { padding: 6px 10px; gap: 2px; margin-top: 4px; }
+  .intro-credit .logo-link.me img { height: 40px; }
+  .intro-credit .social { flex-basis: auto; padding-top: 0; }
+  .intro-credit .legal { font-size: 11px; }
+}
+@media (max-height: 500px) {
+  .intro-credit .credit-links > a { display: none; }
+  .intro-credit .logo-link.as img { height: 18px; }
+  .intro-credit .logo-link.pf img { height: 20px; }
+  .intro-credit .logo-link.me img { height: 30px; }
+  .intro-credit .social-t { display: none; }
+  .intro-credit .credit .so { width: 20px; height: 20px; }
+}

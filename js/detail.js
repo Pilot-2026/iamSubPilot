@@ -132,6 +132,24 @@ export function finGeo(pts, kind = 'dorsal', s = 1) {
   return g;
 }
 
+// A fin with real thickness (visible from both sides, rounded edges).
+export function thickFin(pts, kind = 'dorsal', s = 1, th = 0.08) {
+  const shape = new THREE.Shape();
+  shape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i];
+    if (p.length === 4) shape.quadraticCurveTo(p[0], p[1], p[2], p[3]);
+    else shape.lineTo(p[0], p[1]);
+  }
+  shape.closePath();
+  const g = new THREE.ExtrudeGeometry(shape, { depth: th * 0.4, bevelEnabled: true, bevelThickness: th * 0.3, bevelSize: th * 0.3, bevelSegments: 2, curveSegments: 10 });
+  g.translate(0, 0, -th * 0.2);
+  if (kind === 'dorsal') g.applyMatrix4(M_DORSAL);
+  else g.applyMatrix4(new THREE.Matrix4().set(0, s, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1));
+  g.computeVertexNormals();
+  return g;
+}
+
 const finMats = new Map();
 export function finMat(color, opacity = 0.85) {
   const key = color + ':' + opacity;

@@ -2,6 +2,31 @@
 // topic links a question to a creature id (asked preferably after finding it) or 'general'.
 
 export const QUESTIONS = [
+  // ---------- sharks ----------
+  { tier: 'kid', topic: 'hammerhead',
+    en: { q: 'Where are the eyes of a hammerhead shark?', a: ['Far apart at the ends of its flat head', 'On its tail', 'On its belly', 'It has no eyes'], c: 0 },
+    de: { q: 'Wo sitzen die Augen eines Hammerhais?', a: ['Weit auseinander an den Enden seines flachen Kopfs', 'Am Schwanz', 'Am Bauch', 'Er hat keine Augen'], c: 0 } },
+  { tier: 'kid', topic: 'ninjashark',
+    en: { q: 'What can the little black ninja lanternshark do?', a: ['Glow faintly in the dark', 'Fly over the waves', 'Breathe air', 'Change into a crab'], c: 0 },
+    de: { q: 'Was kann der kleine schwarze Ninja-Laternenhai?', a: ['Im Dunkeln schwach leuchten', 'Über die Wellen fliegen', 'Luft atmen', 'Sich in eine Krabbe verwandeln'], c: 0 } },
+  { tier: 'junior', topic: 'cookiecutter',
+    en: { q: 'What has the tiny cookiecutter shark even bitten?', a: ['Rubber sonar domes of submarines', 'Ships’ anchors', 'Icebergs', 'Volcanoes'], c: 0 },
+    de: { q: 'Was hat der winzige Zigarrenhai sogar schon angeknabbert?', a: ['Gummi-Sonarkuppeln von U-Booten', 'Schiffsanker', 'Eisberge', 'Vulkane'], c: 0 } },
+  { tier: 'junior', topic: 'goblin',
+    en: { q: 'How does the goblin shark catch its prey?', a: ['It shoots its jaws forward like a slingshot', 'With a fishing net', 'It shocks it with electricity', 'It sings to it'], c: 0 },
+    de: { q: 'Wie fängt der Koboldhai seine Beute?', a: ['Er schleudert seine Kiefer wie eine Steinschleuder nach vorn', 'Mit einem Netz', 'Er schockt sie mit Strom', 'Er singt ihr etwas vor'], c: 0 } },
+  { tier: 'junior', topic: 'sixgill',
+    en: { q: 'How many gill slits per side does the sixgill shark have?', a: ['Six', 'Five', 'Two', 'None'], c: 0 },
+    de: { q: 'Wie viele Kiemenspalten pro Seite hat der Sechskiemerhai?', a: ['Sechs', 'Fünf', 'Zwei', 'Keine'], c: 0 } },
+  { tier: 'adult', topic: 'greenland',
+    en: { q: 'How old can a Greenland shark get, according to eye-lens dating?', a: ['At least 272 years', 'About 30 years', 'About 80 years', 'Exactly 1,000 years'], c: 0 },
+    de: { q: 'Wie alt kann ein Grönlandhai laut Datierung der Augenlinsen werden?', a: ['Mindestens 272 Jahre', 'Etwa 30 Jahre', 'Etwa 80 Jahre', 'Genau 1.000 Jahre'], c: 0 } },
+  { tier: 'adult', topic: 'dogfish',
+    en: { q: 'Why will you not meet any sharks at the bottom of a deep trench?', a: ['Sharks hardly live deeper than about 3,000–3,700 m', 'Sharks are afraid of the dark', 'The water is too salty', 'Sharks only live in rivers'], c: 0 },
+    de: { q: 'Warum triffst du am Grund eines tiefen Grabens keine Haie?', a: ['Haie leben kaum tiefer als etwa 3.000–3.700 m', 'Haie haben Angst im Dunkeln', 'Das Wasser ist zu salzig', 'Haie leben nur in Flüssen'], c: 0 } },
+  { tier: 'adult', topic: 'whiteshark',
+    en: { q: 'What is unusual about the great white shark’s body temperature?', a: ['It can stay warmer than the water around it', 'It is always exactly 0 °C', 'It changes colour when warm', 'It has no body temperature'], c: 0 },
+    de: { q: 'Was ist ungewöhnlich an der Körpertemperatur des Weißen Hais?', a: ['Er kann wärmer bleiben als das Wasser um ihn', 'Sie liegt immer genau bei 0 °C', 'Er wechselt die Farbe, wenn ihm warm ist', 'Er hat keine Körpertemperatur'], c: 0 } },
   // ---------- animals near the surface (all based on the creature facts and their sources) ----------
   { tier: 'kid', topic: 'turtle',
     en: { q: 'What do adult green sea turtles eat?', a: ['Seagrass and algae', 'Sharks', 'Rocks', 'Ice cream'], c: 0 },

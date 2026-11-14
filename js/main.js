@@ -73,6 +73,7 @@ function initRenderer() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     if (aquarium) aquarium.resize(window.innerWidth, window.innerHeight);
+    fitIntroTitle();
   });
 }
 let aquarium = null;
@@ -84,10 +85,28 @@ function cycleSound() {
   audio.init();
   audio.cycleMode();
   toast(soundLabel());
+  updateSoundBtn();
+}
+function updateSoundBtn() {
+  const b = document.querySelector('#btnSound');
+  if (b) {
+    b.textContent = SOUND_ICON[audio.mode];
+    b.title = t('snd_' + audio.mode);
+  }
 }
 
 // ======================= intro / title screen =======================
 let introDone = null;
+// keep the 3D title in the free space between the top buttons and the text block
+function fitIntroTitle() {
+  const el = $('#intro');
+  if (!aquarium || !el || el.classList.contains('hidden')) return;
+  const bottom = el.querySelector('.intro-bottom');
+  const top = el.querySelector('.intro-top');
+  if (!bottom) return;
+  const t0 = top ? top.getBoundingClientRect().bottom + 6 : 10;
+  aquarium.layout(t0, bottom.getBoundingClientRect().top - 8, window.innerWidth, window.innerHeight);
+}
 function showIntro(onDone) {
   introDone = onDone || introDone || (() => renderMenu());
   closeModal();
@@ -108,13 +127,14 @@ function showIntro(onDone) {
     <div class="intro-bottom">
       <p class="intro-claim">${t('introClaim')}</p>
       <p class="intro-dedic">${t('introDedication')}</p>
-      <p class="intro-by">${t('introBy', { author: '<a href="https://www.pilotFilm.at" target="_blank" rel="noopener">Andreas Schmölzer</a>' })}
-        <br><a class="intro-link" href="https://www.pilotFilm.at" target="_blank" rel="noopener">www.pilotFilm.at</a></p>
-      <p class="intro-legal"><a href="https://www.pilotfilm.at/impressum" target="_blank" rel="noopener">${t('imprint')}</a><a href="privacy.html" target="_blank" rel="noopener">${t('privacy')}</a></p>
+      <p class="intro-by">${t('introBy', { author: '<a href="https://www.pilotFilm.at" target="_blank" rel="noopener">Andreas Schmölzer</a>' })}</p>
       <button class="btn big" id="iGo">${t('introGo')}</button>
       <div class="intro-hint" id="iHint">${audio.ctx && audio.ctx.state === 'running' ? '' : t('introSoundHint')}</div>
+      <div class="intro-credit">${creditHtml()}</div>
     </div>`;
   el.classList.remove('hidden');
+  fitIntroTitle();
+  setTimeout(fitIntroTitle, 2600); // after the text has faded in
   const startMusic = () => {
     audio.init();
     audio.music('intro');
@@ -204,7 +224,8 @@ function closeModal() {
 
 function sourceLink(def) {
   if (!def.source) return '';
-  return `<div class="src">${t('source')}: <a href="${def.source.url}" target="_blank" rel="noopener">${escapeHtml(def.source.label)}</a></div>`;
+  const list = [def.source, ...(def.source2 ? [def.source2] : [])];
+  return `<div class="src">${t('source')}: ${list.map((s) => `<a href="${s.url}" target="_blank" rel="noopener">${escapeHtml(s.label)}</a>`).join(' · ')}</div>`;
 }
 
 let cardTimer = null;
@@ -268,13 +289,16 @@ function wordmarkHtml(tag = 'span', attrs = '') {
 function socialHtml() {
   return `<div class="social" role="group" aria-label="Connect with Andreas Schmölzer on social media"><span class="social-t">${t('connect')} <span class="social-hug" aria-hidden="true">🤗</span></span><a class="so so-ig" href="https://www.instagram.com/schmoelzerandreas" target="_blank" rel="noopener" aria-label="Instagram: schmoelzerandreas" title="Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" fill="none" stroke="#fff" stroke-width="2.1"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="#fff" stroke-width="2.1"/><circle cx="17.3" cy="6.7" r="1.35" fill="#fff"/></svg></a><a class="so so-fb" href="https://www.facebook.com/andreas.schmoelzer" target="_blank" rel="noopener" aria-label="Facebook: andreas.schmoelzer" title="Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M13.6 21.5v-7.7h2.6l.4-3.1h-3V8.8c0-.9.3-1.5 1.5-1.5h1.6V4.5c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.3H7.9v3.1h2.6v7.7z"/></svg></a><a class="so so-tt" href="https://www.tiktok.com/@andreasschmoelzer" target="_blank" rel="noopener" aria-label="TikTok: @andreasschmoelzer" title="TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.7,-0.6)"><path fill="#25f4ee" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></g><g transform="translate(0.7,0.6)"><path fill="#fe2c55" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></g><path fill="#fff" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></svg></a><a class="so so-yt" href="https://www.youtube.com/user/pilotFilmSchmoelzer" target="_blank" rel="noopener" aria-label="YouTube: pilotFilmSchmoelzer" title="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M9.6 7.9v8.2l6.9-4.1z"/></svg></a><a class="so so-li" href="https://www.linkedin.com/in/andreasschmoelzer" target="_blank" rel="noopener" aria-label="LinkedIn: andreasschmoelzer" title="LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.9" cy="6.6" r="1.75" fill="#fff"/><rect x="5.4" y="9.4" width="3" height="9.4" fill="#fff"/><path fill="#fff" d="M10.6 9.4h2.9v1.3c.4-.8 1.5-1.6 3.1-1.6 3.2 0 3.7 2 3.7 4.7v5h-3v-4.4c0-1.1 0-2.5-1.5-2.5s-1.8 1.2-1.8 2.4v4.5h-3z"/></svg></a></div>`;
 }
-function footerHtml() {
+function creditHtml() {
   const AS = 'https://www.andreas-schmoelzer.at', PF = 'https://www.pilotfilm.at';
   const ext = 'target="_blank" rel="noopener"';
+  return `<div class="credit"><span class="credit-links"><a href="${AS}" ${ext}>www.Andreas-Schmoelzer.at</a><a href="${PF}" ${ext}>www.pilotFilm.at</a><span class="logos"><a class="logo-link as" href="${AS}" ${ext} aria-label="www.Andreas-Schmoelzer.at"><img src="assets/logo-schmoelzer.png" alt="Andreas Schmölzer Keynote-Speaker logo" width="176" height="26"></a><a class="logo-link pf" href="${PF}" ${ext} aria-label="www.pilotFilm.at"><img src="assets/logo-pilotfilm.png" alt="pilotFilm logo" width="127" height="30"></a><a class="logo-link me" href="${AS}" ${ext} aria-label="Andreas Schmölzer"><img src="assets/andreas-schmoelzer.png" alt="Portrait of Andreas Schmölzer" width="62" height="63" decoding="async" loading="lazy"></a></span></span>${socialHtml()}</div>
+    <p class="legal"><span class="ver">v${GAME_VERSION}</span><a href="${PF}/impressum" ${ext}>${t('imprint')}</a><a href="privacy.html" ${ext}>${t('privacy')}</a></p>`;
+}
+function footerHtml() {
   return `<div class="menu-foot">
     <p class="flyreal">${t('footAi')}</p>
-    <div class="credit"><span class="credit-links"><a href="${AS}" ${ext}>www.Andreas-Schmoelzer.at</a><a href="${PF}" ${ext}>www.pilotFilm.at</a><span class="logos"><a class="logo-link as" href="${AS}" ${ext} aria-label="www.Andreas-Schmoelzer.at"><img src="assets/logo-schmoelzer.png" alt="Andreas Schmölzer Keynote-Speaker logo" width="176" height="26"></a><a class="logo-link pf" href="${PF}" ${ext} aria-label="www.pilotFilm.at"><img src="assets/logo-pilotfilm.png" alt="pilotFilm logo" width="127" height="30"></a><a class="logo-link me" href="${AS}" ${ext} aria-label="Andreas Schmölzer"><img src="assets/andreas-schmoelzer.png" alt="Portrait of Andreas Schmölzer" width="62" height="63" decoding="async" loading="lazy"></a></span></span>${socialHtml()}</div>
-    <p class="legal"><span class="ver">v${GAME_VERSION}</span><a href="${PF}/impressum" ${ext}>${t('imprint')}</a><a href="privacy.html" ${ext}>${t('privacy')}</a></p>
+    ${creditHtml()}
   </div>`;
 }
 
@@ -390,8 +414,9 @@ function subThumb(id) {
 // ======================= passers-by in front of the main menu =======================
 // Now and then a single fish or sub glides across the menu (in front of the text).
 const PASSERS = [
-  ['sub', 'hummel', 220], ['sub', 'puffer', 170], ['sub', 'narwhal', 250], ['sub', 'octopus', 170], ['sub', 'rocket', 230], ['sub', 'ufo', 220],
+  ['sub', 'hummel', 220], ['sub', 'wolfshark', 240], ['sub', 'puffer', 170], ['sub', 'narwhal', 250], ['sub', 'octopus', 170], ['sub', 'rocket', 230], ['sub', 'ufo', 220],
   ['ani', 'turtle', 150], ['ani', 'manta', 230], ['ani', 'dolphin', 190], ['ani', 'tuna', 120], ['ani', 'sunfish', 150],
+  ['ani', 'hammerhead', 230], ['ani', 'whiteshark', 260], ['ani', 'blueshark', 230], ['ani', 'goblin', 220],
   ['ani', 'whaleshark', 300], ['ani', 'angler', 120], ['ani', 'jellyphant', 150], ['ani', 'duckangler', 130], ['ani', 'toaster', 140],
 ];
 let passerTimer = null;
@@ -1297,6 +1322,7 @@ class Dive {
     $('#tUp').textContent = t('btnUp');
     $('#tDown').textContent = t('btnDown');
     $('#keysHint').textContent = t('keysHint');
+    updateSoundBtn();
     $('#bLight').classList.add('on');
     const gmax = this.level.maxDepth;
     $('#gaugeHull').style.display = !this.race && this.hullRating < gmax ? 'block' : 'none';
@@ -2474,6 +2500,7 @@ function showPause() {
     root.querySelectorAll('#pSound button').forEach((b) => {
       b.onclick = () => {
         audio.setMode(b.dataset.s);
+        updateSoundBtn();
         root.querySelectorAll('#pSound button').forEach((x) => x.classList.toggle('on', x === b));
       };
     });
@@ -2688,6 +2715,7 @@ async function boot() {
   bindCameraDrag();
   try {
     aquarium = new Aquarium();
+    aquarium.pixelRatio = renderer.getPixelRatio();
     aquarium.resize(window.innerWidth, window.innerHeight);
     aquarium.onLand = (i) => {
       if (audio.ctx && audio.ctx.state === 'running' && !$('#intro').classList.contains('hidden')) audio.pop(i);

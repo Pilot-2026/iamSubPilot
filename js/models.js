@@ -78,7 +78,222 @@ function photophores(parent, list, color, size = 0.025) {
   }
 }
 
+// ======================= sharks =======================
+// One builder for all species: lofted body with painted skin, fins, gill slits, eyes, mouth;
+// extras per species (hammer head, goblin snout, frilly gills, glowing belly …).
+function buildShark(c) {
+  const g = new THREE.Group();
+  const L = c.len, HW = c.hw, HH = c.hh;
+  const wDef = [[0, 0.03], [0.05, 0.28], [0.15, 0.64], [0.32, 0.93], [0.45, 1.0], [0.62, 0.76], [0.8, 0.36], [0.9, 0.2], [1, 0.12]];
+  const hDef = [[0, 0.03], [0.05, 0.25], [0.15, 0.6], [0.32, 0.95], [0.45, 1.0], [0.62, 0.8], [0.8, 0.4], [0.9, 0.24], [1, 0.14]];
+  const wf = prof(c.wPts || wDef), hf = prof(c.hPts || hDef);
+  const w = (t) => wf(t) * HW, h = (t) => hf(t) * HH;
+  const yf = prof([[0, 0.25 * HH], [0.12, 0.1 * HH], [0.3, 0], [1, 0.06 * HH]]);
+  const zAt = (t) => -L / 2 + t * L;
+  const paint = countershade(c.top, c.belly, { line: c.line ?? 0.1, soft: c.soft ?? 0.18, pattern: c.pattern });
+  const body = new THREE.Mesh(loftBody({ len: L, w, h, y: yf, paint, seg: c.seg || 44, rad: c.rad || 28 }), vcMat({ roughness: c.rough ?? 0.42, metalness: c.metal ?? 0.05 }));
+  g.add(body);
+  const finCol = c.fin ?? c.top;
+  // dorsal fins
+  const d1 = c.dorsal ?? [[0, 0], [0.18 * L * 0.25, 0.75 * HH], [0.32 * L * 0.25, 0.85 * HH], [0.3 * L * 0.25, 0.55 * HH], [0.42 * L * 0.25, 0]];
+  fin(g, d1, 'dorsal', 1, finCol, 1, [0, yf(c.d1t ?? 0.36) + h(c.d1t ?? 0.36) * 0.92, zAt(c.d1t ?? 0.36)]);
+  if (c.d2 !== false) {
+    const k = c.d2 ?? 0.3;
+    const t2 = c.d2t ?? 0.72;
+    fin(g, [[0, 0], [0.07 * L * k, 0.5 * HH * k * 2], [0.14 * L * k, 0]], 'dorsal', 1, finCol, 1, [0, yf(t2) + h(t2) * 0.9, zAt(t2)]);
+  }
+  // pectoral, pelvic, anal fins
+  const pl = c.pect ?? 1;
+  for (const s of [-1, 1]) {
+    const pf = fin(g, [[0, 0], [0.1 * L * pl, 0.55 * HW * 2.2 * pl], [0.2 * L * pl, 0.62 * HW * 2.2 * pl], [0.16 * L * pl, 0]], 'side', s, finCol, 1, [s * w(0.27) * 0.85, yf(0.27) - h(0.27) * 0.55, zAt(0.27)]);
+    pf.rotation.z = s * -(c.pectDown ?? 0.5);
+    fin(g, [[0, 0], [0.04 * L, 0.35 * HW], [0.07 * L, 0]], 'side', s, finCol, 1, [s * w(0.62) * 0.6, yf(0.62) - h(0.62) * 0.75, zAt(0.62)]).rotation.z = s * -0.7;
+  }
+  const anal = fin(g, [[0, 0], [0.04 * L, 0.3 * HH], [0.08 * L, 0]], 'dorsal', 1, finCol, 1, [0, yf(0.74) - h(0.74) * 0.9, zAt(0.74)]);
+  anal.rotation.z = Math.PI;
+  // tail fin (animated): heterocercal (long upper lobe) or lunate (white shark)
+  const tail = new THREE.Group();
+  const up = c.tailUp ?? 0.9, lo = c.tailLo ?? 0.45;
+  const cau = c.lunate
+    ? [[-0.05 * L, 0], [0.12 * L, up * HH * 1.6, 0.2 * L, up * HH * 2.0], [0.06 * L, 0.05], [0.2 * L, -lo * HH * 2.0], [0.1 * L, -lo * HH * 1.4, -0.05 * L, 0]]
+    : [[-0.04 * L, 0.05 * HH], [0.14 * L, up * HH * 1.2, 0.26 * L, up * HH * 1.9], [0.2 * L, up * HH * 1.2], [0.07 * L, 0], [0.12 * L, -lo * HH * 1.6], [0.02 * L, -0.1 * HH]];
+  fin(tail, cau, 'dorsal', 1, finCol, 1, [0, 0, 0]);
+  g.add(at(tail, 0, yf(0.97), zAt(0.97)));
+  g.userData.tail = tail;
+  // gill slits
+  const nG = c.gills ?? 5;
+  const gillMat = std(c.gillCol ?? 0x2a2e34, { roughness: 0.7 });
+  for (const s of [-1, 1]) for (let i = 0; i < nG; i++) {
+    const t = 0.16 + i * (c.gillGap ?? 0.022);
+    const hgt = h(t) * (c.gillLen ?? 0.75);
+    const sl = new THREE.Mesh(new THREE.BoxGeometry(0.008, hgt, 0.0055 * L), gillMat);
+    sl.rotation.x = 0.12;
+    g.add(at(sl, s * w(t) * 0.99, yf(t) - h(t) * 0.05, zAt(t)));
+  }
+  // eyes and mouth
+  const et = c.eyeT ?? 0.085;
+  eyes(g, w(et) * 0.92, yf(et) + h(et) * 0.25, zAt(et), c.eye ?? 0.035 * L ** 0.5, c.eyeOpts ?? { iris: 0x0a0a0a, ball: 0x1a1a1a }, 0.2);
+  const mt = c.mouthT ?? 0.1;
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(w(mt) * 0.8, 0.012 * L ** 0.5, 5, 18, Math.PI), std(0x0b0b0d));
+  mouth.rotation.set(Math.PI / 2, 0, Math.PI);
+  mouth.scale.set(1, 1.6, 1);
+  g.add(at(mouth, 0, yf(mt) - h(mt) * 0.72, zAt(mt) + w(mt) * 0.35));
+  if (c.teeth) {
+    const tm = std(0xf4f1e8, { roughness: 0.3 });
+    const tg = new THREE.ConeGeometry(0.008 * L, 0.03 * L, 5);
+    for (let i = 0; i < c.teeth; i++) {
+      const a = Math.PI * (0.15 + (0.7 * i) / (c.teeth - 1));
+      const th = new THREE.Mesh(tg, tm);
+      th.rotation.x = Math.PI;
+      g.add(at(th, Math.cos(a) * w(mt) * 0.75, yf(mt) - h(mt) * 0.7, zAt(mt) + w(mt) * 0.35 - Math.sin(a) * w(mt) * 0.45));
+    }
+  }
+  if (c.extra) c.extra(g, { w, h, yf, zAt, L, HW, HH });
+  return g;
+}
+
+export const SHARKS = {
+  whiteshark: () =>
+    buildShark({
+      len: 4.6, hw: 0.55, hh: 0.62, top: 0x5f6b78, belly: 0xf2f4f5, line: 0.05, soft: 0.06, teeth: 18, lunate: true, tailUp: 0.95, tailLo: 0.85, d2: 0.18,
+      pattern: (t, a, out) => { if (t > 0.1 && t < 0.3 && Math.abs(Math.cos(a)) < 0.3) out.multiplyScalar(0.97); },
+    }),
+  hammerhead: () =>
+    buildShark({
+      len: 3.8, hw: 0.38, hh: 0.45, top: 0x7c7a6e, belly: 0xe9e6dc, line: 0.12, pect: 0.9,
+      dorsal: [[0, 0], [0.1, 0.62], [0.28, 0.72], [0.22, 0.4], [0.3, 0]],
+      extra: (g, { yf, zAt, L }) => {
+        // the "hammer": a flat, wing-shaped head with the eyes at its tips
+        const pts = [[-0.08, 0], [-0.04, 0.42], [0.04, 0.5], [0.1, 0.42], [0.18, 0.12], [0.22, 0]];
+        const hm = std(0x7c7a6e, { roughness: 0.45, side: THREE.DoubleSide });
+        const head = new THREE.Group();
+        for (const s of [-1, 1]) {
+          const top = new THREE.Mesh(finGeo(pts, 'side', s), hm);
+          top.position.y = 0.035;
+          const bot = new THREE.Mesh(finGeo(pts, 'side', s), std(0xe9e6dc, { side: THREE.DoubleSide }));
+          bot.position.y = -0.035;
+          head.add(top, bot);
+          const e = eye(0.06, { iris: 0x0a0a0a, ball: 0x1a1a1a });
+          e.rotation.y = s * Math.PI / 2;
+          g.add(at(e, s * 0.5 * L * 0.42, yf(0.04), zAt(0.04) + 0.03 * L * 0.42));
+        }
+        head.scale.set(L * 0.42, 1, L * 0.42);
+        g.add(at(head, 0, yf(0.04), zAt(0.04)));
+      },
+    }),
+  blueshark: () =>
+    buildShark({
+      len: 3.6, hw: 0.3, hh: 0.36, top: 0x1f3f9a, belly: 0xf1f4f8, line: 0.0, soft: 0.25, pect: 1.45, pectDown: 0.35, d2: 0.22,
+      wPts: [[0, 0.02], [0.08, 0.3], [0.18, 0.66], [0.35, 0.95], [0.45, 1.0], [0.62, 0.72], [0.8, 0.32], [0.9, 0.18], [1, 0.1]],
+      pattern: (t, a, out) => { if (Math.abs(Math.cos(a)) < 0.45) out.lerp(col(0x3f6fe0), 0.55); },
+      eye: 0.085,
+    }),
+  goblin: () =>
+    buildShark({
+      len: 3.6, hw: 0.32, hh: 0.36, top: 0xd99a9a, belly: 0xf0c8c4, line: 0.1, soft: 0.4, teeth: 16, tailUp: 1.0, tailLo: 0.12, d2: 0.28, rough: 0.35,
+      pattern: (t, a, out) => out.lerp(col(0xc77d82), 0.15 * Math.max(0, Math.sin(t * 40 + a * 3))),
+      gillCol: 0x9a5a60,
+      extra: (g, { yf, h, zAt, L }) => {
+        // long flat blade-like snout over the protruding jaws
+        const snout = new THREE.Mesh(new THREE.ConeGeometry(0.12, L * 0.24, 12).rotateX(-Math.PI / 2), std(0xd99a9a, { roughness: 0.35 }));
+        snout.scale.set(1.25, 0.32, 1);
+        g.add(at(snout, 0, yf(0.04) + h(0.04) * 0.4, zAt(0) - L * 0.06));
+        const jaw = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.03, 6, 16, Math.PI), std(0xb86b70));
+        jaw.rotation.set(Math.PI / 2 + 0.4, 0, Math.PI);
+        g.add(at(jaw, 0, yf(0.08) - h(0.08) * 1.05, zAt(0.08) - 0.05));
+      },
+    }),
+  frilled: () =>
+    buildShark({
+      len: 2.8, hw: 0.17, hh: 0.2, top: 0x5a3e2c, belly: 0x7d5a44, line: 0.2, soft: 0.5, gills: 6, gillGap: 0.018, gillCol: 0x8a2a2a, gillLen: 1.0, teeth: 14,
+      wPts: [[0, 0.3], [0.04, 0.7], [0.12, 0.95], [0.4, 1.0], [0.7, 0.8], [0.9, 0.4], [1, 0.12]],
+      hPts: [[0, 0.3], [0.04, 0.7], [0.12, 0.95], [0.4, 1.0], [0.7, 0.8], [0.9, 0.42], [1, 0.12]],
+      dorsal: [[0, 0], [0.06, 0.12], [0.16, 0.1], [0.2, 0]], d1t: 0.7, d2: false, tailUp: 0.4, tailLo: 0.6, pect: 0.55, eyeT: 0.05, mouthT: 0.025,
+      extra: (g, { w, h, yf, zAt }) => {
+        // frilly red gill collar
+        const fm = std(0xa83a3a, { roughness: 0.5, side: THREE.DoubleSide });
+        for (let i = 0; i < 6; i++) {
+          const t = 0.16 + i * 0.018;
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 4, 28), fm);
+          const p = ring.geometry.attributes.position;
+          for (let k = 0; k < p.count; k++) {
+            const a = Math.atan2(p.getY(k), p.getX(k));
+            const r = 1 + 0.08 * Math.sin(a * 14);
+            p.setXYZ(k, p.getX(k) * r, p.getY(k) * r, p.getZ(k) + 0.05 * Math.sin(a * 14));
+          }
+          ring.geometry.computeVertexNormals();
+          ring.scale.set(w(t) * 1.04, h(t) * 1.04, 0.3);
+          g.add(at(ring, 0, yf(t), zAt(t)));
+        }
+      },
+    }),
+  cookiecutter: () =>
+    buildShark({
+      len: 0.75, hw: 0.075, hh: 0.08, top: 0x6a5f55, belly: 0x8a8076, line: 0.0, soft: 0.4, d1t: 0.62, d2t: 0.74, d2: 0.35, pect: 0.7, tailUp: 0.7, tailLo: 0.55, eye: 0.02, eyeOpts: { glow: 0x7dffb0, ball: 0x101010 },
+      wPts: [[0, 0.35], [0.06, 0.7], [0.15, 0.95], [0.5, 1.0], [0.8, 0.6], [0.92, 0.3], [1, 0.15]],
+      hPts: [[0, 0.35], [0.06, 0.7], [0.15, 0.95], [0.5, 1.0], [0.8, 0.6], [0.92, 0.3], [1, 0.15]],
+      pattern: (t, a, out) => { if (t > 0.17 && t < 0.25) out.setHex(0x1a1612); }, // dark collar
+      extra: (g, { w, h, yf, zAt }) => {
+        // glowing belly: rows of light organs everywhere except the collar
+        const pts = [];
+        for (let i = 0; i < 18; i++) {
+          const t = 0.08 + i * 0.045;
+          if (t > 0.16 && t < 0.26) continue;
+          for (const a of [-0.9, -0.45, 0, 0.45, 0.9]) pts.push([Math.sin(a) * w(t) * 0.98, yf(t) - Math.cos(a) * h(t) * 0.98, zAt(t)]);
+        }
+        photophores(g, pts, 0x7dffb0, 0.006);
+        g.add(at(glowSprite(0x6dffb0, 1.1, 0.45), 0, -0.05, 0));
+      },
+    }),
+  ninjashark: () =>
+    buildShark({
+      len: 0.72, hw: 0.075, hh: 0.085, top: 0x0b0b10, belly: 0x15151c, line: 0.0, soft: 0.4, d1t: 0.5, d2t: 0.7, d2: 0.38, pect: 0.7, eye: 0.022, eyeOpts: { glow: 0x5dffb8, ball: 0x0a0a0a },
+      extra: (g, { w, h, yf, zAt }) => {
+        // white rings around eyes and mouth, faint glow along the belly
+        const wm = basic(0xeeeeee);
+        for (const s of [-1, 1]) {
+          const ring = new THREE.Mesh(new THREE.TorusGeometry(0.026, 0.004, 4, 16), wm);
+          ring.rotation.y = s * Math.PI / 2;
+          g.add(at(ring, s * w(0.085) * 0.95, yf(0.085) + h(0.085) * 0.25, zAt(0.085)));
+        }
+        const pts = [];
+        for (let i = 0; i < 14; i++) for (const a of [-0.5, 0, 0.5]) pts.push([Math.sin(a) * w(0.15 + i * 0.05) * 0.97, yf(0.15 + i * 0.05) - Math.cos(a) * h(0.15 + i * 0.05) * 0.97, zAt(0.15 + i * 0.05)]);
+        photophores(g, pts, 0x4fc8ff, 0.005);
+        g.add(at(glowSprite(0x4fc8ff, 0.9, 0.3), 0, -0.04, 0));
+      },
+    }),
+  sixgill: () =>
+    buildShark({
+      len: 5.0, hw: 0.55, hh: 0.55, top: 0x6b6152, belly: 0xa79d8e, line: 0.15, soft: 0.45, gills: 6, gillGap: 0.02, d1t: 0.62, d2: false, tailUp: 1.0, tailLo: 0.3, eye: 0.09, eyeOpts: { glow: 0x58e08a, ball: 0x101510 },
+      wPts: [[0, 0.25], [0.05, 0.55], [0.15, 0.8], [0.4, 1.0], [0.62, 0.8], [0.8, 0.4], [0.9, 0.22], [1, 0.12]],
+      pattern: (t, a, out) => out.multiplyScalar(0.92 + 0.08 * Math.sin(t * 60 + a * 5)),
+    }),
+  greenland: () =>
+    buildShark({
+      len: 5.6, hw: 0.72, hh: 0.72, top: 0x55524c, belly: 0x77736b, line: 0.2, soft: 0.6, d1t: 0.45, d2t: 0.62, d2: 0.22, pect: 0.7, tailUp: 0.6, tailLo: 0.45, eye: 0.06, rough: 0.7,
+      dorsal: [[0, 0], [0.12, 0.28], [0.3, 0.24], [0.36, 0]],
+      wPts: [[0, 0.3], [0.05, 0.6], [0.15, 0.85], [0.4, 1.0], [0.62, 0.8], [0.8, 0.4], [0.9, 0.22], [1, 0.14]],
+      pattern: (t, a, out) => { const n = Math.sin(t * 70 + a * 4) * Math.sin(a * 11 - t * 20); out.multiplyScalar(0.9 + n * 0.1); },
+      extra: (g, { w, h, yf, zAt }) => {
+        // many Greenland sharks carry a small pale copepod hanging from one eye
+        const cp = taperTube([new THREE.Vector3(w(0.085) * 0.95, yf(0.085) + h(0.085) * 0.25, zAt(0.085)), new THREE.Vector3(w(0.085) * 1.05, yf(0.085) + h(0.085) * 0.1, zAt(0.085) + 0.04), new THREE.Vector3(w(0.085) * 1.02, yf(0.085) - h(0.085) * 0.05, zAt(0.085) + 0.1)], 0.02, 0.008, std(0xe8e0c8), 8, 5);
+        g.add(cp);
+      },
+    }),
+  dogfish: () =>
+    buildShark({
+      len: 1.6, hw: 0.16, hh: 0.17, top: 0x3a2a20, belly: 0x4a382c, line: 0.2, soft: 0.6, d1t: 0.42, d2t: 0.64, d2: 0.32, pect: 0.8, eye: 0.04, eyeOpts: { glow: 0x5ce39a, ball: 0x0a0a0a },
+      dorsal: [[0, 0], [0.04, 0.12], [0.12, 0.1], [0.16, 0]],
+      extra: (g, { h, yf, zAt }) => {
+        // small spines in front of both dorsal fins
+        const sp = std(0xd8d0c0);
+        for (const t of [0.42, 0.64]) g.add(at(new THREE.Mesh(new THREE.ConeGeometry(0.008, 0.05, 5), sp), 0, yf(t) + h(t) * 0.95, zAt(t)));
+      },
+    }),
+};
+
 export const MODELS = {
+  ...SHARKS,
   // ======================= upper ocean =======================
   dolphin() {
     const g = new THREE.Group();
