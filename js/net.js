@@ -1,9 +1,10 @@
 // Online features: leaderboard (Firestore) and realtime rooms.
-// Rooms: Firebase Realtime Database if configured, otherwise peer-to-peer
-// (WebRTC via PeerJS – works without any setup). The host's browser relays
-// all messages. For testing, ?local=1 uses tabs on the same device instead.
+// Rooms: LiveKit (server in the middle – works on every network, also phone to phone on mobile data; rooms are
+// opened by the small functions of the game's own Netlify site), else Firebase Realtime Database if configured,
+// else peer-to-peer (WebRTC via PeerJS – the host's browser relays all messages).
+// For testing, ?local=1 uses tabs on the same device instead.
 
-import { FIREBASE_CONFIG } from './config.js';
+import { FIREBASE_CONFIG, MP_SITE } from './config.js';
 import { randomCode } from './util.js';
 
 const LB_PREFIX = 'hadal.lb.';
@@ -12,21 +13,19 @@ const LB_PREFIX = 'hadal.lb.';
 export const PUBLIC_CODES = ['AQUA', 'BOJE', 'DELF', 'ECHO', 'FLUT', 'GRAB', 'HAIE', 'KRAB', 'LUKE', 'MANT', 'PERL', 'QUAL', 'RIFF', 'SAND', 'TANG', 'WALE', 'WOGE', 'ZONE', 'KORA', 'MOLA', 'PULS', 'SONA', 'TIEF', 'BLAU'];
 const shuffled = (a) => a.map((v) => [Math.random(), v]).sort((x, y) => x[0] - y[0]).map((x) => x[1]);
 const PEER_PREFIX = 'hadal-v1-';
-// ICE servers: Google STUN + the public PeerJS TURN relays (also over TCP, for networks that block UDP –
-// mobile networks and car modems often sit behind carrier NAT, where only a relay gets through)
-const ICE = {
-  iceServers: [
-    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
-    {
-      urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478', 'turn:eu-0.turn.peerjs.com:3478?transport=tcp', 'turn:us-0.turn.peerjs.com:3478?transport=tcp'],
-      username: 'peerjs',
-      credential: 'peerjsp',
-    },
-  ],
-  sdpSemantics: 'unified-plan',
-};
+// ICE servers for the peer-to-peer fallback: Google STUN only. (The public PeerJS TURN relay was shut down by
+// its operators, so there is no relay here – that's why rooms normally run over LiveKit.)
+const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }], sdpSemantics: 'unified-plan' };
 // tests: own local signalling server (read once – the lobby removes the query string from the address)
 const PEER_SERVER = new URLSearchParams(location.search).get('peer');
+// room functions (LiveKit): own address on Netlify, else the Netlify site; ?mpapi=… for tests
+const MP_API = (() => {
+  const q = new URLSearchParams(location.search).get('mpapi');
+  if (q) return q.replace(/\/$/, '');
+  if (/\.netlify\.app$/.test(location.hostname)) return location.origin + '/api';
+  return MP_SITE ? MP_SITE.replace(/\/$/, '') + '/api' : null;
+})();
+const enc = new TextEncoder(), dec = new TextDecoder();
 const codeFromErr = (e) => {
   const m = /hadal-v1-([A-Z0-9]+)/.exec((e && e.message) || '');
   return m ? m[1] : null;
@@ -49,7 +48,7 @@ function localSubmit(board, entry) {
 
 export class Net {
   constructor() {
-    this.mode = 'none'; // 'firebase' | 'local' | 'p2p' | 'none'
+    this.mode = 'none'; // 'lk' | 'firebase' | 'local' | 'p2p' | 'none'
     this.lbOnline = false;
     this.mpAvailable = false;
     this.uid = 'u' + Math.random().toString(36).slice(2, 10);
@@ -60,6 +59,8 @@ export class Net {
 
   async init() {
     const params = new URLSearchParams(location.search);
+    // ask the room server in the background (doesn't hold up the start)
+    if (MP_API && params.get('local') !== '1' && params.get('p2p') !== '1') this.lkCheck = this.probeLk();
     if (FIREBASE_CONFIG) {
       try {
         const fb = await import('./vendor/firebase.min.js');
@@ -70,6 +71,7 @@ export class Net {
           this.auth = fb.getAuth(this.app);
           const cred = await fb.signInAnonymously(this.auth);
           this.uid = cred.user.uid;
+          this.authUid = cred.user.uid; // the room id may change later (LiveKit), the login stays
           this.lbOnline = true; // online leaderboard needs the (anonymous) login
         } catch (e) {
           console.warn('Anonymous login not available – leaderboard stays local.', e);
@@ -96,6 +98,217 @@ export class Net {
       this.mode = 'p2p';
       this.mpAvailable = true;
     }
+  }
+
+  // Wait for the room server check (called before anything that depends on the room mode).
+  async ready() {
+    if (this.lkCheck) {
+      const ok = await this.lkCheck;
+      this.lkCheck = null;
+      if (ok) {
+        this.mode = 'lk';
+        this.mpAvailable = true;
+      }
+    }
+  }
+
+  async probeLk() {
+    try {
+      const ctl = new AbortController();
+      const to = setTimeout(() => ctl.abort(), 7000);
+      const r = await fetch(MP_API + '/rooms', { cache: 'no-store', signal: ctl.signal });
+      clearTimeout(to);
+      const j = await r.json();
+      return r.ok && Array.isArray(j.rooms);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // ---------------- LiveKit transport ----------------
+  async lkApi(path, body) {
+    let r;
+    try {
+      r = await fetch(MP_API + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
+    } catch (e) {
+      throw new Error('timeout');
+    }
+    let j = {};
+    try {
+      j = await r.json();
+    } catch (e) {
+      /* no JSON */
+    }
+    if (!r.ok) throw new Error(j.error === 'notfound' || j.error === 'full' ? j.error : 'p2p');
+    return j;
+  }
+
+  async lkConnect(res, room) {
+    const LK = await import('./vendor/livekit-client.min.js');
+    const lk = new LK.Room({ adaptiveStream: false, dynacast: false, disconnectOnPageLeave: true });
+    room.LK = LK;
+    room.lk = lk;
+    lk.on(LK.RoomEvent.DataReceived, (payload, p) => {
+      if (!p) return;
+      let m;
+      try {
+        m = JSON.parse(dec.decode(payload));
+      } catch (e) {
+        return;
+      }
+      this.handleLk(room, m, p.identity);
+    });
+    lk.on(LK.RoomEvent.ParticipantDisconnected, (p) => this.handleLk(room, { type: 'leave', uid: p.identity }, p.identity));
+    lk.on(LK.RoomEvent.Disconnected, () => {
+      if (this.room === room && !room.leaving) room.handlers.closed && room.handlers.closed();
+    });
+    // radio: the other divers' voices
+    lk.on(LK.RoomEvent.TrackSubscribed, (track, pub, p) => {
+      if (track.kind !== 'audio') return;
+      room.audio.set(p.identity, track);
+      room.onAudio && room.onAudio(p.identity, track);
+    });
+    lk.on(LK.RoomEvent.TrackUnsubscribed, (track, pub, p) => {
+      if (track.kind !== 'audio') return;
+      if (room.audio.get(p.identity) === track) room.audio.delete(p.identity);
+      room.onAudioGone && room.onAudioGone(p.identity, track);
+    });
+    await lk.connect(res.url, res.token, { autoSubscribe: true });
+  }
+
+  lkSend(room, msg, to = null) {
+    if (!room || !room.lk || room.lk.state === 'disconnected') return;
+    // position updates may get lost (the next one follows a moment later), everything else must arrive
+    const reliable = !(msg.type === 'player' && msg.data && 's' in msg.data && Object.keys(msg.data).length === 1);
+    room.lk.localParticipant.publishData(enc.encode(JSON.stringify(msg)), { reliable, ...(to ? { destinationIdentities: [to] } : {}) }).catch(() => {});
+  }
+
+  // A room message over LiveKit. Everyone gets every message straight from the server; the host answers newcomers
+  // with the room state and keeps the clock (like the host in peer-to-peer rooms).
+  handleLk(room, m, from) {
+    if (this.room !== room || !m) return;
+    const h = room.handlers;
+    const hostId = room.meta && room.meta.host;
+    if (m.type === 'player') {
+      if (m.uid !== from) return;
+      room.players[from] = { ...(room.players[from] || {}), ...m.data };
+      if (m.hello) {
+        room.players[from].joined = room.players[from].joined || Date.now();
+        if (this.isHost()) {
+          if (Object.keys(room.players).length > 4) {
+            delete room.players[from];
+            this.lkSend(room, { type: 'full' }, from);
+            return;
+          }
+          this.lkSend(room, { type: 'sync', meta: room.meta, players: room.players }, from);
+        }
+      }
+      h.players && h.players(room.players);
+    } else if (m.type === 'leave') {
+      if (!room.players[m.uid] || m.uid === this.uid) return;
+      delete room.players[m.uid];
+      h.players && h.players(room.players);
+      if (m.uid === hostId) h.closed && h.closed();
+    } else if (m.type === 'meta') {
+      if (from !== hostId) return;
+      room.meta = m.meta;
+      h.meta && h.meta(room.meta);
+    } else if (m.type === 'event') {
+      h.event && h.event(m.ev);
+    } else if (m.type === 'sync') {
+      if (hostId && from !== hostId) return;
+      room.meta = m.meta;
+      room.players = { ...m.players, [this.uid]: { ...(m.players || {})[this.uid], ...room.players[this.uid] } };
+      room.synced && room.synced();
+      h.meta && h.meta(room.meta);
+      h.players && h.players(room.players);
+    } else if (m.type === 'ping') {
+      if (this.isHost()) this.lkSend(room, { type: 'pong', t0: m.t0, th: Date.now() }, from);
+    } else if (m.type === 'pong') {
+      const t1 = Date.now();
+      if (!room.bestRtt || t1 - m.t0 < room.bestRtt) {
+        room.bestRtt = t1 - m.t0;
+        this.offset = m.th - (m.t0 + t1) / 2;
+      }
+    } else if (m.type === 'full') {
+      room.fullErr && room.fullErr();
+    } else if (m.type === 'closed') {
+      if (from === hostId) h.closed && h.closed();
+    }
+  }
+
+  // the room list shows mode, trench and state: the host keeps them up to date on the server
+  lkPushMeta(room) {
+    if (!room.key) return;
+    clearTimeout(room.metaTimer);
+    room.metaTimer = setTimeout(() => {
+      const m = room.meta || {};
+      this.lkApi('/meta', { code: room.code, key: room.key, meta: { mode: m.mode, level: m.level, status: m.status, autoStartAt: m.autoStartAt, seed: m.seed, startAt: m.startAt } }).catch(() => {});
+    }, 300);
+  }
+
+  async createLkRoom(meta, info) {
+    const res = await this.lkApi('/join', { action: 'create', name: info.name, meta: { mode: meta.mode, level: meta.level, seed: meta.seed, autoStartAt: meta.autoStartAt, createdAt: meta.createdAt, status: 'lobby' } });
+    this.leaveRoom();
+    this.uid = res.identity;
+    const room = { code: res.code, meta: { ...meta, host: res.identity, hostName: info.name }, players: { [res.identity]: { ...info, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), isLk: true, key: res.key, audio: new Map() };
+    this.room = room;
+    this.offset = 0;
+    try {
+      await this.lkConnect(res, room);
+    } catch (e) {
+      this.leaveRoom();
+      throw new Error('timeout');
+    }
+    setTimeout(() => {
+      room.handlers.meta && room.handlers.meta(room.meta);
+      room.handlers.players && room.handlers.players(room.players);
+    }, 30);
+    return res.code;
+  }
+
+  async joinLkRoom(code, info) {
+    const res = await this.lkApi('/join', { action: 'join', name: info.name, code });
+    this.leaveRoom();
+    this.uid = res.identity;
+    const room = { code: res.code, meta: res.meta || {}, players: { [res.identity]: { ...info, joined: Date.now() } }, handlers: {}, joinedAt: Date.now(), isLk: true, audio: new Map() };
+    this.room = room;
+    this.offset = 0;
+    try {
+      await this.lkConnect(res, room);
+      const hostId = room.meta.host;
+      if (hostId && !room.lk.remoteParticipants.has(hostId)) throw new Error('notfound'); // the host has just left
+      await new Promise((resolve, reject) => {
+        // the first data message waits until the connection to the server is fully set up – say hello again
+        // every 2 s until the host has answered with the room state
+        const hello = () => this.lkSend(room, { type: 'player', uid: this.uid, data: info, hello: true });
+        const again = setInterval(hello, 2000);
+        const stop = () => {
+          clearTimeout(to);
+          clearInterval(again);
+        };
+        const to = setTimeout(() => {
+          stop();
+          reject(new Error('noconn'));
+        }, 20000);
+        room.synced = () => {
+          if (room.isSynced) return;
+          room.isSynced = true;
+          stop();
+          for (let i = 0; i < 5; i++) setTimeout(() => this.room === room && this.lkSend(room, { type: 'ping', t0: Date.now() }, hostId), 100 + i * 400);
+          resolve();
+        };
+        room.fullErr = () => {
+          stop();
+          reject(new Error('full'));
+        };
+        hello();
+      });
+    } catch (e) {
+      this.leaveRoom();
+      throw e.message === 'notfound' || e.message === 'full' || e.message === 'noconn' ? e : new Error('timeout');
+    }
+    return room;
   }
 
   // ---------------- peer-to-peer transport ----------------
@@ -297,7 +510,7 @@ export class Net {
     if (this.lbOnline) {
       try {
         const { collection, addDoc, serverTimestamp } = this.fb;
-        await addDoc(collection(this.db, 'boards', board, 'scores'), { ...entry, uid: this.uid, createdAt: serverTimestamp() });
+        await addDoc(collection(this.db, 'boards', board, 'scores'), { ...entry, uid: this.authUid || this.uid, createdAt: serverTimestamp() });
       } catch (e) {
         console.warn('Could not save online score', e);
       }
@@ -327,6 +540,18 @@ export class Net {
 
   // List open rooms (all rooms are public).
   async listRooms(onFound = null) {
+    await this.ready();
+    if (this.mode === 'lk') {
+      const j = await this.lkApi('/rooms');
+      const own = this.room && this.room.code;
+      const found = [];
+      for (const r of j.rooms || []) {
+        if (r.code === own) continue;
+        found.push(r);
+        if (onFound) onFound(r, found);
+      }
+      return found;
+    }
     if (this.mode === 'firebase') {
       const { ref, get } = this.fb;
       const snap = await get(ref(this.rtdb, 'rooms'));
@@ -443,6 +668,7 @@ export class Net {
 
   // Connection check for the multiplayer window: signalling server, public address (STUN), relay (TURN).
   async checkConnection() {
+    await this.ready();
     const res = { webrtc: !!window.RTCPeerConnection, server: null, direct: null, relay: null };
     if (this.mode !== 'p2p' || !res.webrtc) return res;
     try {
@@ -488,6 +714,7 @@ export class Net {
   }
 
   async createRoom({ mode, level, name, sub, autoStartAt = 40000 }) {
+    await this.ready();
     const info = { name, sub: sub || 'hummel' };
     const wait = autoStartAt;
     let code = PUBLIC_CODES[Math.floor(Math.random() * PUBLIC_CODES.length)];
@@ -504,6 +731,8 @@ export class Net {
     } else if (this.mode === 'local') {
       code = shuffled(PUBLIC_CODES).find((c) => !localStorage.getItem(`hadal.room.${c}`)) || randomCode(4);
       localStorage.setItem(`hadal.room.${code}`, JSON.stringify({ ...meta, hostName: name }));
+    } else if (this.mode === 'lk') {
+      return this.createLkRoom(meta, info);
     } else if (this.mode === 'p2p') {
       return this.createP2PRoom(meta, info);
     } else throw new Error('offline');
@@ -514,6 +743,8 @@ export class Net {
   async joinRoom(code, { name, sub }) {
     const info = { name, sub: sub || 'hummel' };
     code = code.toUpperCase().trim();
+    await this.ready();
+    if (this.mode === 'lk') return this.joinLkRoom(code, info);
     if (this.mode === 'p2p') return this.joinP2PRoom(code, info);
     this.leaveRoom();
     const room = { code, meta: null, players: {}, handlers: {}, joinedAt: Date.now() };
@@ -614,6 +845,9 @@ export class Net {
     if (room.channel) {
       localStorage.setItem(`hadal.room.${room.code}`, JSON.stringify(room.meta));
       room.channel.postMessage({ type: 'meta', meta: room.meta });
+    } else if (room.isLk) {
+      this.lkSend(room, { type: 'meta', meta: room.meta });
+      if (this.isHost()) this.lkPushMeta(room);
     } else this.p2pSend({ type: 'meta', meta: room.meta });
     room.handlers.meta && room.handlers.meta(room.meta);
   }
@@ -622,6 +856,7 @@ export class Net {
   post(msg) {
     if (!this.room) return;
     if (this.room.channel) this.room.channel.postMessage(msg);
+    else if (this.room.isLk) this.lkSend(this.room, msg);
     else this.p2pSend(msg);
   }
 
@@ -677,6 +912,20 @@ export class Net {
       room.channel.postMessage({ type: 'leave', uid: this.uid });
       room.channel.close();
       if (room.meta && room.meta.host === this.uid) localStorage.removeItem(`hadal.room.${room.code}`);
+    } else if (room.isLk) {
+      room.leaving = true;
+      clearTimeout(room.metaTimer);
+      const host = room.meta && room.meta.host === this.uid;
+      this.lkSend(room, host ? { type: 'closed' } : { type: 'leave', uid: this.uid });
+      const lk = room.lk;
+      setTimeout(() => {
+        try {
+          lk && lk.disconnect();
+        } catch (e) {
+          /* ignore */
+        }
+      }, 250);
+      if (!host) this.offset = 0;
     } else if (room.peer) {
       this.room = null;
       try {

@@ -1,7 +1,7 @@
 // iamSubPilot radio ("Funk"): push-to-talk voice between the divers of a room.
-// Its own channel: audio travels directly between the browsers (WebRTC media
-// calls over the room's PeerJS connection). No server, no keys, nothing shared
-// with any other game. Voice is never stored.
+// Its own channel, nothing shared with any other game. In LiveKit rooms the voice goes through the game's own
+// LiveKit project (one audio track per diver, silent unless the radio button is held); in peer-to-peer rooms
+// it travels directly between the browsers (WebRTC media calls over PeerJS). Voice is never stored.
 //
 // - hold the radio button (or R) to talk, tap three times to keep it open (tap again to close)
 // - max 45 s per transmission unless locked; a lock closes itself after 15 min
@@ -42,6 +42,19 @@ export class Radio {
       this.carrier = carrier;
     }
     this.stream = this.dest.stream;
+    // LiveKit room: publish the (gated) radio track once, play the others' tracks
+    this.lkRoom = net.room && net.room.isLk ? net.room : null;
+    this.lkEls = new Map(); // uid -> audio element
+    if (this.lkRoom) {
+      const r = this.lkRoom;
+      const tr = this.stream.getAudioTracks()[0];
+      if (tr && r.lk && r.LK) {
+        r.lk.localParticipant.publishTrack(tr, { source: r.LK.Track.Source.Microphone, name: 'radio', dtx: true }).then((pub) => (this.lkPub = pub)).catch(() => this.onError('mic'));
+      }
+      r.onAudio = (uid, track) => this.attachLk(uid, track);
+      r.onAudioGone = (uid) => this.detachLk(uid);
+      for (const [uid, track] of r.audio) this.attachLk(uid, track);
+    }
     this.onCall = (call) => {
       if (this.destroyed) return;
       call.answer(this.stream);
@@ -51,11 +64,37 @@ export class Radio {
   }
 
   get available() {
-    return !!this.peer;
+    return !!(this.peer || this.lkRoom);
+  }
+
+  attachLk(uid, track) {
+    if (this.destroyed) return;
+    this.detachLk(uid);
+    const el = track.attach();
+    el.style.display = 'none';
+    el.playsInline = true;
+    document.body.append(el);
+    this.lkEls.set(uid, el);
+    this.applyMutes();
+    el.play && el.play().catch(() => {});
+  }
+
+  detachLk(uid) {
+    const el = this.lkEls.get(uid);
+    if (!el) return;
+    this.lkEls.delete(uid);
+    try {
+      el.pause();
+      el.srcObject = null;
+      el.remove();
+    } catch (e) {
+      /* gone */
+    }
   }
 
   // keep one call to every other diver (the one with the "smaller" peer id calls)
   sync(players) {
+    if (this.lkRoom) return this.applyMutes(); // LiveKit connects everybody by itself
     if (!this.peer || this.destroyed) return;
     const me = this.peer.id;
     const live = new Set();
@@ -114,6 +153,7 @@ export class Radio {
 
   applyMutes() {
     for (const c of this.calls.values()) if (c.el) c.el.muted = !this.enabled || this.mutedUids.has(c.uid) || audio.mode === 'off';
+    for (const [uid, el] of this.lkEls) el.muted = !this.enabled || this.mutedUids.has(uid) || audio.mode === 'off';
   }
 
   setEnabled(on) {
@@ -217,6 +257,11 @@ export class Radio {
     clearTimeout(this.lockTimer);
     for (const pid of [...this.calls.keys()]) this.closeCall(pid);
     if (this.peer) this.peer.off('call', this.onCall);
+    for (const uid of [...this.lkEls.keys()]) this.detachLk(uid);
+    if (this.lkRoom) {
+      this.lkRoom.onAudio = this.lkRoom.onAudioGone = null;
+      if (this.lkPub && this.lkRoom.lk && this.lkRoom.lk.state !== 'disconnected') this.lkRoom.lk.localParticipant.unpublishTrack(this.lkPub.track, false).catch(() => {});
+    }
     if (this.mic) this.mic.getTracks().forEach((tr) => tr.stop());
     if (this.carrier) {
       try {

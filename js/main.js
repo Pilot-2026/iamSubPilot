@@ -772,7 +772,7 @@ const voiceAllowed = () => (profile.age || 0) >= 14;
 let lastTalkers = '';
 
 function createRadio() {
-  if (radio || net.mode !== 'p2p' || !net.room || !net.room.peer) return;
+  if (radio || !net.room || !(net.room.peer || net.room.isLk)) return;
   radio = new Radio(net, { onTalk: updateRadioUi, onError: () => toast(t('radioNoMic')) });
   if (!voiceAllowed()) radio.setEnabled(false); // under 14: quick calls only
   radio.sync(net.room.players);
@@ -929,8 +929,9 @@ function stopMpRefresh() {
   mpRefreshTimer = null;
 }
 
-function showMultiplayer() {
+async function showMultiplayer() {
   audio.init();
+  await net.ready();
   if (!net.mpAvailable) {
     showModal(`<h1>👥 ${t('mpTitle')}</h1><p>${t('mpOffline')}</p><div class="row-end"><button class="btn secondary" id="mpClose">${t('close')}</button></div>`, (r) => {
       r.querySelector('#mpClose').onclick = closeModal;
@@ -1076,10 +1077,9 @@ async function runConnCheck(root) {
   let note = '';
   if (!r.webrtc) note = t('mpDiagNoWebrtc');
   else if (r.server === false) note = t('mpDiagNoServer');
-  else if (r.relay === false) note = t('mpDiagNoRelay');
   else if (r.direct === false) note = t('mpDiagNoDirect');
-  else if (r.server) note = t('mpDiagOk');
-  el.innerHTML = `<b>${t('mpDiag')}:</b> ${t('mpDiagServer')} ${mark(r.server)} · ${t('mpDiagDirect')} ${mark(r.direct)} · ${t('mpDiagRelay')} ${mark(r.relay)}${note ? `<div class="mpdiag-note ${r.server && r.relay !== false && r.direct !== false ? 'good' : ''}">${note}</div>` : ''}`;
+  else if (r.server) note = t('mpDiagFallback');
+  el.innerHTML = `<b>${t('mpDiag')}:</b> ${t('mpDiagServer')} ${mark(r.server)} · ${t('mpDiagDirect')} ${mark(r.direct)}${note ? `<div class="mpdiag-note">${note}</div>` : ''}`;
 }
 
 // ---- keep the screen on while in a room (a sleeping phone drops its connection and the host's room vanishes) ----
@@ -1108,7 +1108,7 @@ document.addEventListener('visibilitychange', () => {
 // the alphabetically smaller code wins, so only one of the two moves) ----
 let lobbyOpenedAt = 0, mergeBusy = false, mergeNext = 0;
 async function maybeMergeLobby() {
-  if (mergeBusy || net.mode !== 'p2p' || !lobbyOpen || game || !net.room || !net.isHost()) return;
+  if (mergeBusy || !['p2p', 'lk'].includes(net.mode) || !lobbyOpen || game || !net.room || !net.isHost()) return;
   const meta = net.room.meta || {};
   if (meta.status !== 'lobby' || Object.keys(net.room.players || {}).length > 1) return;
   const now = Date.now();
@@ -1211,7 +1211,7 @@ function renderLobby() {
       : `<div class="lobby-wait"><div><span class="dots">${t('mpWaiting')}</span><span class="lb-count">${t('mpStartsIn', { t: `<b id="lbCountdown">${fmtCountdown(left)}</b>` })}</span></div>
          <div class="lb-bar"><div id="lbBar" style="width:${clamp(1 - left / LOBBY_WAIT, 0, 1) * 100}%"></div></div></div>`}
     <p style="font-size:13px;color:#1d1d1d">${t('mpLobbyNote')}</p>
-    ${host && net.mode === 'p2p' ? `<p class="mp-keep">📱 ${t('mpHostKeep')}</p>` : ''}
+    ${host && ['p2p', 'lk'].includes(net.mode) ? `<p class="mp-keep">📱 ${t('mpHostKeep')}</p>` : ''}
     ${host && !running ? `<div class="field"><div class="seg" id="lbMode"><button data-m="coop" class="${meta.mode !== 'race' ? 'on' : ''}">${t('mpCoop')}</button><button data-m="race" class="${meta.mode === 'race' ? 'on' : ''}">${t('mpRace')}</button></div></div><div class="field"><select id="lbLevelSel">${levelOpts}</select></div>` : ''}
     <h2>${t('mpPlayers')} (${players.length}/4)</h2><div class="players">${plist}</div>
     ${radioBox}

@@ -13,4 +13,10 @@ export const FIREBASE_CONFIG = null;
 
 export const AI_ENDPOINT = null;
 
-export const GAME_VERSION = '0.7.1';
+// 3) Online rooms run over LiveKit – the same technique as iamPilot, but with its own LiveKit project and its
+//    own Netlify site (functions in netlify/functions, keys only in the Netlify environment variables).
+//    Served from Netlify the game uses its own address; on GitHub Pages it asks this site. If the site is not
+//    reachable, rooms fall back to direct browser-to-browser connections (PeerJS).
+export const MP_SITE = 'https://iamsubpilot.netlify.app';
+
+export const GAME_VERSION = '0.8.0';

@@ -1,0 +1,22 @@
+# iamSubPilot on Netlify (its own site, separate from every other game): the game files are served as they are,
+# the functions in netlify/functions are the small server for online rooms (/api/join, /api/rooms, /api/meta).
+# The LiveKit keys are Netlify environment variables (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) – never in this repo.
+[build]
+  publish = "."
+  command = "echo 'no build step'"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), geolocation=(), microphone=(self)"
+
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
