@@ -26,6 +26,7 @@ import { openStats } from './statsview.js';
 import { Recovery } from './launch.js';
 import { DeepBeacon, MapView, fmtDist } from './guide.js';
 import { Atlantis, atlantisSpot } from './atlantis.js';
+import { FABLE_SPEECH } from './fables.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -1468,7 +1469,7 @@ class Dive {
     toast(L(level.name), L(level.ocean));
     if (this.multi && net.room) {
       // team data belongs to this dive (dv = its seed): nothing from an earlier dive in the same room counts
-      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false });
+      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false, ins: 0 });
       this.syncPlayers(net.room.players);
     }
   }
@@ -1524,7 +1525,7 @@ class Dive {
     $('#hudTR').classList.toggle('hidden', this.race);
     $('#race').classList.toggle('hidden', !this.race);
     $('#team').classList.toggle('hidden', !this.multi);
-    $('#radar').classList.toggle('hidden', !this.multi);
+    $('#radar').classList.remove('hidden');
     $('#lEnergy').textContent = t('energy');
     $('#lHull').textContent = t('hull');
     $('#lLife').textContent = t('life');
@@ -1839,7 +1840,19 @@ class Dive {
   raiseAtlantis() {
     if (this.atlantis || this.ended) return;
     const spot = this.teamAtl || atlantisSpot(this.world, this.sub);
-    this.atlantis = new Atlantis(this.scene, this.world, spot, (this.seed ^ 0xa71a) >>> 0, this.level.id);
+    const box = new THREE.Box3(), beam = this.sub.group.userData.beam;
+    this.sub.group.updateMatrixWorld(true);
+    const toLocal = this.sub.group.matrixWorld.clone().invert(); // length along the sub's own axis
+    this.sub.group.traverse((o) => {
+      let skip = !o.isMesh || o.isSprite;
+      for (let q = o; q && !skip; q = q.parent) if (q === beam) skip = true;
+      if (skip) return;
+      if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+      box.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld).applyMatrix4(toLocal)); // this mesh only (the beam hangs below a lamp)
+    });
+    const sz = box.isEmpty() ? new THREE.Vector3(3, 1, 3) : box.getSize(new THREE.Vector3());
+    this.atlantis = new Atlantis(this.scene, this.world, spot, (this.seed ^ 0xa71a) >>> 0, this.level.id, { subLen: clamp(sz.z, 2, 7) });
+    this.atlantisAt = this.time;
     if (this.multi && this.multi.coop && net.room) net.setPlayer({ atl: [Math.round(spot.x), Math.round(spot.z)] });
     this.energy = this.hull = this.life = 100;
     this.flags.lowEnergy = false;
@@ -1847,6 +1860,100 @@ class Dive {
     diveFx();
     echoSay(t('atlWelcome'), { now: true });
     toast(`🏛️ Atlantis · ${L(this.atlantis.theme.name)}`, t('atlToast'));
+  }
+
+  // swim through the secret door (or back out): a short flash, then the other side
+  portal(kind, near = false) {
+    if (this.portalBusy || !this.atlantis) return;
+    this.portalBusy = true;
+    const fx = $('#portalFx');
+    fx.classList.add('on');
+    audio.discovery();
+    setTimeout(() => {
+      const A = this.atlantis;
+      if (!A || this.ended) {
+        fx.classList.remove('on');
+        this.portalBusy = false;
+        return;
+      }
+      if (kind === 'enter') A.enter(this.sub, near);
+      else A.exit(this.sub);
+      // the camera jumps straight behind the sub (no sweep through the walls)
+      const back = new THREE.Vector3(Math.sin(this.sub.yaw), 0, Math.cos(this.sub.yaw));
+      this.camPos.copy(this.sub.pos).addScaledVector(back, 10).add(new THREE.Vector3(0, 3.5, 0));
+      this.orbit.yaw = this.orbit.pitch = 0;
+      A.clampCam(this.camPos);
+      if (this.multi && net.room) net.setPlayer({ ins: kind === 'enter' ? 1 : 0 });
+      if (kind === 'enter') {
+        this.fableTalk = { i: 0, t: 0, pause: 1.2, shown: -1 };
+        toast(`✨ ${L(A.fable.info.name)}`, t('fableHere'));
+        audio.fanfare();
+      } else {
+        this.fableTalk = null;
+        A.talking = false;
+      }
+      setTimeout(() => {
+        fx.classList.remove('on');
+        this.portalBusy = false;
+      }, 450);
+    }, 380);
+  }
+
+  // secret: in Atlantis the code again backwards – straight to the creature
+  goFable() {
+    if (!this.atlantis || this.ended || this.ending) return;
+    if (!this.atlantis.inside) this.portal('enter', true);
+  }
+
+  // the creature speaks in yellow bubbles, sentence by sentence (tap a bubble for the next one)
+  updateFable(dt) {
+    const el = $('#fableBubble'), A = this.atlantis, ft = this.fableTalk;
+    if (!ft || !A || !A.inside || this.ended) {
+      el.classList.add('hidden');
+      return;
+    }
+    if (this.paused) return;
+    const lines = FABLE_SPEECH[getLang()] || FABLE_SPEECH.en;
+    if (ft.pause > 0) {
+      ft.pause -= dt;
+      A.talking = false;
+      el.classList.add('hidden');
+      return;
+    }
+    if (ft.shown !== ft.i) {
+      const name = (profile.name || '').trim();
+      el.querySelector('.fb-text').textContent = lines[ft.i].replace('{name}', name ? ' ' + name : '');
+      el.querySelector('.fb-who').textContent = L(A.fable.info.name);
+      ft.dur = 2.4 + el.querySelector('.fb-text').textContent.length * 0.055;
+      ft.shown = ft.i;
+      ft.t = 0;
+      el.classList.remove('pop');
+      void el.offsetWidth;
+      el.classList.add('pop');
+      el.onclick = () => (ft.t = Math.max(ft.t, ft.dur));
+    }
+    ft.t += dt;
+    A.talking = ft.t < ft.dur - 0.6;
+    if (ft.t >= ft.dur) {
+      ft.i++;
+      if (ft.i >= lines.length) {
+        ft.i = 0;
+        ft.pause = 10; // then the secret once more
+      }
+      return;
+    }
+    // next to the creature's mouth
+    const p = A.fable.mouth.getWorldPosition(new THREE.Vector3()).project(camera);
+    el.classList.remove('hidden');
+    const W = window.innerWidth, H = window.innerHeight, bw = el.offsetWidth, bh = el.offsetHeight;
+    const sx = (p.x * 0.5 + 0.5) * W, sy = (-p.y * 0.5 + 0.5) * H;
+    const vis = p.z < 1 && sx > -40 && sx < W + 40 && sy > -40 && sy < H + 40;
+    const left = clamp((vis ? sx : W / 2) - bw * 0.3, 10, Math.max(10, W - bw - 10));
+    const top = clamp((vis ? sy : H * 0.32) - bh - 30, 10 + (isTouch ? 0 : 60), Math.max(70, H - bh - 160));
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+    el.style.setProperty('--tail', `${clamp((vis ? sx : W / 2) - left, 24, bw - 24)}px`);
+    el.classList.toggle('notail', !vis);
   }
 
   // ---------- network ----------
@@ -2071,6 +2178,38 @@ class Dive {
     // other subs: heading-up view
     const me = this.sub.pos, yaw = this.sub.yaw;
     const cs = Math.cos(yaw), sn = Math.sin(yaw);
+    // the deepest point and Atlantis
+    const mark = (x, z, col, kind) => {
+      const dx = x - me.x, dz = z - me.z;
+      let px = (dx * cs - dz * sn) / RANGE, py = (dx * sn + dz * cs) / RANGE;
+      const len = Math.hypot(px, py);
+      if (len > 0.9) {
+        px *= 0.9 / len;
+        py *= 0.9 / len;
+      }
+      const X = C + px * R, Y = C + py * R;
+      g.fillStyle = col;
+      g.strokeStyle = 'rgba(0,0,40,0.8)';
+      g.lineWidth = 2;
+      g.beginPath();
+      if (kind === 'star')
+        for (let k = 0; k < 10; k++) {
+          const a = (k / 10) * Math.PI * 2 - Math.PI / 2, rr = k % 2 ? 4 : 9;
+          g.lineTo(X + Math.cos(a) * rr, Y + Math.sin(a) * rr);
+        }
+      else g.arc(X, Y, 8, 0, Math.PI * 2);
+      g.closePath();
+      g.fill();
+      g.stroke();
+      if (kind === 'atl') {
+        g.fillStyle = '#000044';
+        g.font = 'bold 11px system-ui, sans-serif';
+        g.fillText('A', X, Y + 4);
+      }
+    };
+    if (!this.race && this.cm.deepest) mark(this.cm.deepest.x, this.cm.deepest.z, '#ffed00', 'star');
+    if (this.atlantis) mark(this.atlantis.center.x, this.atlantis.center.z, '#ffd6ff', 'atl');
+
     let n = 0;
     for (const [uid, r] of this.remote) {
       if (!r.initialized) continue;
@@ -2120,7 +2259,7 @@ class Dive {
     g.closePath();
     g.fill();
     g.stroke();
-    if (!n) {
+    if (!n && this.multi) {
       g.fillStyle = 'rgba(255,255,255,0.75)';
       g.font = '14px system-ui, sans-serif';
       g.fillText(t('radarNone'), C, C + R * 0.62);
@@ -2277,6 +2416,12 @@ class Dive {
     this.sub.group.userData.glowMat.opacity = 0.75 * clamp((depth - 100) / 500, 0, 1);
     this.world.update(dt);
     this.schools.update(dt, this.sub, camera.position);
+    // inside the hidden hall only the hall is there: wild animals and fish schools outside stay hidden
+    if (this.atlantis && this.atlantis.inside) {
+      const c = this.atlantis.center, r2 = (this.atlantis.hallR + 8) ** 2;
+      for (const it of this.cm.items) if (it.group.position.distanceToSquared(c) < r2) it.group.visible = false;
+      for (const sc of this.schools.schools) sc.mesh.visible = false;
+    }
     const recCam = this.recovery ? this.recovery.update(dt, camera) : false;
     const launchCam = !recCam && this.launch ? this.launch.update(dt, camera) : false;
     if (!launchCam && !recCam) this.updateCamera(dt);
@@ -2288,6 +2433,19 @@ class Dive {
       this.world.magic = Math.min(1, Math.max(0, 1 - (da - 150) / 220)) * this.atlantis.rise;
       const hello = this.atlantis.update(dt, this.time, this.sub);
       this.atlantis.clampSub(this.sub);
+      if (!this.portalBusy && !this.ending) {
+        const ev = this.atlantis.portalCheck(this.sub);
+        if (ev) this.portal(ev);
+      }
+      this.updateFable(dt);
+      // a hint at the secret door, and a picture of the city for the results
+      if (this.atlantis.rise >= 1 && !this.atlantis.inside) {
+        if (!this.atlSnap && !this.wantSnap && this.time - this.atlantisAt > 4.5) this.wantSnap = true;
+        if (!this.doorHinted && !this.atlantis.metFable && this.time - this.atlantisAt > 32) {
+          this.doorHinted = true;
+          echoSay(t('atlDoorHint'), { now: true });
+        }
+      }
       if (hello === 'neptune') {
         echoSay(t('atlNeptune'), { now: true });
         toast('🔱 ' + t('atlNeptuneName'), t('atlNeptuneHi'));
@@ -2306,7 +2464,9 @@ class Dive {
 
     // remote subs + network
     for (const r of this.remote.values()) r.update(dt);
-    if (this.multi) this.drawRadar(dt);
+    const inHall = !!(this.atlantis && this.atlantis.inside);
+    for (const r of this.remote.values()) if (!!(r.data && r.data.ins) !== inHall) r.group.visible = false;
+    this.drawRadar(dt);
     if (this.multi) {
       this.netTimer -= dt;
       if (this.netTimer <= 0) {
@@ -2451,7 +2611,7 @@ class Dive {
     // fly lower behind the sub close to the seafloor, so you see what is on it
     const clear = s.pos.y - this.world.heightAt(s.pos.x, s.pos.z);
     const low = clamp((28 - clear) / 18, 0, 1);
-    const dist = 12 + fall * 0.6 + o.zoom - low * 2;
+    const dist = 12 + fall * 0.6 + o.zoom - low * 2 - (this.atlantis && this.atlantis.inside ? 3 : 0);
     const height = 6.2 + fall - low * 2.6;
     const R = Math.hypot(dist, height);
     const elev = clamp(Math.atan2(height, dist) + o.pitch, -0.45, 1.35);
@@ -2462,6 +2622,7 @@ class Dive {
     const ty = this.world.heightAt(this.camPos.x, this.camPos.z) + 1.5;
     if (this.camPos.y < ty) this.camPos.y = ty;
     if (this.camPos.y > -0.5) this.camPos.y = -0.5;
+    if (this.atlantis && this.atlantis.inside) this.atlantis.clampCam(this.camPos);
     camera.position.copy(this.camPos);
     if (this.shake > 0) {
       const a = Math.min(1, this.shake) * 0.35;
@@ -2469,6 +2630,13 @@ class Dive {
       camera.position.y += (Math.random() - 0.5) * a;
     }
     const ahead = s.pos.clone().addScaledVector(fwd, 18).add(new THREE.Vector3(0, -1 - fall * 1.2, 0));
+    // in the hidden hall the camera looks up a little towards the big creature when the sub faces it
+    if (this.atlantis && this.atlantis.inside) {
+      const fc = this.atlantis.hall.position.clone().add(this.atlantis.fableC);
+      const to = fc.clone().sub(s.pos);
+      const facing = clamp(to.clone().setY(0).normalize().dot(fwd.clone().setY(0).normalize()), 0, 1);
+      ahead.lerp(fc, 0.45 * facing);
+    }
     const atSub = s.pos.clone().add(new THREE.Vector3(0, 0.5, 0));
     const free = clamp(Math.abs(o.yaw) / 0.7 + Math.abs(o.pitch) / 0.5, 0, 1);
     camera.lookAt(ahead.lerp(atSub, free));
@@ -2618,6 +2786,7 @@ class Dive {
     $('#skipHint').classList.add('hidden');
     this.ended = true;
     input.enabled = false;
+    $('#fableBubble').classList.add('hidden');
     audio.stopLoops();
     if (this.multi) net.setPlayer({ done: true });
     showResults(this);
@@ -2773,10 +2942,28 @@ function showResults(g) {
       <div class="dr-bar"><div style="width:${(pct * 100).toFixed(1)}%"></div><i style="left:100%"></i></div>
       <div class="dr-note">${g.atDeepest ? '🎯 ' + t('resDeepestYes') : t('resDeepestNo', { d: fmtNum(Math.max(0, target - g.maxDepth)) })}</div>
     </div>`;
+  const A = g.atlantis;
+  if (A && !g.atlSnap) snapAtlantis(g);
+  const beings = A
+    ? [
+        A.metNeptune && { key: 'fig:neptune', name: t('atlNeptuneName') },
+        A.metMermaid && { key: 'fig:mermaid', name: t('atlMermaidName') },
+        A.metFable && { key: `fable:${A.levelId}`, name: L(A.fable.info.name) },
+      ].filter(Boolean)
+    : [];
+  const atlHtml = A
+    ? `<h3 class="ptitle">🏛️ Atlantis · ${escapeHtml(L(A.theme.name))}</h3>
+      <div class="atl-res">${g.atlSnap && g.atlSnap !== 'none' ? `<img class="atl-snap" src="${g.atlSnap}" alt="Atlantis">` : ''}
+      ${beings.length ? `<div class="ptiles atl-tiles">${beings.map((b) => `<div class="ptile f"><canvas data-key="${b.key}"></canvas><span>★ ${escapeHtml(b.name)}</span></div>`).join('')}</div>` : ''}</div>
+      ${A.metFable
+        ? `<p class="atl-legend">✨ <b>${escapeHtml(L(A.fable.info.name))}</b> – ${escapeHtml(L(A.fable.info.legend))} <span class="src">${t('source')}: ${A.fable.info.source.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${escapeHtml(n)}</a>`).join(' · ')}</span></p>`
+        : `<p class="phint">${t('atlResMissed')}</p>`}`
+    : '';
   showModal(`<h1>${emergency ? '⚠ ' + t('diveEmergency') : '✅ ' + t('diveComplete')}</h1>
     <p>${escapeHtml(L(g.level.name))}${g.atlantis ? ' · 🏛️ Atlantis' : ''}</p>
     ${depthHtml}
     ${foundHtml}
+    ${atlHtml}
     <div class="score-list">
       <span>${t('discoveries')} (${g.found.length})</span><span>${fmtNum(sc.disc)}</span>
       <span>${t('samples')}</span><span>${fmtNum(sc.samples)}</span>
@@ -2794,6 +2981,18 @@ function showResults(g) {
     root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
     root.querySelector('#rNext').onclick = () => finishQuiz(g, sc, 0);
     mountPhotoTiles(root, g.found);
+    // the Atlantis beings as rotating 3D tiles
+    const cvs = [...root.querySelectorAll('.atl-tiles canvas')];
+    cvs.forEach((cv, i) =>
+      setTimeout(() => {
+        if (!cv.isConnected) return;
+        try {
+          playTurntable(cv, viewer().turntable(cv.dataset.key, 24, 150, 112));
+        } catch (e) {
+          console.warn('turntable failed', e);
+        }
+      }, 400 + i * 60),
+    );
   }, 'wide');
 }
 
@@ -3050,7 +3249,7 @@ window.addEventListener('keydown', (e) => {
   if ((e.code === 'Digit9' || e.code === 'Numpad9' || e.key === '9') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) secretPress();
   if ((e.code === 'Digit1' || e.code === 'Numpad1') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) && $('#radioMenu').classList.contains('hidden')) cheatPress();
 });
-// 5 × "1" (or 5 taps on the mission list): every mission done → Atlantis
+// 5 × "1": every mission done → Atlantis (in Atlantis: straight to the fable creature)
 const cheat = { n: 0, last: 0 };
 function cheatPress() {
   if (!game || game.ended || game.race) return;
@@ -3059,10 +3258,32 @@ function cheatPress() {
   cheat.last = now;
   if (cheat.n >= 5) {
     cheat.n = 0;
-    game.cheatComplete();
+    if (game.atlantis) game.goFable();
+    else game.cheatComplete();
   }
 }
-document.getElementById('missions').addEventListener('pointerdown', () => cheatPress());
+// on screen: exactly 5 taps on the mission list, then exactly 5 on the radar → Atlantis;
+// in Atlantis the other way round (5 × radar, then 5 × missions) → straight to the fable creature
+const seq = { s: '', last: 0 };
+function seqPress(k) {
+  if (!game || game.ended || game.race) return;
+  const now = performance.now();
+  if (now - seq.last > 2500) seq.s = '';
+  seq.last = now;
+  const target = game.atlantis ? 'rrrrrmmmmm' : 'mmmmmrrrrr';
+  seq.s += k;
+  if (!target.startsWith(seq.s)) seq.s = '';
+  else if (seq.s === target) {
+    seq.s = '';
+    if (game.atlantis) game.goFable();
+    else game.cheatComplete();
+  }
+}
+document.getElementById('missions').addEventListener('pointerdown', () => seqPress('m'));
+document.getElementById('radar').addEventListener('pointerdown', (e) => {
+  e.stopPropagation();
+  seqPress('r');
+});
 document.addEventListener('click', (e) => {
   if (e.target && e.target.closest && e.target.closest('.legal .ver')) secretPress();
 });
@@ -3174,6 +3395,47 @@ document.addEventListener('visibilitychange', () => {
   if (document.hidden && game && !game.multi && !game.ended && !game.paused) showPause();
 });
 
+// a picture of Atlantis for the results (rendered once from a nice spot above the plaza)
+function snapAtlantis(g) {
+  const a = g.atlantis;
+  if (!a) return;
+  const was = { city: a.group.visible, life: a.life.visible, hall: a.hall.visible, scale: a.group.scale.y };
+  a.group.visible = a.life.visible = true;
+  a.hall.visible = false;
+  a.group.scale.y = 1;
+  try {
+    const w = 640, h = 360;
+    const cam = new THREE.PerspectiveCamera(52, w / h, 0.5, 2000);
+    const ang = a.plaza.a + 0.55;
+    cam.position.set(a.center.x + Math.cos(ang) * 96, a.center.y + 38, a.center.z + Math.sin(ang) * 96);
+    cam.lookAt(a.center.x, a.center.y + 14, a.center.z);
+    const rt = new THREE.WebGLRenderTarget(w, h);
+    rt.texture.colorSpace = THREE.SRGBColorSpace;
+    renderer.setRenderTarget(rt);
+    renderer.render(g.scene, cam);
+    const buf = new Uint8Array(w * h * 4);
+    renderer.readRenderTargetPixels(rt, 0, 0, w, h, buf);
+    renderer.setRenderTarget(null);
+    rt.dispose();
+    const cv = document.createElement('canvas');
+    cv.width = w;
+    cv.height = h;
+    const ctx = cv.getContext('2d');
+    const img = ctx.createImageData(w, h);
+    for (let y = 0; y < h; y++) img.data.set(buf.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);
+    ctx.putImageData(img, 0, 0);
+    g.atlSnap = cv.toDataURL('image/jpeg', 0.86);
+  } catch (e) {
+    renderer.setRenderTarget(null);
+    g.atlSnap = 'none';
+    console.warn('Atlantis picture failed', e);
+  }
+  a.group.visible = was.city;
+  a.life.visible = was.life;
+  a.hall.visible = was.hall;
+  a.group.scale.y = was.scale;
+}
+
 // ======================= main loop =======================
 let last = performance.now();
 function loop(now) {
@@ -3183,6 +3445,10 @@ function loop(now) {
   if (game) {
     game.update(dt);
     renderer.render(game.scene, camera);
+    if (game.wantSnap) {
+      game.wantSnap = false;
+      snapAtlantis(game);
+    }
   } else if (aquarium && $('#c').style.visibility !== 'hidden') {
     aquarium.update(dt);
     renderer.render(aquarium.scene, aquarium.camera);

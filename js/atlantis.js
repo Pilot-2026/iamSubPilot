@@ -13,6 +13,9 @@ import { axisZ } from './world.js';
 import { buildMerFigure, animMer, MER_PALETTES, buildNeptune, animNeptune, softDot } from './merfolk.js';
 import { buildModel, animUpper } from './creatures.js';
 import { fishGeometry, fishMaterial } from './schools.js';
+import { buildFable } from './fables.js';
+
+// the hidden hall inside the big building grows with its creature (bigger inside than outside – it's magic)
 
 const R = 72; // radius of the city (units, 1 unit = 10 m)
 const PI = Math.PI, TAU = Math.PI * 2;
@@ -530,16 +533,41 @@ void main(){
   #include <fog_fragment>
 }`;
 
+// the shimmering surface of the secret door: a slow whirl of light
+const PORTAL_VS = `
+#include <fog_pars_vertex>
+varying vec3 vP;
+void main(){
+  vP = position;
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  gl_Position = projectionMatrix * mvPosition;
+  #include <fog_vertex>
+}`;
+const PORTAL_FS = `
+#include <fog_pars_fragment>
+uniform float uT; uniform vec3 uC; uniform vec3 uC2; uniform vec2 uS;
+varying vec3 vP;
+void main(){
+  vec2 q = (vP.xy - vec2(0.0, uS.y * 0.55)) / vec2(uS.x * 0.5, uS.y * 0.55);
+  float r = length(q), a = atan(q.y, q.x);
+  float sw = 0.5 + 0.5 * sin(a * 5.0 + r * 9.0 - uT * 2.6);
+  vec3 col = mix(uC2, uC, sw) * (1.15 - r * 0.45) + vec3(1.0) * pow(max(0.0, 1.0 - r), 3.0) * 0.9;
+  gl_FragColor = vec4(col, 0.93);
+  #include <fog_fragment>
+}`;
+
 function shaderMat(vs, fs, uni, o = {}) {
   return new THREE.ShaderMaterial({ uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, uni]), vertexShader: vs, fragmentShader: fs, fog: true, ...o });
 }
 
 // ---------------------------------------------------------------- the city
 export class Atlantis {
-  constructor(scene, world, center, seed = 1, levelId = 'java') {
+  constructor(scene, world, center, seed = 1, levelId = 'java', opts = {}) {
     this.scene = scene;
     this.world = world;
+    this.levelId = levelId;
     this.theme = THEMES[levelId] || THEMES.java;
+    this.subLen = opts.subLen || 3;
     // the platform lies on the highest ground under it (nothing pokes through), the skirt covers the slope below
     let top = world.heightAt(center.x, center.z);
     for (let k = 0; k < 24; k++) {
@@ -570,6 +598,7 @@ export class Atlantis {
     this.B.build(this.group);
     this.buildLife();
     this.buildPeople();
+    this.buildHall();
     world.magicCol = new THREE.Color(this.theme.water);
     this.rise = 0;
     this.group.scale.set(1, 0.02, 1);
@@ -597,11 +626,12 @@ export class Atlantis {
       tubeGlass: shaderMat(VS, GLASS_FS, glassU([0, 0]), glassO),
       energy: shaderMat(VS, ENERGY_FS, { uC: { value: new THREE.Color(T.glow) }, uT: this.uT }),
       water: shaderMat(VS, WATER_FS, { uC: { value: new THREE.Color(T.glow) }, uT: this.uT }, { transparent: true, depthWrite: false }),
+      portal: shaderMat(PORTAL_VS, PORTAL_FS, { uC: { value: new THREE.Color(T.glow).lerp(new THREE.Color(1, 1, 1), 0.25) }, uC2: { value: new THREE.Color(T.trim).multiplyScalar(0.6) }, uT: this.uT, uS: { value: new THREE.Vector2(4.4, 5.4) } }, { transparent: true, depthWrite: false, side: THREE.DoubleSide }),
       kelp: shaderMat(KELP_VS, KELP_FS, { uA: { value: new THREE.Color(T.kelp[0]) }, uB: { value: new THREE.Color(T.kelp[1]) }, uT: this.uT }, { side: THREE.DoubleSide }),
       rays: new THREE.ShaderMaterial({ uniforms: { uC: { value: new THREE.Color(0xd8f6ff).lerp(new THREE.Color(T.glass), 0.3) }, uT: this.uT }, vertexShader: RAYS_VS, fragmentShader: RAYS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
     };
     // the shared uniform object must stay the same (merge() copies it)
-    for (const k of ['domeGlass', 'tubeGlass', 'energy', 'water', 'kelp']) M[k].uniforms.uT = this.uT;
+    for (const k of ['domeGlass', 'tubeGlass', 'energy', 'water', 'kelp', 'portal']) M[k].uniforms.uT = this.uT;
     this.M = M;
   }
 
@@ -724,13 +754,13 @@ export class Atlantis {
   }
 
   // spiral tower: a tapering tower with a ramp winding around it, lamps along the parapet
-  spiral(x, z, r, h, turns = 3.5) {
+  spiral(x, z, r, h, turns = 3.5, a0 = 0) {
     const M = this.M, r1 = r * 0.55;
     this.drum(x, 0, z, r, h, { rt: r1 });
     const N = Math.round(turns * 46), w = Math.max(1.3, r * 0.32), rise = h - 3;
     const qa = new THREE.Quaternion(), qb = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0), Zax = new THREE.Vector3(0, 0, 1);
     for (let i = 0; i < N; i++) {
-      const t = (i + 0.5) / N, a = t * turns * TAU, y = 1.4 + t * rise;
+      const t = (i + 0.5) / N, a = a0 + t * turns * TAU, y = 1.4 + t * rise;
       const rr = lerp(r, r1, t) + w / 2 + 0.05;
       const len = ((TAU * rr * turns) / N) * 1.12;
       qa.setFromAxisAngle(Y, -a - PI / 2);
@@ -988,7 +1018,7 @@ export class Atlantis {
   }
 
   // ------------------------------------------------ centrepieces (one per theme)
-  centre(kind) {
+  centre(kind, pa) {
     const M = this.M, rnd = this.r;
     const plinth = (r, steps = 3, h = 0.9) => {
       for (let k = 0; k < steps; k++) this.add(M.stone2, new THREE.CylinderGeometry(r - k * 1.4, r - k * 1.4 + 0.3, h, 64), M4(0, h / 2 + k * h, 0));
@@ -1001,18 +1031,20 @@ export class Atlantis {
       // ring of slender columns around the drum
       for (let i = 0; i < 24; i++) {
         const a = (i / 24) * TAU;
-        if (Math.abs(((a - PI / 4 + TAU) % (PI / 2)) - PI / 4) > PI / 4 - 0.3) continue; // room for the gables
+        const off = (((a - pa) % (PI / 2)) + PI / 2) % (PI / 2);
+        if (off < 0.32 || off > PI / 2 - 0.32) continue; // room for the gables
         this.add(M.stone, new THREE.CylinderGeometry(0.32, 0.38, 10, 8), M4(Math.cos(a) * 17.6, y + 5.6, Math.sin(a) * 17.6));
         this.add(M.gold, new THREE.BoxGeometry(0.9, 0.4, 0.9), M4(Math.cos(a) * 17.6, y + 10.7, Math.sin(a) * 17.6, 0, -a, 0));
       }
       this.add(M.stone, new THREE.CylinderGeometry(18.2, 18.2, 0.8, 64, 1, true), M4(0, y + 11.2, 0));
       this.add(M.gold, ring(18.25, 0.2, 64), M4(0, y + 11.6, 0));
       // four Gothic gables with rose windows
-      for (let q = 0; q < 4; q++) this.gable(q * (PI / 2) + PI / 4, 16.2, y, 9, 15);
+      for (let q = 0; q < 4; q++) this.gable(pa + q * (PI / 2), 16.2, y, 9, 15, q === 0);
+      this.makeDoor(this.B, pa, 18.25, y, { porchFrom: 0 });
       this.dome(0, y + 11, 0, 15.6, { garden: true });
       // corner turrets
       for (let q = 0; q < 4; q++) {
-        const a = (q / 4) * TAU;
+        const a = pa + PI / 4 + (q / 4) * TAU;
         this.tower(Math.cos(a) * 21, Math.sin(a) * 21, 1.7, 20, 'spire');
       }
       this.cols.push({ x: 0, z: 0, r: 18.8, y1: y + 11 });
@@ -1023,7 +1055,7 @@ export class Atlantis {
       this.drum(0, y, 0, 11, 13, { seg: 8, floors: 3 });
       // leaning Gothic buttresses
       for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * TAU + PI / 8, bx = Math.cos(a) * 12.8, bz = Math.sin(a) * 12.8;
+        const a = pa + (i / 8) * TAU + PI / 8, bx = Math.cos(a) * 12.8, bz = Math.sin(a) * 12.8;
         this.add(M.stone, new THREE.BoxGeometry(1.4, 22, 2.2), M4(bx, y + 11, bz, 0, -a, 0).multiply(M4(0, 0, 0, 0, 0, 0)));
         this.add(M.gold, new THREE.ConeGeometry(0.9, 4, 4), M4(bx, y + 24, bz));
         this.add(M.stone, new THREE.BoxGeometry(3.4, 1, 1.2), M4(Math.cos(a) * 11.6, y + 18, Math.sin(a) * 11.6, 0, -a, 0));
@@ -1052,16 +1084,18 @@ export class Atlantis {
       beam.position.set(0, cy + H + 125, 0);
       beam.rotation.x = PI; // brightest at the crystal
       this.life.add(beam);
+      this.makeDoor(this.B, pa, 14.3, y, { porchFrom: 9.6 });
       this.cols.push({ x: 0, z: 0, r: 12.5, y1: y + 13 }, { x: 0, z: 0, r: 4.8, y1: cy + H + 8 });
       return { r: 20, tip: cy + H + 20, ports: [{ x: 0, z: 0, pr: 10.8, y: y + 9 }] };
     }
     if (kind === 'spiral') {
       const y = plinth(18);
       for (let q = 0; q < 4; q++) {
-        const a = (q / 4) * TAU + PI / 4;
+        const a = pa + (q / 4) * TAU + PI / 4;
         this.tower(Math.cos(a) * 14, Math.sin(a) * 14, 2, 16, 'dome');
       }
-      const s = this.spiral(0, 0, 10, 54, 4.5);
+      const s = this.spiral(0, 0, 10, 54, 4.5, pa - 4.9);
+      this.makeDoor(this.B, pa, 16, y, { porchFrom: 9.2 });
       this.cols.push({ x: 0, z: 0, r: 13, y1: 54 });
       return { r: 18, tip: s.tip, ports: [{ x: 0, z: 0, pr: 12.4, y: 16 }] };
     }
@@ -1071,9 +1105,11 @@ export class Atlantis {
       this.dome(0, y + 9, 0, 11.6, { lantern: false, garden: true });
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * TAU + rnd() * 0.3, d = 15 + rnd() * 3, h = 16 + rnd() * 26;
+        if (Math.abs(Math.atan2(Math.sin(a - pa), Math.cos(a - pa))) < 0.5) continue; // the way to the door stays free
         this.crystal(Math.cos(a) * d, y - 1, Math.sin(a) * d, 1.6 + rnd() * 1.4, h, Math.cos(a) * 0.22, Math.sin(a) * 0.22);
       }
       this.crystal(0, y + 9, 0, 3, 46, 0, 0);
+      this.makeDoor(this.B, pa, 14.8, y, { porchFrom: 11.4 });
       this.cols.push({ x: 0, z: 0, r: 13, y1: y + 9 }, { x: 0, z: 0, r: 3.4, y1: y + 60 });
       return { r: 20, tip: y + 64, ports: [{ x: 0, z: 0, pr: 11.8, y: y + 6 }] };
     }
@@ -1093,13 +1129,19 @@ export class Atlantis {
         rr -= 4.4;
       }
       const t = this.tier(0, 0, rr * 0.9, 26);
+      this.makeDoor(this.B, pa, 23.25, 0, { porchFrom: 0, w: 4.2, h: 4.2 });
       this.cols.push({ x: 0, z: 0, r: 23.5, y1: 4.6 }, { x: 0, z: 0, r: 18.6, y1: 9.2 }, { x: 0, z: 0, r: 14.2, y1: 13.8 }, { x: 0, z: 0, r: 9.8, y1: 18.4 });
       return { r: 23, tip: t.tip + 18, ports: [{ x: 0, z: 0, pr: 14, y: 11.6 }] };
     }
     if (kind === 'twinTowers') {
       const y = plinth(20);
-      const ta = this.tower(-10, 0, 5.6, 50, 'crown'), tb = this.tower(10, 0, 5.6, 50, 'crown');
-      for (const h of [16, 28, 40]) this.tube(new THREE.Vector3(-4.6, h, 0), new THREE.Vector3(4.6, h, 0), 0);
+      const px = -Math.sin(pa), pz = Math.cos(pa); // across the way to the plaza
+      const ta = this.tower(px * 10, pz * 10, 5.6, 50, 'crown'), tb = this.tower(-px * 10, -pz * 10, 5.6, 50, 'crown');
+      for (const h of [16, 28, 40]) this.tube(new THREE.Vector3(px * 4.6, h, pz * 4.6), new THREE.Vector3(-px * 4.6, h, -pz * 4.6), 0);
+      this.drum(0, y, 0, 4, 7, { floors: 2, seg: 32 });
+      this.dome(0, y + 7, 0, 3.9, { garden: false });
+      this.cols.push({ x: 0, z: 0, r: 4.6, y1: y + 7 });
+      this.makeDoor(this.B, pa, 7.6, y, { porchFrom: 3.6 });
       // the forge: a glowing orb held by spinning golden rings
       const orb = new THREE.Mesh(new THREE.SphereGeometry(2.4, 32, 20), M.energy);
       orb.position.set(0, 22, 0);
@@ -1112,25 +1154,26 @@ export class Atlantis {
         this.spin.push([rg, 0.3 + i * 0.15, 'xy']);
       }
       this.cols.push({ x: 0, y: 22, z: 0, r: 4.4, sphere: 1 });
-      return { r: 20, tip: Math.max(ta.tip, tb.tip), ports: [{ x: -10, z: 0, pr: 5.4, y: 12 }, { x: 10, z: 0, pr: 5.4, y: 14 }] };
+      return { r: 20, tip: Math.max(ta.tip, tb.tip), ports: [{ x: px * 10, z: pz * 10, pr: 5.4, y: 12 }, { x: -px * 10, z: -pz * 10, pr: 5.4, y: 14 }] };
     }
     // domeCluster
     const y = plinth(22);
     this.drum(0, y, 0, 13, 9, { floors: 2, seg: 56 });
     this.dome(0, y + 9, 0, 12.6, { garden: true });
     for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * TAU + PI / 10, x = Math.cos(a) * 19.5, z = Math.sin(a) * 19.5;
+      const a = pa + PI / 5 + (i / 5) * TAU, x = Math.cos(a) * 19.5, z = Math.sin(a) * 19.5;
       this.drum(x, y, z, 4.6, 6, { floors: 2 });
       this.dome(x, y + 6, z, 4.4, { garden: true });
       this.tube(new THREE.Vector3(Math.cos(a) * 13.4, y + 4, Math.sin(a) * 13.4), new THREE.Vector3(Math.cos(a) * 15.2, y + 4, Math.sin(a) * 15.2), 0);
       this.cols.push({ x, z, r: 5.2, y1: y + 6 });
     }
     this.cols.push({ x: 0, z: 0, r: 13.6, y1: y + 9 });
+    this.makeDoor(this.B, pa, 15.6, y, { porchFrom: 12.4 });
     return { r: 25, tip: y + 36, ports: [{ x: 0, z: 0, pr: 12.8, y: y + 5 }] };
   }
 
   // a Gothic gable on the drum: pointed roof front with a glowing rose window
-  gable(a, rr, y, w, h) {
+  gable(a, rr, y, w, h, door = false) {
     const M = this.M, P = M4(Math.cos(a) * rr, y, Math.sin(a) * rr, 0, -a + PI / 2, 0);
     const L = (mat, geo, m) => this.add(mat, geo, P.clone().multiply(m));
     const sh = new THREE.Shape();
@@ -1144,9 +1187,252 @@ export class Atlantis {
     L(M.gold, new THREE.TorusGeometry(2.6, 0.22, 6, 32), M4(0, h * 0.5, 2.05));
     L(M.energy, new THREE.CircleGeometry(2.5, 32), M4(0, h * 0.5, 2.02));
     for (let i = 0; i < 8; i++) L(M.gold, new THREE.BoxGeometry(0.12, 5, 0.1), M4(0, h * 0.5, 2.1, 0, 0, (i / 8) * PI));
-    L(M.warm, new THREE.PlaneGeometry(2.6, 4.4), M4(0, 2.4, 2.03));
-    L(M.gold, new THREE.BoxGeometry(3.2, 0.25, 0.3), M4(0, 4.7, 2.1));
+    if (!door) {
+      L(M.warm, new THREE.PlaneGeometry(2.6, 4.4), M4(0, 2.4, 2.03));
+      L(M.gold, new THREE.BoxGeometry(3.2, 0.25, 0.3), M4(0, 4.7, 2.1));
+    }
     this.pinnacles(Math.cos(a) * (rr + 2), y + h * 0.55, Math.sin(a) * (rr + 2), w / 2, 2, 3.5, 0.3, a + PI / 2);
+  }
+
+  // The secret door: a small glowing archway (the sub just fits through). inward = the exit inside the hall.
+  makeDoor(B, a, r, y0, { porchFrom = 0, w = 4.4, h = 5.4, inward = false, parent = this.group } = {}) {
+    const M = this.M;
+    const P = M4(Math.cos(a) * r, y0, Math.sin(a) * r, 0, inward ? -a - PI / 2 : -a + PI / 2, 0); // local +z: the way out
+    const L = (mat, geo, m) => B.add(mat, geo, P.clone().multiply(m));
+    const sh = new THREE.Shape(), sp = h - w / 2;
+    sh.moveTo(-w / 2, 0);
+    sh.lineTo(w / 2, 0);
+    sh.lineTo(w / 2, sp);
+    sh.absarc(0, sp, w / 2, 0, PI, false);
+    sh.closePath();
+    const surf = new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), M.portal);
+    surf.applyMatrix4(P.clone().multiply(M4(0, 0, 0.12)));
+    surf.renderOrder = 2;
+    parent.add(surf);
+    // pillars, a golden arch with a gem, lamps on both sides, a step
+    for (const sx of [-1, 1]) {
+      L(M.ashlar, new THREE.BoxGeometry(0.9, sp, 0.9), M4(sx * (w / 2 + 0.45), sp / 2, 0));
+      L(M.gold, new THREE.BoxGeometry(1.1, 0.3, 1.1), M4(sx * (w / 2 + 0.45), sp, 0));
+      L(M.gold, new THREE.CylinderGeometry(0.06, 0.08, 1.2, 6), M4(sx * (w / 2 + 1.3), 0.6, 0.4));
+      L(M.warm, new THREE.SphereGeometry(0.3, 10, 8), M4(sx * (w / 2 + 1.3), 1.4, 0.4));
+    }
+    L(M.ashlar, new THREE.TorusGeometry(w / 2 + 0.45, 0.45, 8, 24, PI), M4(0, sp, 0));
+    L(M.gold, new THREE.TorusGeometry(w / 2 + 0.92, 0.1, 6, 24, PI), M4(0, sp, 0.2));
+    L(M.energy, new THREE.OctahedronGeometry(0.42, 0), M4(0, h + 0.55, 0.3, 0, 0, 0, 1, 1.4, 1));
+    L(M.stone2, new THREE.BoxGeometry(w + 2.4, 0.3, 2.2), M4(0, -0.15, 0.6));
+    // a short porch through thick walls
+    const depth = porchFrom > 0 ? r - porchFrom : 0;
+    if (depth > 0.5) {
+      for (const sx of [-1, 1]) L(M.ashlar, new THREE.BoxGeometry(0.9, h + 0.6, depth), M4(sx * (w / 2 + 0.45), (h + 0.6) / 2, -depth / 2));
+      L(M.ashlar, new THREE.BoxGeometry(w + 1.8, 0.9, depth), M4(0, h + 1.05, -depth / 2));
+      L(M.trim, uvs(new THREE.BoxGeometry(w + 1.9, 0.4, depth + 0.05), 3, 1), M4(0, h + 0.4, -depth / 2));
+      L(M.gold, new THREE.BoxGeometry(w + 1.9, 0.12, depth + 0.1), M4(0, h + 1.55, -depth / 2));
+    }
+    if (!inward) this.door = { a, r, y0, w, h };
+    return surf;
+  }
+
+  // The hidden hall: a round treasure hall under a starry dome, mystic spotlights, and the fable creature of
+  // this trench. It is only shown while the sub is inside (the city is hidden then) – so nobody sees the
+  // creature from outside, and the hall can be much bigger than the building around it.
+  buildHall() {
+    const M = this.M, T = this.theme, rnd = this.r, D = this.door;
+    const hall = (this.hall = new THREE.Group());
+    hall.position.copy(this.center);
+    hall.visible = false;
+    this.scene.add(hall);
+    const B = new Merger();
+    const f = buildFable(this.levelId, this.subLen * 4); // 4 × as big as the sub
+    const RR = (this.hallR = Math.max(26, f.extent * 1.45)), H = (this.hallH = Math.max(13, f.extent * 0.6));
+    const dais = Math.max(7.5, f.extent * 0.42);
+    // floor, walls with windows (seen from inside), golden bands, a starry dome
+    B.add(M.mosaic, new THREE.CircleGeometry(RR * 0.62, 64), M4(0, 0.06, 0, -PI / 2, 0, 0));
+    B.add(M.paving, uvs(new THREE.RingGeometry(RR * 0.62, RR + 0.5, 64, 1), RR / 9, RR / 9), M4(0, 0.03, 0, -PI / 2, 0, 0));
+    this.wallMat = M.facade.clone();
+    this.wallMat.side = THREE.BackSide;
+    B.add(this.wallMat, uvs(new THREE.CylinderGeometry(RR, RR, H, 80, 1, true), Math.round((TAU * RR) / 2.4 / 4), 2), M4(0, H / 2, 0));
+    for (const y of [0.25, H]) B.add(M.gold, ring(RR - 0.1, 0.22, 80), M4(0, y, 0));
+    const sky = document.createElement('canvas');
+    sky.width = 1024;
+    sky.height = 512;
+    const g = sky.getContext('2d');
+    const grd = g.createLinearGradient(0, 0, 0, 512);
+    grd.addColorStop(0, '#0a1440');
+    grd.addColorStop(1, css(new THREE.Color(T.water).multiplyScalar(0.55)));
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 1024, 512);
+    for (let i = 0; i < 520; i++) {
+      const x = rnd() * 1024, y = rnd() * 460, s = rnd() < 0.08 ? 2.6 : 1 + rnd();
+      g.fillStyle = rnd() < 0.3 ? css(T.metal) : '#eaf6ff';
+      g.globalAlpha = 0.5 + rnd() * 0.5;
+      g.beginPath();
+      g.arc(x, y, s, 0, TAU);
+      g.fill();
+    }
+    g.globalAlpha = 0.55;
+    g.strokeStyle = css(T.metal);
+    g.lineWidth = 2;
+    for (let i = 0; i < 16; i++) {
+      g.beginPath();
+      g.moveTo((i / 16) * 1024, 0);
+      g.lineTo((i / 16) * 1024, 512);
+      g.stroke();
+    }
+    for (const y of [120, 260, 400]) {
+      g.beginPath();
+      g.moveTo(0, y);
+      g.lineTo(1024, y);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+    const skyTex = tex(sky, false);
+    this.textures.push(skyTex);
+    this.hallSky = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide });
+    B.add(this.hallSky, new THREE.SphereGeometry(RR, 56, 20, 0, TAU, 0, PI / 2), M4(0, H, 0, 0, 0, 0, 1, 0.62, 1));
+    // columns along the wall
+    const nCol = Math.round(RR * 0.55);
+    for (let i = 0; i < nCol; i++) {
+      const a = D.a + PI / nCol + (i / nCol) * TAU, x = Math.cos(a) * (RR - 2.4), z = Math.sin(a) * (RR - 2.4);
+      B.add(M.stone2, new THREE.BoxGeometry(1.6, 0.8, 1.6), M4(x, 0.4, z, 0, -a, 0));
+      B.add(M.stone, new THREE.CylinderGeometry(0.55, 0.65, H - 1.6, 14), M4(x, 0.8 + (H - 1.6) / 2, z));
+      B.add(M.gold, new THREE.BoxGeometry(1.5, 0.6, 1.5), M4(x, H - 0.5, z, 0, -a, 0));
+      B.add(M.gold, ring(0.7, 0.1, 14), M4(x, H - 1.0, z));
+    }
+    // treasure between the columns: heaps of gold, chests, glowing gems
+    const gems = [T.glow, 0xff4fa8, 0x46ff8a, 0xffd84a, 0x8a6aff];
+    this.gemMeshes = [];
+    for (let i = 0; i < nCol; i++) {
+      const a = D.a + (i / nCol) * TAU, d = RR - 6 - rnd() * 2, x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (Math.abs(Math.atan2(Math.sin(a - D.a), Math.cos(a - D.a))) < 0.5) continue; // free way from the door
+      B.add(M.gold, new THREE.ConeGeometry(1.4 + rnd() * 0.8, 1 + rnd() * 0.8, 14), M4(x, 0.5, z));
+      for (let k = 0; k < 6; k++) B.add(M.gold, new THREE.CylinderGeometry(0.22, 0.22, 0.06, 10), M4(x + (rnd() - 0.5) * 4, 0.05, z + (rnd() - 0.5) * 4, (rnd() - 0.5) * 0.4, 0, (rnd() - 0.5) * 0.4));
+      if (i % 2 === 0) {
+        const cm = M4(x - Math.cos(a) * 2.2, 0, z - Math.sin(a) * 2.2, 0, -a + PI / 2, 0);
+        B.add(M.stone2, new THREE.BoxGeometry(1.8, 1.0, 1.1), cm.clone().multiply(M4(0, 0.5, 0)));
+        B.add(M.gold, new THREE.BoxGeometry(1.85, 0.12, 1.15), cm.clone().multiply(M4(0, 1.02, 0)));
+        B.add(M.stone2, new THREE.BoxGeometry(1.8, 0.45, 1.1), cm.clone().multiply(M4(0, 1.45, -0.5, -1.0, 0, 0)));
+        B.add(M.warm, new THREE.SphereGeometry(0.7, 14, 8, 0, TAU, 0, PI / 2), cm.clone().multiply(M4(0, 1.0, 0, 0, 0, 0, 1.15, 0.45, 0.7)));
+      }
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.5, 0), new THREE.MeshBasicMaterial({ color: gems[i % gems.length] }));
+      gem.position.set(x + Math.cos(a + 1) * 1.2, 1.6, z + Math.sin(a + 1) * 1.2);
+      gem.scale.set(1, 1.5, 1);
+      hall.add(gem);
+      this.gemMeshes.push(gem);
+    }
+    // a round dais in the middle with a glowing ring
+    B.add(M.stone2, new THREE.CylinderGeometry(dais, dais + 0.7, 0.9, 72), M4(0, 0.45, 0));
+    B.add(M.glow, ring(dais + 0.1, 0.18, 72), M4(0, 0.92, 0));
+    B.add(M.gold, ring(dais + 0.75, 0.14, 72), M4(0, 0.1, 0));
+    // the way out
+    this.makeDoor(B, D.a, RR - 0.15, 0, { inward: true, parent: hall });
+    B.build(hall);
+    // the creature, facing the door
+    const ry = Math.atan2(Math.cos(D.a), Math.sin(D.a)) + (this.levelId === 'kuril' ? 0.5 : 0);
+    f.group.rotation.y = ry;
+    const c = f.center.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ry);
+    const lift = 1.6 + Math.max(0.8, f.extent * 0.05) - f.bottom;
+    f.group.position.set(-c.x, lift, -c.z);
+    hall.add(f.group);
+    this.fable = f;
+    this.fableC = new THREE.Vector3(0, lift + f.center.y, 0);
+    this.fableR = f.extent * 0.34;
+    // mystic spotlights: coloured beams from the dome onto the creature, three coloured lamps
+    const cols = [T.glow, 0xff6ad8, 0xffd27a, 0x8a7aff, 0x6affc0, 0xffffff];
+    this.spots = [];
+    for (let i = 0; i < 6; i++) {
+      const a = D.a + 0.5 + (i / 6) * TAU, src = new THREE.Vector3(Math.cos(a) * (RR - 5), H + RR * 0.3, Math.sin(a) * (RR - 5));
+      const dir = this.fableC.clone().sub(src), len = dir.length() + 4;
+      const geo = new THREE.CylinderGeometry(0.5, Math.max(4.8, f.extent * 0.32), len, 24, 1, true).translate(0, -len / 2, 0);
+      attr1(geo, 'aPh', () => i * 1.7);
+      const mat = M.rays.clone();
+      mat.uniforms = { uC: { value: new THREE.Color(cols[i]) }, uT: this.uT };
+      const cone = new THREE.Mesh(geo, mat);
+      cone.position.copy(src);
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.normalize());
+      cone.userData.base = cone.quaternion.clone();
+      hall.add(cone);
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: cols[i] }));
+      lamp.position.copy(src);
+      hall.add(lamp);
+      this.spots.push(cone);
+    }
+    this.hallLights = [T.glow, 0xff6ad8, 0xffd27a].map((cl) => {
+      const L = new THREE.PointLight(cl, 70, Math.max(60, RR * 2.2), 1);
+      hall.add(L);
+      return L;
+    });
+    // sparkles floating in the hall
+    const n = 360, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const a = rnd() * TAU, d = Math.sqrt(rnd()) * (RR - 2);
+      pos.set([Math.cos(a) * d, 0.5 + rnd() * (H + 10), Math.sin(a) * d], i * 3);
+    }
+    const pg = new THREE.BufferGeometry();
+    pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    this.hallSparks = new THREE.Points(pg, new THREE.PointsMaterial({ map: softDot(), color: T.glow, size: 0.5, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
+    hall.add(this.hallSparks);
+  }
+
+  // ------------------------------------------------ inside / outside
+  // 'enter' when the sub swims into the door, 'exit' when it swims into the way out (inside the hall)
+  portalCheck(sub) {
+    const D = this.door;
+    if (!D || this.rise < 1) return null;
+    const lx = sub.pos.x - this.center.x, ly = sub.pos.y - this.center.y, lz = sub.pos.z - this.center.z;
+    const ca = Math.cos(D.a), sa = Math.sin(D.a);
+    const radial = lx * ca + lz * sa, lateral = -lx * sa + lz * ca;
+    const out = -Math.sin(sub.yaw) * ca - Math.cos(sub.yaw) * sa; // >0: the sub looks outwards
+    if (!this.inside) {
+      if (Math.abs(lateral) < D.w / 2 + 0.5 && ly > D.y0 - 0.8 && ly < D.y0 + D.h + 0.6 && radial < D.r + 2.7 && radial > D.r - 7 && out < -0.2) return 'enter';
+    } else if (Math.abs(lateral) < D.w / 2 + 0.8 && ly < D.h + 1 && radial > this.hallR - 3.6 && out > 0.2) return 'exit';
+    return null;
+  }
+
+  enter(sub, near = false) {
+    const D = this.door;
+    this.rise = 1;
+    this.group.scale.set(1, 1, 1);
+    this.inside = true;
+    this.group.visible = this.life.visible = false;
+    this.hall.visible = true;
+    const rr = near ? Math.min(this.hallR - 5, this.fableR + 7) : this.hallR - 6;
+    sub.pos.set(this.center.x + Math.cos(D.a) * rr, this.center.y + Math.max(3.2, this.fableC.y * (near ? 0.8 : 0.55)), this.center.z + Math.sin(D.a) * rr);
+    sub.vel.set(0, 0, 0);
+    sub.yaw = Math.atan2(Math.cos(D.a), Math.sin(D.a));
+    this.metFable = true;
+  }
+
+  exit(sub) {
+    const D = this.door;
+    this.inside = false;
+    this.group.visible = true;
+    this.life.visible = this.rise > 0.55;
+    this.hall.visible = false;
+    sub.pos.set(this.center.x + Math.cos(D.a) * (D.r + 6), this.center.y + D.y0 + 2.6, this.center.z + Math.sin(D.a) * (D.r + 6));
+    sub.vel.set(0, 0, 0);
+    sub.yaw = Math.atan2(-Math.cos(D.a), -Math.sin(D.a));
+  }
+
+  // the hall's walls, floor and dome keep the sub (and the camera) inside; the creature is solid
+  hallLimit(p, margin, floor) {
+    const lx = p.x - this.center.x, lz = p.z - this.center.z;
+    const d = Math.hypot(lx, lz), maxR = this.hallR - margin;
+    if (d > maxR) {
+      p.x = this.center.x + (lx / d) * maxR;
+      p.z = this.center.z + (lz / d) * maxR;
+    }
+    const dd = Math.min(Math.hypot(p.x - this.center.x, p.z - this.center.z), this.hallR - 0.01);
+    const top = this.center.y + this.hallH + 0.62 * Math.sqrt(this.hallR * this.hallR - dd * dd) - margin;
+    p.y = Math.max(this.center.y + floor, Math.min(top, p.y));
+  }
+
+  clampCam(cam) {
+    if (this.inside) this.hallLimit(cam, 0.9, 0.7);
+  }
+
+  // the camera direction for a nice first look at the creature
+  get hallCamDir() {
+    return new THREE.Vector3(Math.cos(this.door.a), 0, Math.sin(this.door.a));
   }
 
   // ------------------------------------------------ the whole city
@@ -1157,10 +1443,11 @@ export class Atlantis {
     this.add(M.stone2, new THREE.CylinderGeometry(R + 4, R + 22, 160, 72, 1, true), M4(0, -83, 0));
     this.add(M.gold, ring(R + 0.1, 0.3, 96), M4(0, 0.05, 0));
     // the centrepiece
-    const C = this.centre(T.centre);
+    const pa = rnd() * TAU;
+    const C = this.centre(T.centre, pa);
     this.sites.push({ x: 0, z: 0, r: C.r, top: C.tip, centre: true });
     // the plaza in front of it
-    const pa = rnd() * TAU, pd = C.r + 13.5, prad = 12;
+    const pd = C.r + 13.5, prad = 12;
     const px = Math.cos(pa) * pd, pz = Math.sin(pa) * pd;
     this.plaza = { x: px, z: pz, r: prad, a: pa };
     this.buildPlaza(px, pz, prad, pa, C.r);
@@ -1534,6 +1821,17 @@ export class Atlantis {
 
   // keep the sub above the platform and out of the buildings
   clampSub(sub) {
+    if (this.inside) {
+      this.hallLimit(sub.pos, 1.8, 1.4);
+      const c = this.hall.position.clone().add(this.fableC), d = sub.pos.distanceTo(c), rr = this.fableR + 1.4;
+      if (d < rr && d > 1e-3) {
+        const n = sub.pos.clone().sub(c).divideScalar(d);
+        sub.pos.addScaledVector(n, rr - d);
+        const vn = sub.vel.dot(n);
+        if (vn < 0) sub.vel.addScaledVector(n, -vn);
+      }
+      return;
+    }
     const k = this.group.scale.y;
     const lx = sub.pos.x - this.center.x, lz = sub.pos.z - this.center.z, ly = (sub.pos.y - this.center.y) / Math.max(0.05, k);
     const d = Math.hypot(lx, lz);
@@ -1585,6 +1883,23 @@ export class Atlantis {
   // returns 'neptune' / 'mermaid' when the sub comes close to one of them for the first time
   update(dt, t, sub) {
     this.uT.value = t;
+    if (this.inside) {
+      this.fable.anim(t, dt, !!this.talking);
+      this.spots.forEach((c, i) => {
+        c.quaternion.copy(c.userData.base);
+        c.rotateX(Math.sin(t * 0.5 + i) * 0.08);
+        c.rotateZ(Math.cos(t * 0.4 + i * 1.3) * 0.08);
+      });
+      this.hallLights.forEach((L, i) => {
+        const a = t * 0.35 + (i / 3) * TAU;
+        const rr = this.fable.extent * 0.75;
+        L.position.set(this.fableC.x + Math.cos(a) * rr, this.fableC.y + 3 + Math.sin(t * 0.7 + i) * 3, this.fableC.z + Math.sin(a) * rr);
+        L.intensity = 60 + 15 * Math.sin(t * 1.7 + i * 2);
+      });
+      this.gemMeshes.forEach((g, i) => (g.rotation.y = t * 0.8 + i));
+      this.hallSparks.rotation.y = t * 0.03;
+      return null;
+    }
     if (this.rise < 1) {
       this.rise = Math.min(1, this.rise + dt / 3.5);
       const k = this.rise * this.rise * (3 - 2 * this.rise);
@@ -1693,9 +2008,13 @@ export class Atlantis {
   }
 
   dispose() {
-    this.scene.remove(this.group, this.life);
+    this.scene.remove(this.group, this.life, this.hall);
     // the city's own geometry and materials (the animals share theirs with the rest of the game)
     this.group.traverse((o) => o.geometry && o.geometry.dispose());
+    this.hall.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material && !Object.values(this.M).includes(o.material)) o.material.dispose();
+    });
     Object.values(this.M).forEach((m) => m.dispose());
     this.textures.forEach((t) => t.dispose());
     this.world.magicCol = null;
