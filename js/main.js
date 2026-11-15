@@ -27,8 +27,11 @@ import { Recovery } from './launch.js';
 import { DeepBeacon, MapView, fmtDist } from './guide.js';
 import { Atlantis, atlantisSpot } from './atlantis.js';
 import { FABLE_SPEECH } from './fables.js';
+import { FLYERS } from './companions.js';
 import { cloud, nameKey, progressOf, mergeInto } from './cloud.js';
 import { xmasSeason, buildSanta, decorateSub } from './santa.js';
+import { Wrecks } from './wrecks.js';
+import { TeamChallenges, CHALLENGES } from './challenges.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -799,6 +802,15 @@ function renderMenu() {
   $('#mLog').onclick = () => showLogbook('real');
   $('#mLb').onclick = () => showLeaderboard('exp', selLevel);
   $('#mMulti').onclick = showMultiplayer;
+  // how many divers are online right now – on the multiplayer button (rooms over LiveKit: one quick request)
+  net.ready().then(() => {
+    if (net.mode !== 'lk' || !net.mpAvailable) return;
+    net.listRooms().then((rooms) => {
+      const n = (rooms || []).reduce((k, r) => k + (Number(r.players) || 0), 0);
+      const b = $('#mMulti');
+      if (b && b.isConnected) b.innerHTML = `👥 ${t('multiplayer')} <span class="mp-online">🟢 ${t('mpOnlineN', { n })}</span>`;
+    }).catch(() => {});
+  });
 }
 
 // ======================= hangar =======================
@@ -1100,7 +1112,7 @@ async function showMultiplayer() {
     return;
   }
   const levelOpts = LEVELS.map((l) => `<option value="${l.id}" ${l.id === selLevel ? 'selected' : ''}>${escapeHtml(L(l.name))} (${fmtNum(l.maxDepth)} m)</option>`).join('');
-  showModal(`<h1>👥 ${t('mpTitle')}</h1>
+  showModal(`<h1>👥 ${t('mpTitle')} <span class="mp-online" id="mpOnline">🟢 …</span></h1>
     <p style="margin-top:0;color:#1d1d1d">${t('mpPublicNote')}</p>
     <button class="btn big mp-quick" id="mpQuick">⚡ ${t('mpQuickPlay')}</button>
     <div class="hint" id="mpHint" style="text-align:center">${t('mpQuickPlayDesc')}</div>
@@ -1141,6 +1153,10 @@ async function showMultiplayer() {
     const box = root.querySelector('#mpRooms');
     const draw = () => {
       if (!box.isConnected) return stopMpRefresh();
+      // how many divers are online right now (in all open rooms)
+      const online = rooms.reduce((n, r) => n + (r.unreachable ? 0 : Number(r.players) || 0), 0);
+      const on = root.querySelector('#mpOnline');
+      if (on) on.textContent = `🟢 ${t('mpOnlineN', { n: online })}`;
       box.innerHTML = rooms.length
         ? rooms
             .map((r) => {
@@ -1553,6 +1569,22 @@ class Dive {
     this.santaNext = xmasSeason() || /[?&]xmas=1/.test(location.search) ? 18 : Infinity;
     this.missions = this.race ? [] : makeMissions(level, this.cm, this.rng);
     this.beacon = this.race ? null : new DeepBeacon(this.scene, this.cm.deepest);
+    // a sunken warship and a crashed plane near the deep end, with treasures inside
+    if (!this.race) {
+      try {
+        this.wrecks = new Wrecks(this.scene, this.world, this.seed, 5);
+      } catch (e) {
+        console.warn('wrecks failed', e);
+      }
+    }
+    // team challenges: only in co-op dives (they need two divers)
+    if (this.multi && this.multi.coop && !this.race) {
+      try {
+        this.team = new TeamChallenges(this.scene, this.world, this.seed);
+      } catch (e) {
+        console.warn('team challenges failed', e);
+      }
+    }
     this.mapView = new MapView(this);
     this.camPos = this.sub.pos.clone().add(new THREE.Vector3(10, 3.5, 0));
     this.shake = 0;
@@ -1607,7 +1639,7 @@ class Dive {
     toast(L(level.name), L(level.ocean));
     if (this.multi && net.room) {
       // team data belongs to this dive (dv = its seed): nothing from an earlier dive in the same room counts
-      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false, ins: 0, xm: 0 });
+      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false, ins: 0, xm: 0, chd: [] });
       this.syncPlayers(net.room.players);
     }
   }
@@ -1691,7 +1723,8 @@ class Dive {
   renderMissions() {
     if (this.race) return;
     $('#missionsList').innerHTML = `<div class="mtitle">${t('missions')}</div>` +
-      this.missions.map((m) => `<div class="m ${m.done ? 'done' : ''}"><span class="box"></span><span>${escapeHtml(missionText(m))}${m.byTeam ? ` <small class="by">· ${escapeHtml(m.byTeam)}</small>` : ''}</span></div>`).join('');
+      this.missions.map((m) => `<div class="m ${m.done ? 'done' : ''}"><span class="box"></span><span>${escapeHtml(missionText(m))}${m.byTeam ? ` <small class="by">· ${escapeHtml(m.byTeam)}</small>` : ''}</span></div>`).join('') +
+      (this.team ? `<div class="m team-ch ${this.team.doneCount === CHALLENGES.length ? 'done' : ''}"><span class="box"></span><span>🤝 ${t('teamLine', { n: this.team.doneCount, total: CHALLENGES.length })}</span></div>` : '');
   }
 
   depth() {
@@ -2074,9 +2107,9 @@ class Dive {
         }
       } else if (ev.type === 'crew') {
         audio.giggle();
-        if (ev.n === 1) echoSay(t('hallCrewFirst'), { now: true });
+        if (ev.n === 1) echoSay(A.levelId === 'southsandwich' ? t('hallCrewFirst') : t('hallSwarmFirst', { name: L(A.extras.name), n: ev.total }), { now: true });
         if (ev.n === ev.total) {
-          toast('🟡 ' + t('hallAllCrew'));
+          toast(`${A.extras.icon} ` + (A.levelId === 'southsandwich' ? t('hallAllCrew') : t('hallAllSwarm', { name: L(A.extras.name), n: ev.total })));
           audio.fanfare();
         }
       } else if (ev.type === 'secret') {
@@ -2091,13 +2124,13 @@ class Dive {
     this.hallTime = (this.hallTime || 0) + dt;
     if (!this.hallHint1 && this.hallTime > 9) {
       this.hallHint1 = true;
-      echoSay(t(A.extras ? 'hallLootHintCrew' : 'hallLootHint'), { now: true });
+      echoSay(A.extras ? t('hallLootHintSwarm', { name: L(A.extras.name) }) : t('hallLootHint'), { now: true });
     }
     if (!this.hallHint2 && this.hallTime > 30 && !A.secret.visible && !A.secretFound) {
       this.hallHint2 = true;
       echoSay(t('hallSonarHint'), { now: true });
     }
-    const html = `💰 <b>${A.lootTaken}</b>/${A.loot.length}${A.extras ? ` · 🟡 <b>${A.crewCaught}</b>/100` : ''} · 📡 ${A.secretFound ? '✨' : '?'}`;
+    const html = `💰 <b>${A.lootTaken}</b>/${A.loot.length}${A.extras ? ` · ${A.extras.icon} <b>${A.crewCaught}</b>/${A.extras.total}` : ''} · 📡 ${A.secretFound ? '✨' : '?'}`;
     if (el.innerHTML !== html) el.innerHTML = html;
     el.classList.remove('hidden');
   }
@@ -2125,6 +2158,7 @@ class Dive {
         el.onclick = () => {
           ft.legend = false;
           A.legendRead = true;
+          if (FLYERS[A.levelId]) setTimeout(() => echoSay(L(FLYERS[A.levelId].info), { now: true }), 1500);
           ft.pause = 0.7;
           ft.shown = -1;
           el.classList.remove('legend');
@@ -2177,6 +2211,28 @@ class Dive {
     }
     // next to the creature's mouth
     placeBubble(el, A.fable.mouth.getWorldPosition(new THREE.Vector3()), A.fable.extent * 0.14);
+  }
+
+  // ---------- team challenges (co-op) ----------
+  updateTeam(dt) {
+    const subs = [{ pos: this.sub.pos }];
+    for (const r of this.remote.values()) if (r.initialized && r.group.visible && this.sameDive(r.data || {})) subs.push({ pos: r.group.position });
+    this.team.update(dt, this.time, subs);
+    for (const ev of this.team.takeEvents()) {
+      const C = CHALLENGES.find((c) => c.id === ev.id);
+      if (!C) continue;
+      if (ev.type === 'near') echoSay(t('teamNear', { name: L(C.name) }), { now: true });
+      else if (ev.type === 'alone') toast('✋ ' + t('teamAlone'));
+      else if (ev.type === 'holding') toast('🤝 ' + t('teamHolding'));
+      else if (ev.type === 'done') {
+        audio.fanfare();
+        toast(`🤝 ${L(C.done)}`, t('teamDoneSub', { n: this.team.doneCount, total: CHALLENGES.length }));
+        echoSay(L(C.done), { now: true });
+        if (!ev.team && this.multi && net.room) net.sendEvent({ type: 'chdone', id: ev.id });
+        if (this.multi && net.room) net.setPlayer({ chd: this.team.list.filter((c) => c.done).map((c) => c.C.id) });
+        this.renderMissions();
+      }
+    }
   }
 
   // ---------- Christmas special ----------
@@ -2299,6 +2355,8 @@ class Dive {
       if (p.s) r.setState(p.s);
       r.setTalking(!!p.talk);
       if (Array.isArray(p.atl) && !this.teamAtl) this.teamAtl = { x: p.atl[0], z: p.atl[1] };
+      // team challenges somebody already finished (also for divers who join later)
+      if (this.team && Array.isArray(p.chd)) for (const id of p.chd) if (typeof id === 'string') this.team.markDone(id, true);
       if (this.multi && this.multi.coop && !this.race) {
         if (Array.isArray(p.ph)) {
           const fresh = p.ph.map((id) => CREATURES.find((c) => c.id === id)).filter((d) => d && !this.photographed.has(d.id));
@@ -2348,6 +2406,8 @@ class Dive {
       if (def) this.discover(def, { team: true, by: ev.name });
     } else if (ev.type === 'collect' && this.multi.coop) {
       this.teamCollect(ev.item, ev.kind);
+    } else if (ev.type === 'chdone' && this.team) {
+      this.team.markDone(ev.id);
     } else if (ev.type === 'map' && this.multi.coop) {
       this.world.applyCells(ev.cells || [], ev.circle);
       this.checkMissions();
@@ -2360,6 +2420,8 @@ class Dive {
     const sub = this.sub;
     const S = (this.subShape ||= shapeFor('sub-' + sub.group.userData.type, sub.group));
     if (!S) return;
+    // rocks and ledges on the trench walls are solid
+    if (this.world.pushOut(sub.pos, S.r + 0.4)) sub.vel.multiplyScalar(0.92);
     capsuleEnds(S, sub.pos, sub.yaw, 1, CA1, CB1);
     // teammates' subs
     for (const [uid, r] of this.remote) {
@@ -2515,14 +2577,18 @@ class Dive {
       g.closePath();
       g.fill();
       g.stroke();
-      if (kind === 'atl') {
+      if (kind === 'atl' || kind === 'team') {
         g.fillStyle = '#000044';
         g.font = 'bold 11px system-ui, sans-serif';
-        g.fillText('A', X, Y + 4);
+        g.fillText(kind === 'atl' ? 'A' : '2', X, Y + 4);
       }
     };
     if (!this.race && this.cm.deepest) mark(this.cm.deepest.x, this.cm.deepest.z, '#ffed00', 'star');
     if (this.atlantis) mark(this.atlantis.center.x, this.atlantis.center.z, '#ffd6ff', 'atl');
+    if (this.team) for (const c of this.team.list) {
+      const p = c.b.group.position;
+      if (!c.done && Math.hypot(p.x - me.x, p.z - me.z) < RANGE) mark(p.x, p.z, '#7affff', 'team');
+    }
 
     let n = 0;
     for (const [uid, r] of this.remote) {
@@ -2726,7 +2792,7 @@ class Dive {
 
     // environment
     this.world.updateEnvironment(depth, camera.position, light);
-    this.sub.group.userData.beam.material.uniforms.opacity.value = 0.06 * clamp((depth - 150) / 600, 0, 1);
+    this.sub.group.userData.beam.material.uniforms.opacity.value = 0.11 * clamp((depth - 150) / 600, 0, 1);
     this.sub.group.userData.glowMat.opacity = 0.75 * clamp((depth - 100) / 500, 0, 1);
     this.world.update(dt);
     this.schools.update(dt, this.sub, camera.position);
@@ -2775,9 +2841,21 @@ class Dive {
     }
 
     this.updateSanta(dt);
+    if (this.team) this.updateTeam(dt);
+    if (this.wrecks) {
+      this.wrecks.update(dt, this.time, this.sub);
+      for (const ev of this.wrecks.takeEvents()) {
+        if (ev.type === 'found') echoSay(t(ev.kind === 'ship' ? 'wreckShip' : 'wreckPlane'), { now: true });
+        else if (ev.type === 'loot') {
+          audio.coin();
+          toast(`💰 ${t('wreckLoot')} ${ev.n}/${ev.total}`);
+          if (ev.n === ev.total) audio.fanfare();
+        }
+      }
+    }
 
     // guide: beacon over the deepest point, map
-    if (this.beacon) this.beacon.update(this.time);
+    if (this.beacon) this.beacon.update(this.time, this.sub.pos);
     this.mapView.mark(this.sub.pos, dt);
     this.mapView.update(dt);
 
@@ -2811,12 +2889,13 @@ class Dive {
     } else this.ascStuck = null;
 
     audio.setEngine(clamp(this.sub.thrust + Math.abs(this.sub.vel.y) / 30, 0, 1));
-    // ISABELLA: a swish of water with every stroke of her tail fin
+    // ISABELLA: a swish with every stroke of her tail fin – exactly when the fluke sweeps through the middle
+    // (the fluke angle is sin(ph - 4.2), so it moves fastest whenever ph - 4.2 passes a multiple of π)
     const mer = this.sub.group.userData.mer;
     if (mer && mer.ph !== undefined) {
-      const k = Math.floor(mer.ph / Math.PI);
+      const k = Math.floor((mer.ph - 4.2) / Math.PI);
       const spd = this.sub.vel.length();
-      if (this.finK !== undefined && k !== this.finK && spd > 1.2 && !this.paused) audio.finSwish(clamp(spd / 20, 0, 1));
+      if (this.finK !== undefined && k !== this.finK && spd > 1.2 && !this.paused) audio.finSwish(clamp(spd / 14, 0, 1), clamp(0.9 / (mer.fr || 1), 0.25, 0.55));
       this.finK = k;
     }
     this.hudTimer -= dt;
@@ -3002,11 +3081,6 @@ class Dive {
     $('#hZone').textContent = t(zoneKey(depth));
     $('#hPressure').textContent = `${fmtNum(depth / 10 + 1)} bar`;
     $('#hTemp').textContent = `${fmtDec(this.temperature(depth), 1)} °C`;
-    // speed (1 world unit = 10 m): smoothed, in km/h
-    const v = this.recovery || (this.launch && !this.launch.done) ? 0 : this.sub.vel.length() * SCALE * 3.6;
-    this.shownSpeed = (this.shownSpeed || 0) + (v - (this.shownSpeed || 0)) * 0.15;
-    $('#hSpeed').textContent = fmtNum(this.shownSpeed < 3 ? 0 : Math.round(this.shownSpeed / 5) * 5);
-    $('#hSpeed').parentElement.classList.toggle('boost', !!this.boost);
     const bar = (id, v) => {
       const el = $('#b' + id);
       el.style.width = `${v}%`;
@@ -3146,6 +3220,8 @@ class Dive {
     this.contactEls.forEach((e) => e.remove());
     for (const r of this.remote.values()) r.dispose(this.scene);
     if (this.atlantis) this.atlantis.dispose();
+    if (this.wrecks) this.wrecks.dispose();
+    if (this.team) this.team.dispose();
     this.world.dispose();
     $('#countdown').style.display = 'none';
     $('#ringArrow').style.display = 'none';
@@ -3269,9 +3345,11 @@ function computeScore(g) {
   const depthB = Math.floor(g.maxDepth / 100);
   const A = g.atlantis;
   const atl = A && A.loot ? A.lootTaken * 30 + A.crewCaught * 5 + (A.secretFound ? 200 : 0) : 0;
-  const sub = disc + samples + missions + mapped + depthB + atl;
+  const wreck = g.wrecks ? g.wrecks.taken * 40 : 0;
+  const team = g.team ? g.team.doneCount * 300 : 0;
+  const sub = disc + samples + missions + mapped + depthB + atl + wreck + team;
   const total = g.ending && g.ending.emergency ? Math.round(sub * 0.5) : sub;
-  return { disc, samples, missions, mapped, depthB, atl, total, missionsDone: g.missions.filter((m) => m.done).length };
+  return { disc, samples, missions, mapped, depthB, atl, wreck, team, total, missionsDone: g.missions.filter((m) => m.done).length };
 }
 
 function showResults(g) {
@@ -3298,8 +3376,10 @@ function showResults(g) {
         A.metNeptune && { key: 'fig:neptune', name: t('atlNeptuneName'), text: t('atlNeptune') },
         A.metMermaid && { key: 'fig:mermaid', name: t('atlMermaidName'), text: t('atlMermaid') },
         A.metFable && { key: `fable:${A.levelId}`, name: L(A.fable.info.name), text: L(A.fable.info.legend) },
-        A.metFable && A.extras && { key: 'crew:crew', name: t('crewName'), text: t('crewInfo') },
-        A.metFable && A.extras && { key: 'crew:perla', name: t('perlaName'), text: t('perlaInfo') },
+        A.metFable && A.extras && A.levelId === 'southsandwich' && { key: 'crew:crew', name: t('crewName'), text: t('crewInfo') },
+        A.metFable && A.extras && A.levelId === 'southsandwich' && { key: 'crew:perla', name: t('perlaName'), text: t('perlaInfo') },
+        A.metFable && A.extras && A.levelId !== 'southsandwich' && { key: `comp:swarm:${A.levelId}`, name: L(A.extras.name), text: t('swarmInfo', { name: L(A.extras.name) }) },
+        A.metFable && FLYERS[A.levelId] && { key: `comp:flyer:${A.levelId}`, name: L(FLYERS[A.levelId].name), text: L(FLYERS[A.levelId].info) },
       ].filter(Boolean)
     : [];
   const atlHtml = A
@@ -3309,7 +3389,7 @@ function showResults(g) {
       ${A.metFable
         ? `<p class="atl-legend">✨ <b>${escapeHtml(L(A.fable.info.name))}</b> – ${escapeHtml(L(A.fable.info.legend))} ${A.fable.info.source.length ? `<span class="src">${t('source')}: ${A.fable.info.source.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${escapeHtml(n)}</a>`).join(' · ')}</span>` : ''}</p>`
         : `<p class="phint">${t('atlResMissed')}</p>`}
-      ${A.metFable && A.loot ? `<p class="atl-loot">💰 ${t('hallLoot')}: ${A.lootTaken}/${A.loot.length}${A.extras ? ` · 🟡 ${t('crewShort')}: ${A.crewCaught}/100` : ''} · ✨ ${A.secretFound ? escapeHtml(L(A.secret.userData.info.name)) : t('hallSecretMissed')}</p>` : ''}`
+      ${A.metFable && A.loot ? `<p class="atl-loot">💰 ${t('hallLoot')}: ${A.lootTaken}/${A.loot.length}${A.extras ? ` · ${A.extras.icon} ${escapeHtml(L(A.extras.name))}: ${A.crewCaught}/${A.extras.total}` : ''} · ✨ ${A.secretFound ? escapeHtml(L(A.secret.userData.info.name)) : t('hallSecretMissed')}</p>` : ''}`
     : '';
   showModal(`<h1>${emergency ? '⚠ ' + t('diveEmergency') : '✅ ' + t('diveComplete')}</h1>
     <p>${escapeHtml(L(g.level.name))}${g.atlantis ? ' · 🏛️ Atlantis' : ''}</p>
@@ -3323,6 +3403,8 @@ function showResults(g) {
       <span>${t('mapped')} (${fmtDec(g.world.mappedPercent(), 1)} %)</span><span>${fmtNum(sc.mapped)}</span>
       <span>${t('depthBonus')}</span><span>${fmtNum(sc.depthB)}</span>
       ${g.atlantis && g.atlantis.metFable ? `<span>${t('atlScore')}</span><span>${fmtNum(sc.atl)}</span>` : ''}
+      ${sc.wreck ? `<span>${t('wreckScore')} (${g.wrecks.taken}/${g.wrecks.loot.length})</span><span>${fmtNum(sc.wreck)}</span>` : ''}
+      ${g.team ? `<span>🤝 ${t('teamScore')} (${g.team.doneCount}/${CHALLENGES.length})</span><span>${fmtNum(sc.team)}</span>` : ''}
       ${emergency ? `<span>× 0.5</span><span></span>` : ''}
       <span class="tot">${t('total')}</span><span class="tot">${fmtNum(sc.total)}</span>
     </div>

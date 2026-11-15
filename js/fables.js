@@ -5,6 +5,7 @@
 // speech bubbles.
 
 import * as THREE from './vendor/three.min.js';
+import { companionExtras } from './companions.js';
 
 const PI = Math.PI, TAU = Math.PI * 2;
 
@@ -727,59 +728,135 @@ function crewMember() {
   return { group: g, arms };
 }
 
-// the sea fairy princess: shell dress, translucent fin wings, a starfish crown and a pearl wand
+// the sea fairy princess Perla: long blonde hair, a white gown with lace and pearls, a golden crown with jewels,
+// big shimmering fairy wings and a wand with a glowing star
+let wingTex = null;
+function fairyWingTexture() {
+  if (wingTex) return wingTex;
+  const c = document.createElement('canvas');
+  c.width = 256;
+  c.height = 256;
+  const g = c.getContext('2d');
+  const grd = g.createRadialGradient(40, 220, 10, 120, 120, 220);
+  grd.addColorStop(0, 'rgba(255,255,255,0.95)');
+  grd.addColorStop(0.35, 'rgba(200,240,255,0.75)');
+  grd.addColorStop(0.7, 'rgba(255,200,240,0.55)');
+  grd.addColorStop(1, 'rgba(220,200,255,0.0)');
+  g.fillStyle = grd;
+  g.beginPath();
+  g.moveTo(30, 230);
+  g.bezierCurveTo(10, 120, 90, 10, 200, 20);
+  g.bezierCurveTo(250, 30, 250, 110, 200, 150);
+  g.bezierCurveTo(150, 190, 80, 210, 30, 230);
+  g.fill();
+  // veins and a golden rim
+  g.strokeStyle = 'rgba(255,255,255,0.9)';
+  g.lineWidth = 2;
+  for (const [x, y] of [[190, 30], [230, 80], [210, 140], [150, 180], [120, 60]]) {
+    g.beginPath();
+    g.moveTo(30, 230);
+    g.quadraticCurveTo((30 + x) / 2 + 20, (230 + y) / 2 - 10, x, y);
+    g.stroke();
+  }
+  g.strokeStyle = 'rgba(255,215,120,0.95)';
+  g.lineWidth = 4;
+  g.beginPath();
+  g.moveTo(30, 230);
+  g.bezierCurveTo(10, 120, 90, 10, 200, 20);
+  g.bezierCurveTo(250, 30, 250, 110, 200, 150);
+  g.bezierCurveTo(150, 190, 80, 210, 30, 230);
+  g.stroke();
+  for (let i = 0; i < 40; i++) {
+    g.fillStyle = `rgba(255,255,255,${0.4 + Math.random() * 0.6})`;
+    g.beginPath();
+    g.arc(60 + Math.random() * 160, 40 + Math.random() * 160, 1 + Math.random() * 2, 0, TAU);
+    g.fill();
+  }
+  wingTex = new THREE.CanvasTexture(c);
+  wingTex.colorSpace = THREE.SRGBColorSpace;
+  return wingTex;
+}
 function seaFairy() {
   const G = new THREE.Group();
-  const skin = std(0xffdcc8, { roughness: 0.55, emissive: 0x5a3020, emissiveIntensity: 0.2 });
-  const hairM = shiny(0xb98cff, 0.3, { roughness: 0.4 });
-  const dressG = new THREE.LatheGeometry([[0, 0], [1.05, 0.05], [0.95, 0.5], [0.6, 1.35], [0.32, 2.0], [0.28, 2.3], [0, 2.35]].map(([a, b]) => new THREE.Vector2(a, b)), 28);
-  const dp = dressG.attributes.position, dc = new Float32Array(dp.count * 3), c = new THREE.Color();
-  for (let i = 0; i < dp.count; i++) {
-    const y = dp.getY(i), a = Math.atan2(dp.getZ(i), dp.getX(i));
-    c.set(0x5ff0e0).lerp(new THREE.Color(0xff8ab8), Math.min(1, y / 2.3));
-    if (y < 0.5) c.lerp(new THREE.Color(0xffffff), 0.35 * (0.5 + 0.5 * Math.sin(a * 14))); // scalloped shell hem
-    dc.set([c.r, c.g, c.b], i * 3);
-  }
-  dressG.setAttribute('color', new THREE.BufferAttribute(dc, 3));
+  const skin = std(0xffdccb, { roughness: 0.5, emissive: 0x6a3a2a, emissiveIntensity: 0.22 });
+  const hairM = shiny(0xffd45a, 0.3, { roughness: 0.35, metalness: 0.15 });
+  const hairM2 = shiny(0xffe58a, 0.32, { roughness: 0.35, metalness: 0.15 });
+  const gown = std(0xfbfbff, { roughness: 0.35, metalness: 0.1, emissive: 0x8a8aa0, emissiveIntensity: 0.35 });
+  const lace = std(0xffffff, { roughness: 0.6, emissive: 0xaaaaaa, emissiveIntensity: 0.35 });
+  const gold = shiny(0xffcf4a, 0.45, { metalness: 0.85, roughness: 0.22 });
+  const pearl = std(0xfff6fa, { metalness: 0.35, roughness: 0.15, emissive: 0x8a7a8a, emissiveIntensity: 0.4 });
+  const jewel = (c) => glow(c);
   const body = grp(G, [0, 0, 0]);
-  add(body, dressG, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.2, emissive: 0x3a2a4a, emissiveIntensity: 0.45 }));
-  for (let k = 0; k < 7; k++) add(body, new THREE.SphereGeometry(0.06, 6, 4), glow(0xffffff), [Math.cos(k * 0.9) * 0.55, 0.6 + (k % 3) * 0.35, Math.sin(k * 0.9) * 0.55 * 0.9 + 0.1]);
-  const head = grp(body, [0, 2.75, 0]);
-  add(head, new THREE.SphereGeometry(0.5, 22, 16), skin);
-  eye(head, 0.13, [-0.17, 0.05, 0.42], { iris: 0x7a3aff, ry: -0.2 });
-  eye(head, 0.13, [0.17, 0.05, 0.42], { iris: 0x7a3aff, ry: 0.2 });
-  add(head, new THREE.TorusGeometry(0.1, 0.025, 6, 12, PI), glow(0xd84a6a), [0, -0.17, 0.46], [0, 0, PI]);
-  for (const sx of [-1, 1]) add(head, new THREE.SphereGeometry(0.07, 8, 6), glow(0xff9ab8, { transparent: true, opacity: 0.6 }), [sx * 0.3, -0.08, 0.38]);
-  add(head, new THREE.SphereGeometry(0.54, 20, 12, 0, TAU, 0, PI * 0.55), hairM, [0, 0.05, -0.04]);
-  add(head, new THREE.SphereGeometry(0.28, 14, 10), hairM, [0, 0.55, -0.15]);
-  add(head, new THREE.SphereGeometry(0.09, 8, 6), glow(0xffffff), [0, 0.6, 0.12]);
-  const curls = [];
-  for (const sx of [-1, 1]) curls.push(chainY(grp(head, [sx * 0.42, -0.05, -0.05]), 5, 0.22, 0.12, 0.07, hairM));
-  // a starfish crown with pearls
-  const crown = grp(head, [0, 0.5, 0.18], [-0.3, 0, 0]);
-  for (let k = 0; k < 5; k++) add(crown, new THREE.ConeGeometry(0.07, 0.3, 5), shiny(0xff7a4a, 0.4), [Math.cos((k / 5) * TAU + PI / 2) * 0.12, Math.sin((k / 5) * TAU + PI / 2) * 0.12, 0], [0, 0, (k / 5) * TAU]);
-  add(crown, new THREE.SphereGeometry(0.06, 8, 6), glow(0xffffff), [0, 0, 0.04]);
-  // arms, one with the pearl wand
+  // the gown: a wide skirt in two layers with a scalloped lace hem, pearls and a bodice with a sash
+  add(body, new THREE.LatheGeometry([[0, 0], [1.25, 0.04], [1.18, 0.3], [0.95, 0.9], [0.62, 1.5], [0.36, 2.0], [0, 2.02]].map(([a, b]) => new THREE.Vector2(a, b)), 40), gown);
+  add(body, new THREE.LatheGeometry([[1.0, 0.55], [0.82, 1.05], [0.55, 1.6], [0.4, 1.85]].map(([a, b]) => new THREE.Vector2(a, b)), 40), lace, [0, 0, 0], [0, 0.2, 0], [1.08, 1, 1.08]);
+  for (let k = 0; k < 20; k++) {
+    const a = (k / 20) * TAU;
+    add(body, new THREE.SphereGeometry(0.12, 8, 6), lace, [Math.cos(a) * 1.22, 0.06, Math.sin(a) * 1.22], [0, 0, 0], [1.3, 0.6, 1.3]);
+    add(body, new THREE.SphereGeometry(0.045, 6, 4), pearl, [Math.cos(a + 0.15) * 1.0, 0.65 + (k % 2) * 0.05, Math.sin(a + 0.15) * 1.0]);
+  }
+  add(body, new THREE.CylinderGeometry(0.3, 0.38, 0.75, 20), gown, [0, 2.25, 0]);
+  add(body, new THREE.TorusGeometry(0.36, 0.06, 6, 22), shiny(0xffb8d8, 0.35), [0, 2.0, 0], [PI / 2, 0, 0]);
+  add(body, new THREE.SphereGeometry(0.1, 10, 8), shiny(0xffb8d8, 0.35), [0, 2.0, 0.36]);
+  for (let k = 0; k < 7; k++) add(body, new THREE.SphereGeometry(0.04, 6, 4), pearl, [Math.cos((k / 7) * PI + PI) * 0.2 * 0 + (k - 3) * 0.06, 2.55 - Math.abs(k - 3) * 0.035, 0.27]);
+  // puffed sleeves and arms
   const arms = [];
   for (const sx of [-1, 1]) {
-    const a = grp(body, [sx * 0.3, 2.15, 0.05]);
-    add(a, new THREE.CylinderGeometry(0.06, 0.07, 0.8, 8), skin, [0, -0.4, 0]);
-    add(a, new THREE.SphereGeometry(0.08, 8, 6), skin, [0, -0.82, 0]);
+    add(body, new THREE.SphereGeometry(0.17, 12, 10), lace, [sx * 0.36, 2.52, 0]);
+    const a = grp(body, [sx * 0.38, 2.5, 0.02]);
+    add(a, new THREE.CylinderGeometry(0.055, 0.065, 0.85, 10), skin, [0, -0.45, 0]);
+    add(a, new THREE.SphereGeometry(0.075, 10, 8), skin, [0, -0.9, 0]);
+    add(a, new THREE.TorusGeometry(0.07, 0.018, 6, 12), gold, [0, -0.78, 0], [PI / 2, 0, 0]);
     arms.push(a);
   }
-  const wand = grp(arms[1], [0, -0.85, 0.05], [0.4, 0, 0]);
-  add(wand, new THREE.CylinderGeometry(0.025, 0.025, 1.1, 6), shiny(0xf2c24a, 0.5, { metalness: 0.8 }), [0, 0.5, 0]);
-  add(wand, new THREE.SphereGeometry(0.14, 12, 10), glow(0xfff0fa), [0, 1.1, 0]);
-  const wh = softHalo(0xffd8ff, 1.4);
-  wh.position.set(0, 1.1, 0);
-  wand.add(wh);
-  // four translucent fin wings
-  const wingM = new THREE.MeshStandardMaterial({ color: 0xd8f8ff, emissive: 0x8ad8ff, emissiveIntensity: 0.7, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+  // head with a sweet face
+  const head = grp(body, [0, 3.05, 0]);
+  add(head, new THREE.CylinderGeometry(0.08, 0.1, 0.25, 10), skin, [0, -0.33, 0]);
+  add(head, new THREE.SphereGeometry(0.45, 24, 18), skin, [0, 0, 0], [0, 0, 0], [1, 1.06, 1]);
+  const eyes = [-1, 1].map((sx) => {
+    const e = eye(head, 0.11, [sx * 0.155, 0.04, 0.37], { iris: 0x3a8adf, ry: sx * 0.25 });
+    for (let k = 0; k < 3; k++) add(e, new THREE.BoxGeometry(0.012, 0.07, 0.012), glow(0x2a1a10), [sx * (0.03 + k * 0.035), 0.11, 0.06], [0, 0, sx * (-0.3 - k * 0.25)]);
+    return e;
+  });
+  for (const sx of [-1, 1]) add(head, new THREE.BoxGeometry(0.13, 0.022, 0.02), glow(0xb08040), [sx * 0.155, 0.18, 0.39], [0, 0, sx * -0.15]);
+  add(head, new THREE.SphereGeometry(0.035, 8, 6), skin, [0, -0.06, 0.45]);
+  add(head, new THREE.TorusGeometry(0.075, 0.018, 6, 12, PI), glow(0xe05a7a), [0, -0.16, 0.41], [0, 0, PI]);
+  for (const sx of [-1, 1]) add(head, new THREE.SphereGeometry(0.065, 8, 6), glow(0xff9ab8, { transparent: true, opacity: 0.55 }), [sx * 0.27, -0.08, 0.33]);
+  // long golden hair: a crown of hair, side locks and long flowing strands down the back
+  add(head, new THREE.SphereGeometry(0.49, 22, 14, 0, TAU, 0, PI * 0.58), hairM, [0, 0.04, -0.03]);
+  add(head, new THREE.SphereGeometry(0.47, 20, 12, PI * 0.15, PI * 0.7, PI * 0.15, PI * 0.25), hairM2, [0, 0.08, 0.05]);
+  const locks = [];
+  for (let k = 0; k < 9; k++) {
+    const a = PI * 0.55 + (k / 8) * PI * 0.9;
+    locks.push(chainY(grp(head, [Math.cos(a) * 0.4, -0.05, Math.sin(a) * 0.4 - 0.02]), 7, 0.24, 0.1, 0.05, k % 2 ? hairM : hairM2));
+  }
+  for (const sx of [-1, 1]) locks.push(chainY(grp(head, [sx * 0.47, -0.05, 0.02]), 5, 0.22, 0.08, 0.05, hairM2));
+  // a golden crown with jewels and pearls
+  const crown = grp(head, [0, 0.42, 0.02], [-0.18, 0, 0]);
+  add(crown, new THREE.CylinderGeometry(0.3, 0.27, 0.13, 24, 1, true), Object.assign(gold.clone(), { side: THREE.DoubleSide }));
+  for (let k = 0; k < 7; k++) {
+    const a = (k / 7) * TAU;
+    add(crown, new THREE.ConeGeometry(0.055, k % 2 ? 0.2 : 0.28, 6), gold, [Math.sin(a) * 0.29, 0.15, Math.cos(a) * 0.29]);
+    add(crown, new THREE.SphereGeometry(0.035, 8, 6), pearl, [Math.sin(a) * 0.29, k % 2 ? 0.27 : 0.31, Math.cos(a) * 0.29]);
+  }
+  add(crown, new THREE.OctahedronGeometry(0.07, 0), jewel(0xff3a7a), [0, 0.02, 0.3], [0, 0, 0], [1, 1.3, 0.6]);
+  for (const sx of [-1, 1]) add(crown, new THREE.SphereGeometry(0.035, 8, 6), jewel(0x4ad8ff), [sx * 0.16, 0.02, 0.25]);
+  // wand with a glowing star
+  const wand = grp(arms[1], [0, -0.92, 0.05], [0.5, 0, 0]);
+  add(wand, new THREE.CylinderGeometry(0.022, 0.026, 1.1, 8), gold, [0, 0.5, 0]);
+  const star = grp(wand, [0, 1.12, 0]);
+  for (let k = 0; k < 5; k++) add(star, new THREE.ConeGeometry(0.06, 0.24, 4), glow(0xfff2a8), [Math.sin((k / 5) * TAU) * 0.1, Math.cos((k / 5) * TAU) * 0.1, 0], [0, 0, -(k / 5) * TAU]);
+  add(star, new THREE.SphereGeometry(0.07, 10, 8), glow(0xffffff));
+  const wh = softHalo(0xfff2c8, 1.6);
+  star.add(wh);
+  // four big shimmering wings
+  const wingMat = new THREE.MeshBasicMaterial({ map: fairyWingTexture(), transparent: true, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.95 });
   const wings = [];
   for (const sx of [-1, 1]) {
-    for (const [y, sz, tilt] of [[2.1, 1.3, 0.35], [1.6, 0.9, -0.3]]) {
-      const w = grp(body, [sx * 0.12, y, -0.2]);
-      add(w, new THREE.CircleGeometry(1, 20), wingM, [sx * sz * 0.9, sz * 0.25, 0], [0, 0, sx * tilt], [sz * 0.95, sz * 0.5, 1]);
+    for (const [y, sz, tilt] of [[2.55, 2.1, 0.25], [2.15, 1.45, -0.55]]) {
+      const w = grp(body, [sx * 0.08, y, -0.22]);
+      const m = add(w, new THREE.PlaneGeometry(1, 1), wingMat, [sx * sz * 0.45, sz * 0.32, 0], [0, 0, sx * tilt], [sz * sx, sz, 1]);
+      m.renderOrder = 3;
       w.userData.sx = sx;
       wings.push(w);
     }
@@ -787,12 +864,19 @@ function seaFairy() {
   return {
     group: G,
     update(t) {
-      wings.forEach((w, i) => (w.rotation.y = w.userData.sx * (0.35 + Math.sin(t * 20 + i * 0.4) * 0.55)));
-      arms[0].rotation.z = -0.4 + Math.sin(t * 2) * 0.2;
-      arms[1].rotation.z = 0.5 + Math.sin(t * 1.6) * 0.3;
-      arms[1].rotation.x = -0.6 + Math.sin(t * 1.3) * 0.3;
-      body.rotation.z = Math.sin(t * 1.1) * 0.12;
-      curls.forEach((cl) => cl.forEach((j, i) => (j.rotation.z = Math.sin(t * 3 + i) * 0.15)));
+      wings.forEach((w, i) => (w.rotation.y = w.userData.sx * (0.45 + Math.sin(t * 16 + i * 0.4) * 0.5)));
+      arms[0].rotation.z = -0.5 + Math.sin(t * 2) * 0.25;
+      arms[0].rotation.x = Math.sin(t * 1.4) * 0.2;
+      arms[1].rotation.z = 0.55 + Math.sin(t * 1.6) * 0.3;
+      arms[1].rotation.x = -0.7 + Math.sin(t * 1.3) * 0.3;
+      body.rotation.z = Math.sin(t * 1.1) * 0.1;
+      head.rotation.y = Math.sin(t * 0.7) * 0.25;
+      star.rotation.z = t * 1.5;
+      eyes.forEach((e) => (e.scale.y = blink(t, 0.3)));
+      locks.forEach((cl, k) => cl.forEach((j, i) => {
+        j.rotation.x = 0.25 + Math.sin(t * 2.2 + i * 0.6 + k) * 0.12;
+        j.rotation.z = Math.sin(t * 1.7 + i + k) * 0.08;
+      }));
     },
   };
 }
@@ -802,7 +886,7 @@ export function buildCompanion(kind) {
   if (kind === 'perla') {
     const f = seaFairy();
     f.update(0.4);
-    f.group.scale.setScalar(6 / 3.6);
+    f.group.scale.setScalar(6 / 4.2);
     return f.group;
   }
   const m = crewMember();
@@ -895,11 +979,24 @@ function rauschebart() {
   add(body, new THREE.TorusGeometry(0.31, 0.06, 6, 14), steel, [-0.55, 1.6, 0], [PI / 2, 0, 0]);
   // a big belly in a long navy coat with gold buttons, a red sash and a belt
   add(body, new THREE.LatheGeometry([[0, 2.0], [1.55, 2.05], [1.45, 3.0], [1.3, 4.2], [1.15, 5.4], [0.9, 6.0], [0, 6.1]].map(([a, b]) => new THREE.Vector2(a, b)), 30), coat);
-  add(body, new THREE.SphereGeometry(1.1, 22, 16), shirtM, [0, 4.0, 0.62], [0, 0, 0], [0.9, 1.25, 0.75]);
   for (const sx of [-1, 1]) for (let k = 0; k < 5; k++) add(body, new THREE.SphereGeometry(0.1, 8, 6), gold, [sx * 0.72, 5.3 - k * 0.55, 1.05 - k * 0.02]);
   add(body, new THREE.TorusGeometry(1.42, 0.2, 8, 30), red, [0, 3.35, 0], [PI / 2, 0, 0]);
   add(body, new THREE.TorusGeometry(1.4, 0.09, 6, 30), black, [0, 3.0, 0], [PI / 2, 0, 0]);
-  add(body, new THREE.BoxGeometry(0.5, 0.42, 0.12), gold, [0, 3.0, 1.42]);
+  // a big golden belt buckle with a (friendly) skull and crossbones
+  const bone = std(0xf6f0e0, { roughness: 0.6, emissive: 0x6a6a5a, emissiveIntensity: 0.35 });
+  const buckle = grp(body, [0, 3.0, 1.43]);
+  buckle.scale.setScalar(1.35);
+  add(buckle, new THREE.BoxGeometry(1.15, 0.85, 0.1), gold);
+  add(buckle, new THREE.BoxGeometry(0.95, 0.65, 0.12), black, [0, 0, 0.01]);
+  for (const r of [0.6, -0.6]) {
+    add(buckle, new THREE.CapsuleGeometry(0.05, 0.62, 4, 8), bone, [0, -0.04, 0.09], [0, 0, r]);
+    for (const e of [-1, 1]) add(buckle, new THREE.SphereGeometry(0.055, 8, 6), bone, [Math.sin(r) * e * -0.34, -0.04 + Math.cos(r) * e * 0.34, 0.09]);
+  }
+  add(buckle, new THREE.SphereGeometry(0.24, 18, 14), bone, [0, 0.06, 0.13], [0, 0, 0], [1, 0.95, 0.7]);
+  add(buckle, new THREE.BoxGeometry(0.24, 0.12, 0.12), bone, [0, -0.15, 0.13]);
+  for (const sx of [-1, 1]) add(buckle, new THREE.SphereGeometry(0.065, 10, 8), glow(0x1a1010), [sx * 0.09, 0.08, 0.28]);
+  add(buckle, new THREE.ConeGeometry(0.03, 0.06, 3), glow(0x1a1010), [0, -0.02, 0.29], [PI, 0, 0]);
+  for (let k = 0; k < 3; k++) add(buckle, new THREE.BoxGeometry(0.012, 0.06, 0.01), glow(0x1a1010), [(k - 1) * 0.06, -0.15, 0.2]);
   add(body, new THREE.BoxGeometry(0.28, 0.9, 0.1), red, [0.9, 2.85, 1.05], [0, 0.6, 0.2]);
   for (const sx of [-1, 1]) {
     add(body, new THREE.BoxGeometry(0.8, 0.18, 0.55), gold, [sx * 1.05, 5.95, 0], [0, 0, sx * -0.25]);
@@ -1017,7 +1114,8 @@ function rauschebart() {
     }
   head.add(hairMesh(browSt, hairU, { sway: 0.01, talk: 0 }));
   // a big tricorn with gold trim, a golden anchor and a red feather
-  const hat = grp(head, [0, 0.72, -0.05], [-0.12, 0, 0]);
+  const hat = grp(head, [0, 0.58, -0.05], [-0.12, 0, 0]);
+  hat.scale.setScalar(1.75);
   add(hat, new THREE.CylinderGeometry(0.85, 1.0, 0.85, 24), black, [0, 0.4, 0]);
   add(hat, new THREE.CylinderGeometry(1.9, 1.9, 0.13, 3), black, [0, -0.02, 0]);
   for (let e = 0; e < 3; e++) {
@@ -1026,7 +1124,6 @@ function rauschebart() {
     b.rotation.order = 'YXZ';
     b.rotation.set(-0.55, th, 0);
   }
-  add(hat, new THREE.TorusGeometry(1.86, 0.05, 4, 3), gold, [0, 0.02, 0], [PI / 2, 0, -PI / 2]);
   const anchor = grp(hat, [0, 0.42, 1.08], [-0.45, 0, 0]);
   add(anchor, new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6), gold);
   add(anchor, new THREE.TorusGeometry(0.17, 0.04, 6, 14, PI), gold, [0, -0.2, 0], [0, 0, PI]);
@@ -1087,7 +1184,7 @@ function rauschebart() {
       };
       const m4 = new THREE.Matrix4(), mA = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), p3 = new THREE.Vector3(), s3 = new THREE.Vector3();
       const fairy = seaFairy();
-      fairy.group.scale.setScalar((subLen * 0.75) / 3.2);
+      fairy.group.scale.setScalar((subLen * 1.5) / 3.6);
       g.add(fairy.group);
       const TN = 70, tp = new Float32Array(TN * 3).fill(9999);
       const tg = new THREE.BufferGeometry();
@@ -1097,6 +1194,9 @@ function rauschebart() {
       const prev = new THREE.Vector3(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
       const ex = {
         group: g,
+        total: N,
+        icon: '🟡',
+        name: { en: 'Gigglings', de: 'Kicherlinge' },
         onCatch: null,
         // catchR: the sub's reach – swim through a crew member and it jumps for joy, does a double flip and
         // pops into your sub (onCatch(count, total, position))
@@ -1229,5 +1329,7 @@ export function buildFable(id, size = 0) {
     f.bottom *= k;
   }
   f.info = FABLES[id] || FABLES.java;
+  // every other hall: little creatures of the legend to collect and a second flying figure
+  if (!f.makeExtras) f.makeExtras = (o) => companionExtras(id, o);
   return f;
 }

@@ -992,7 +992,8 @@ export function buildSubModel(type = 'hummel', color = null, withLights = false)
   g.userData.beam = beam;
 
   if (withLights) {
-    const spot = new THREE.SpotLight(0xfff3dc, 60, 45, 0.55, 0.55, 1.0);
+    // a strong headlight straight ahead (brighter, reaching further, a slightly wider cone)
+    const spot = new THREE.SpotLight(0xfff6e4, 150, 70, 0.6, 0.45, 0.85);
     spot.position.set(lx, ly, lz);
     const target = new THREE.Object3D();
     target.position.set(lx, ly - 7, lz - 20);
@@ -1043,7 +1044,7 @@ export class Sub {
   }
 
   setUpgrades(u) {
-    const ranges = [45, 60, 75];
+    const ranges = [70, 90, 110];
     this.lightRange = ranges[u.lights || 0];
     const spot = this.group.userData.spot;
     if (spot) spot.distance = this.lightRange;
@@ -1087,7 +1088,7 @@ export class Sub {
     const fwd = this.forward();
     // boost: clearly faster (and quicker to pick up speed)
     const boost = input.boost ? 2.6 : 1;
-    const maxSpeed = 9 * boost * (opts.speedMul || 1);
+    const maxSpeed = Math.min(9 * boost * (opts.speedMul || 1), 500 / 3.6 / 10); // never more than 500 km/h horizontally (1 unit = 10 m)
     // turning
     this.yaw -= input.turn * 1.5 * dt;
     // forward thrust

@@ -10,10 +10,10 @@ export class DeepBeacon {
   constructor(scene, p) {
     this.group = new THREE.Group();
     this.group.position.set(p.x, p.floorY, p.z);
-    const H = 260; // 2.6 km of light – seen from far above
+    const H = 34; // a soft glow above the deepest point – only seen when you are already close
     const geo = new THREE.CylinderGeometry(1.4, 3.2, H, 24, 1, true);
     geo.translate(0, H / 2, 0);
-    this.uni = { uT: { value: 0 }, uColor: { value: new THREE.Color(0xffd84a) }, uOp: { value: 0.55 } };
+    this.uni = { uT: { value: 0 }, uColor: { value: new THREE.Color(0xffd84a) }, uOp: { value: 0.3 } };
     const mat = new THREE.ShaderMaterial({
       uniforms: this.uni,
       vertexShader: 'varying vec2 vUv; varying vec3 vN; varying vec3 vV; void main(){ vUv = uv; vec4 mv = modelViewMatrix * vec4(position,1.0); vV = normalize(-mv.xyz); vN = normalize(normalMatrix * normal); gl_Position = projectionMatrix * mv; }',
@@ -51,13 +51,20 @@ export class DeepBeacon {
     this.core.material.color.set(0xb8ffd2);
   }
 
-  update(t) {
+  // pos: the sub – the marker only fades in when you are very close (about 400 m)
+  update(t, pos) {
     this.uni.uT.value = t;
+    const d = pos ? Math.hypot(pos.x - this.group.position.x, (pos.y - this.group.position.y) * 0.5, pos.z - this.group.position.z) : 0;
+    const near = pos ? Math.max(0, Math.min(1, (40 - d) / 15)) : 1;
+    this.group.visible = near > 0.01;
+    if (!this.group.visible) return;
+    this.uni.uOp.value = (this.isFound ? 0.2 : 0.32) * near;
     this.rings.forEach((r, i) => {
       const k = ((t * 0.35 + i / 3) % 1);
-      r.scale.setScalar(1 + k * 5);
-      r.material.opacity = (1 - k) * (this.isFound ? 0.35 : 0.65);
+      r.scale.setScalar(1 + k * 3);
+      r.material.opacity = (1 - k) * (this.isFound ? 0.25 : 0.45) * near;
     });
+    this.core.material.opacity = 0.6 * near;
     this.core.position.y = 2.2 + Math.sin(t * 2) * 0.4;
   }
 
@@ -281,18 +288,25 @@ export class MapView {
       g.fillText('🏛️', ax, ay);
       label('Atlantis', ax, ay + 15 * S, '#ffd6ff');
     }
-    // the deepest point
-    const dp = d.cm.deepest;
-    const [dx, dy] = P(dp.x, dp.z);
-    const pulse = 1 + 0.25 * Math.sin(performance.now() / 260);
-    g.lineWidth = 2.2 * S;
-    g.strokeStyle = d.atDeepest ? '#5dff9a' : '#ffd84a';
-    for (const r of [5, 9 * pulse]) {
-      g.beginPath();
-      g.arc(dx, dy, r * S, 0, Math.PI * 2);
-      g.stroke();
+    // wrecks you have already seen
+    if (d.wrecks) {
+      g.font = `${15 * S}px system-ui, sans-serif`;
+      for (const w of d.wrecks.sites) {
+        if (!w.found) continue;
+        const [wx, wy] = P(w.obj.position.x, w.obj.position.z);
+        g.fillText(w.kind === 'ship' ? '⚓' : '✈️', wx, wy);
+      }
     }
-    label(`${d.atDeepest ? '✓ ' : '🎯 '}${t('deepestShort')} ${fmtNum(-dp.y * SCALE)} m`, dx, dy - 15 * S, d.atDeepest ? '#5dff9a' : '#ffe680');
+    // team challenges (co-op)
+    if (d.team) {
+      g.font = `${14 * S}px system-ui, sans-serif`;
+      for (const c of d.team.list) {
+        const [cx, cy] = P(c.b.group.position.x, c.b.group.position.z);
+        g.fillText(c.done ? '✅' : '🤝', cx, cy);
+      }
+    }
+    // the deepest point is not drawn on the map – you find it with the guide under the missions
+    const dp = d.cm.deepest;
     // teammates
     for (const r of d.remote.values()) {
       const p = r.group.position;

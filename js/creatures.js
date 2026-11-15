@@ -823,9 +823,10 @@ export class CreatureManager {
   }
 
   // Nearest collectible in reach.
-  findGrabTarget(sub) {
+  // grabbing is forgiving: anything collectable within about 150 m (15 units) of the sub can be grabbed
+  findGrabTarget(sub, range = 15) {
     let best = null;
-    let bestD = 9.5;
+    let bestD = range;
     for (const it of this.items) {
       if (it.collected || it.reserved || !it.def.collect) continue;
       const d = it.group.position.distanceTo(sub.pos);

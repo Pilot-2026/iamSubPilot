@@ -576,7 +576,7 @@ export const HALL_SECRETS = {
   mariana: { kind: 'pearl', col: 0xffd27a, name: { en: 'Golden deep-sea pearl', de: 'Goldene Tiefseeperle' } },
 };
 const LOOT_GOLD = () => new THREE.MeshStandardMaterial({ color: 0xffcf4a, metalness: 0.9, roughness: 0.25, emissive: 0x7a5200, emissiveIntensity: 0.65 });
-function lootMesh(kind, col = 0xff4fa8) {
+export function lootMesh(kind, col = 0xff4fa8) {
   const g = new THREE.Group(), gold = LOOT_GOLD();
   const put = (geo, mat, p = [0, 0, 0], r = [0, 0, 0], sc = 1) => {
     const m = new THREE.Mesh(geo, mat);
@@ -1387,7 +1387,9 @@ export class Atlantis {
     const skyTex = tex(sky, false);
     this.textures.push(skyTex);
     this.hallSky = new THREE.MeshBasicMaterial({ map: skyTex, side: THREE.BackSide });
-    B.add(this.hallSky, new THREE.SphereGeometry(RR, 56, 20, 0, TAU, 0, PI / 2), M4(0, H, 0, 0, 0, 0, 1, 0.62, 1));
+    // a ribbed glass dome – through it you see the water outside, the towers of Atlantis and animals passing by
+    B.add(M.domeGlass, new THREE.SphereGeometry(RR, 56, 20, 0, TAU, 0, PI / 2), M4(0, H, 0, 0, 0, 0, 1, 0.62, 1));
+    this.buildHallOutside(hall, RR, H);
     // columns along the wall
     const nCol = Math.round(RR * 0.55);
     for (let i = 0; i < nCol; i++) {
@@ -1479,6 +1481,86 @@ export class Atlantis {
     this.buildHallFx(hall, RR, H, cols);
   }
 
+  // what you see through the glass dome: bright water, a ring of Atlantis towers, light from above, whales,
+  // mantas and dolphins circling over the hall
+  buildHallOutside(hall, RR, H) {
+    const T = this.theme, rnd = this.r;
+    const out = (this.hallOut = new THREE.Group());
+    hall.add(out);
+    // the water: bright from above, deeper towards the horizon
+    const c = document.createElement('canvas');
+    c.width = 16;
+    c.height = 256;
+    const g = c.getContext('2d');
+    const wcol = new THREE.Color(T.water);
+    const grd = g.createLinearGradient(0, 0, 0, 256);
+    grd.addColorStop(0, css(wcol.clone().lerp(new THREE.Color(0xffffff), 0.65)));
+    grd.addColorStop(0.45, css(wcol.clone().lerp(new THREE.Color(0xffffff), 0.2)));
+    grd.addColorStop(1, css(wcol.clone().multiplyScalar(0.45)));
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 16, 256);
+    const wt = tex(c, false);
+    this.textures.push(wt);
+    out.add(new THREE.Mesh(new THREE.SphereGeometry(RR * 3.2, 32, 16), new THREE.MeshBasicMaterial({ map: wt, side: THREE.BackSide, fog: false, depthWrite: false })));
+    // the skyline of Atlantis around the hall (seen above the wall, through the glass)
+    const k = document.createElement('canvas');
+    k.width = 2048;
+    k.height = 512;
+    const q = k.getContext('2d');
+    const stone = css(new THREE.Color(T.stone).multiplyScalar(0.85)), gold = css(new THREE.Color(T.metal)), win = css(new THREE.Color(T.window));
+    for (let x = 0; x < 2048; ) {
+      const w = 60 + rnd() * 120, h = 140 + rnd() * 300, kind = rnd();
+      q.fillStyle = stone;
+      q.fillRect(x, 512 - h, w, h);
+      if (kind < 0.35) {
+        // a dome
+        q.beginPath();
+        q.ellipse(x + w / 2, 512 - h, w / 2, w * 0.45, 0, PI, 0);
+        q.fill();
+        q.fillStyle = gold;
+        q.fillRect(x + w / 2 - 3, 512 - h - w * 0.45 - 30, 6, 30);
+      } else if (kind < 0.75) {
+        // a spire
+        q.beginPath();
+        q.moveTo(x, 512 - h);
+        q.lineTo(x + w / 2, 512 - h - 60 - rnd() * 90);
+        q.lineTo(x + w, 512 - h);
+        q.fill();
+      }
+      q.fillStyle = win;
+      for (let yy = 512 - h + 24; yy < 500; yy += 26) for (let xx = x + 10; xx < x + w - 10; xx += 18) if (rnd() < 0.6) q.fillRect(xx, yy, 7, 12);
+      x += w + rnd() * 40;
+    }
+    const st = tex(k, true);
+    this.textures.push(st);
+    const sky = new THREE.Mesh(new THREE.CylinderGeometry(RR * 2.3, RR * 2.3, RR * 1.15, 64, 1, true), new THREE.MeshBasicMaterial({ map: st, transparent: true, side: THREE.BackSide, fog: false, depthWrite: false }));
+    sky.position.y = H * 0.4 + RR * 0.45;
+    out.add(sky);
+    // light shafts from the surface
+    for (let i = 0; i < 7; i++) {
+      const a = rnd() * TAU, d = RR * (0.9 + rnd() * 1.1), len = RR * 2.2;
+      const geo = new THREE.CylinderGeometry(1.5, 6 + rnd() * 4, len, 16, 1, true).translate(0, -len / 2, 0);
+      attr1(geo, 'aPh', () => i * 1.7);
+      const m = new THREE.Mesh(geo, this.M.rays);
+      m.position.set(Math.cos(a) * d, H + RR * 1.6, Math.sin(a) * d);
+      m.rotation.z = (rnd() - 0.5) * 0.3;
+      out.add(m);
+    }
+    // animals swimming over the dome
+    this.hallAnimals = [];
+    const animal = (model, len, rr, hy, speed) => {
+      const o = buildModel(model);
+      const box = new THREE.Box3().setFromObject(o), size = box.getSize(new THREE.Vector3());
+      o.scale.multiplyScalar(len / Math.max(size.x, size.z, 0.01));
+      out.add(o);
+      this.hallAnimals.push({ o, model, rr, hy, speed, ph: rnd() * TAU, bob: rnd() * 10 });
+    };
+    animal('humpback', RR * 0.5, RR * 1.5, H + RR * 0.95, 0.05);
+    animal('manta', RR * 0.22, RR * 1.15, H + RR * 0.7, -0.08);
+    animal('manta', RR * 0.18, RR * 1.3, H + RR * 0.8, -0.075);
+    for (let i = 0; i < 3; i++) animal('dolphin', RR * 0.12, RR * 1.05, H + RR * 0.6 + i, 0.17);
+  }
+
   // a light show in the hall: a slowly turning fan of light rays from the top of the dome, sweeping coloured
   // beams, glowing orbs drifting through the hall and shimmering light patterns (caustics) on the floor
   buildHallFx(hall, RR, H, cols) {
@@ -1547,6 +1629,12 @@ export class Atlantis {
   }
 
   updateHallFx(t) {
+    for (const A of this.hallAnimals || []) {
+      const th = A.ph + t * A.speed, s = Math.sign(A.speed) || 1;
+      A.o.position.set(Math.cos(th) * A.rr, A.hy + Math.sin(t * 0.4 + A.bob) * 2, Math.sin(th) * A.rr);
+      A.o.rotation.y = Math.atan2(Math.sin(th) * s, -Math.cos(th) * s);
+      animUpper(A.o, A.model, t * (A.model === 'dolphin' ? 1.6 : 0.9) + A.bob);
+    }
     const fx = this.hallFx;
     if (!fx) return;
     fx.fan.rotation.y = t * 0.06;

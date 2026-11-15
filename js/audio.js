@@ -795,9 +795,21 @@ class AudioFX {
     this.finMode = !!on;
   }
 
-  finSwish(level = 0.5) {
+  finSwish(level = 0.5, dur = 0.42) {
     if (!this.ctx || !this.finMode) return;
-    const c = this.ctx, t0 = c.currentTime, dur = 0.55;
+    const c = this.ctx, t0 = c.currentTime;
+    // the fluke pushing the water: a soft low "whomp" …
+    const o = c.createOscillator(), og = c.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(150, t0);
+    o.frequency.exponentialRampToValueAtTime(65, t0 + dur * 0.6);
+    og.gain.setValueAtTime(0.0001, t0);
+    og.gain.exponentialRampToValueAtTime(0.05 + level * 0.09, t0 + 0.05);
+    og.gain.exponentialRampToValueAtTime(0.0001, t0 + dur * 0.7);
+    o.connect(og);
+    og.connect(this.fxBus);
+    o.start(t0);
+    o.stop(t0 + dur);
     const len = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     const src = c.createBufferSource();
@@ -805,12 +817,13 @@ class AudioFX {
     const f = c.createBiquadFilter();
     f.type = 'bandpass';
     f.Q.value = 0.9;
-    f.frequency.setValueAtTime(320, t0);
-    f.frequency.exponentialRampToValueAtTime(900 + level * 500, t0 + 0.18);
-    f.frequency.exponentialRampToValueAtTime(260, t0 + dur);
-    const g = c.createGain(), v = 0.05 + level * 0.11;
+    f.frequency.setValueAtTime(380, t0);
+    f.frequency.exponentialRampToValueAtTime(700 + level * 500, t0 + dur * 0.35);
+    f.frequency.exponentialRampToValueAtTime(300, t0 + dur);
+    // … and the swish of the fin through the water
+    const g = c.createGain(), v = 0.03 + level * 0.07;
     g.gain.setValueAtTime(0.0001, t0);
-    g.gain.exponentialRampToValueAtTime(v, t0 + 0.09);
+    g.gain.exponentialRampToValueAtTime(v, t0 + dur * 0.25);
     g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
     src.connect(f);
     f.connect(g);
@@ -818,13 +831,13 @@ class AudioFX {
     if (this.reverb) g.connect(this.reverb);
     src.start(t0);
     // now and then a few small bubbles
-    if (Math.random() < 0.35 + level * 0.3) for (let i = 0; i < 3; i++) this.tone(500 + Math.random() * 700, 0.05, { vol: 0.025, toFreq: 1300 + Math.random() * 600, when: 0.12 + i * 0.07 });
+    if (Math.random() < 0.15 + level * 0.2) for (let i = 0; i < 2; i++) this.tone(500 + Math.random() * 700, 0.05, { vol: 0.02, toFreq: 1300 + Math.random() * 600, when: 0.12 + i * 0.07 });
   }
 
   setEngine(level) {
     if (!this.engine) return;
     const t = this.ctx.currentTime;
-    this.engine.wg.gain.setTargetAtTime(this.finMode ? 0.02 + level * 0.06 : 0, t, 0.3);
+    this.engine.wg.gain.setTargetAtTime(this.finMode ? 0.004 + level * 0.012 : 0, t, 0.3);
     this.engine.wf.frequency.setTargetAtTime(350 + level * 600, t, 0.3);
     if (this.finMode) {
       this.engine.g.gain.setTargetAtTime(0, t, 0.2);

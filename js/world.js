@@ -118,6 +118,7 @@ export class World {
     this.buildTerrain();
     this.buildWaterSurface();
     this.buildShip();
+    this.buildRocks();
     this.buildSnow();
     this.buildLights();
     this.buildSonar();
@@ -133,12 +134,20 @@ export class World {
     const floor = L.maxDepth - (1 - Math.exp(-dd * dd)) * this.floorRange;
     const t = clamp(1 - dz / this.halfW, 0, 1);
     let prof = smoothstep(0, 0.82, t);
-    // terraces on the walls
-    prof += 0.035 * Math.sin(prof * Math.PI * 7) * (prof * (1 - prof)) * 4;
+    // rugged walls: steps of flat ledges and steep drops (wobbling along the trench), plus craggy ridges
+    const wall = prof * (1 - prof) * 4; // 0 on the plain and on the flat bottom, 1 halfway down the wall
+    if (prof > 0.02 && prof < 0.98) {
+      const steps = 6 + (L.steep ? 2 : 0);
+      const q = prof * steps + fbm(x * 0.012, z * 0.012 + 5.3, 2) * 1.6;
+      const fl = Math.floor(q), fr = q - fl;
+      const stepped = (fl + smoothstep(0.6, 0.97, fr) - fbm(x * 0.012, z * 0.012 + 5.3, 2) * 1.6) / steps;
+      prof = lerp(prof, clamp(stepped, 0, 1), 0.75 * Math.min(1, wall * 2.2));
+    }
     let depth = L.plainDepth + (floor - L.plainDepth) * prof;
-    // gentle hills on the plain, rocky detail on the walls
+    // gentle hills on the plain, craggy rock on the walls
     depth += fbm(x * 0.006 + 3.1, z * 0.006 - 1.7) * 260 * (1 - 0.7 * prof);
-    depth -= ridge(x * 0.022, z * 0.022) * 70 * prof * (1 - prof) * 3;
+    depth -= ridge(x * 0.022, z * 0.022) * 130 * wall;
+    depth += (fbm(x * 0.034 + 9.1, z * 0.034 - 4.4, 3) - 0.5) * 140 * wall;
     depth += fbm(x * 0.05, z * 0.05, 2) * 18;
     for (const s of this.seamounts) {
       const d2 = ((x - s.x) ** 2 + (z - s.z) ** 2) / (s.r * s.r);
@@ -787,6 +796,102 @@ uniform vec4 uMapped[24]; uniform vec3 uSonarColor;`
   sheaves() {
     this.ship.updateMatrixWorld(true);
     return [-1.5, 1.5].map((x) => this.aframe.localToWorld(new THREE.Vector3(x, 7.4, 0)));
+  }
+
+  // rocks and ledges sticking out of the trench walls (instanced, solid: pushOut keeps the sub out of them)
+  buildRocks() {
+    const rnd = mulberry32(hashString(this.level.id + ':rocks'));
+    const L = this.level;
+    const shapes = [];
+    for (let s = 0; s < 4; s++) {
+      const g = new THREE.IcosahedronGeometry(1, 1).toNonIndexed();
+      const p = g.attributes.position;
+      // lumpy, cracked rock: push the corners in and out (same displacement for shared corners)
+      const key = (x, y, z) => `${Math.round(x * 100)},${Math.round(y * 100)},${Math.round(z * 100)}`;
+      const off = {};
+      for (let i = 0; i < p.count; i++) {
+        const k = key(p.getX(i), p.getY(i), p.getZ(i));
+        if (off[k] === undefined) off[k] = 0.72 + rnd() * 0.5;
+        p.setXYZ(i, p.getX(i) * off[k], p.getY(i) * off[k], p.getZ(i) * off[k]);
+      }
+      g.computeVertexNormals();
+      shapes.push(g);
+    }
+    const mat = new THREE.MeshStandardMaterial({ color: new THREE.Color(L.rock[0] * 0.95, L.rock[1] * 0.95, L.rock[2] * 0.95), roughness: 0.95, flatShading: true });
+    const mat2 = new THREE.MeshStandardMaterial({ color: new THREE.Color(L.rock[0] * 0.8, L.rock[1] * 0.8, L.rock[2] * 0.82), roughness: 0.95, flatShading: true });
+    const items = [];
+    let tries = 0;
+    while (items.length < 520 && tries++ < 9000) {
+      const x = -WX + 30 + rnd() * (2 * WX - 60);
+      const side = rnd() < 0.5 ? -1 : 1;
+      const z = axisZ(x) + side * this.halfW * (0.12 + rnd() * 0.85);
+      if (Math.abs(z) > WZ - 20 || Math.abs(x - SHIP_X) < 70) continue;
+      const h = this.heightAt(x, z);
+      const gx = this.heightAt(x + 3, z) - this.heightAt(x - 3, z), gz = this.heightAt(x, z + 3) - this.heightAt(x, z - 3);
+      const slope = Math.hypot(gx, gz) / 6;
+      if (slope < 0.35) continue;
+      const ledge = rnd() < 0.38;
+      // ledges stick out sideways from the wall (towards the trench axis), boulders sit half in the rock
+      const ry = Math.atan2(-gx, -gz);
+      const sc = ledge ? [7 + rnd() * 9, 1.6 + rnd() * 1.8, 4 + rnd() * 5] : [2.5 + rnd() * 7, 2 + rnd() * 6, 2.5 + rnd() * 7];
+      const y = h + (ledge ? -0.5 + rnd() * 2 : sc[1] * (0.05 + rnd() * 0.35));
+      items.push({ x, y, z, ry, sx: sc[0], sy: sc[1], sz: sc[2], s: (rnd() * shapes.length) | 0, m: rnd() < 0.5 ? 0 : 1, rx: (rnd() - 0.5) * 0.4 });
+    }
+    this.rocks = items;
+    // a coarse grid for the collision lookup
+    this.rockGrid = new Map();
+    for (const r of items) {
+      const k = `${Math.floor(r.x / 40)},${Math.floor(r.z / 40)}`;
+      if (!this.rockGrid.has(k)) this.rockGrid.set(k, []);
+      this.rockGrid.get(k).push(r);
+    }
+    this.rockMeshes = [];
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler();
+    for (let s = 0; s < shapes.length; s++) {
+      for (let m = 0; m < 2; m++) {
+        const list = items.filter((r) => r.s === s && r.m === m);
+        if (!list.length) continue;
+        const im = new THREE.InstancedMesh(shapes[s], m ? mat2 : mat, list.length);
+        list.forEach((r, i) => {
+          e.set(r.rx, r.ry, 0);
+          q.setFromEuler(e);
+          im.setMatrixAt(i, m4.compose(new THREE.Vector3(r.x, r.y, r.z), q, new THREE.Vector3(r.sx, r.sy, r.sz)));
+        });
+        im.computeBoundingSphere();
+        this.scene.add(im);
+        this.rockMeshes.push(im);
+      }
+    }
+  }
+
+  // keep a ball (the sub) out of the rocks; returns the push direction (or null)
+  pushOut(pos, rad) {
+    if (!this.rockGrid) return null;
+    const cx = Math.floor(pos.x / 40), cz = Math.floor(pos.z / 40);
+    let hit = null;
+    for (let a = cx - 1; a <= cx + 1; a++) {
+      for (let b = cz - 1; b <= cz + 1; b++) {
+        const list = this.rockGrid.get(`${a},${b}`);
+        if (!list) continue;
+        for (const r of list) {
+          const dx = pos.x - r.x, dy = pos.y - r.y, dz = pos.z - r.z;
+          if (Math.abs(dx) > r.sx + r.sz + rad || Math.abs(dz) > r.sx + r.sz + rad || Math.abs(dy) > r.sy + rad) continue;
+          // into the rock's own frame (turned by ry), as an ellipsoid grown by the sub's radius
+          const c = Math.cos(r.ry), s = Math.sin(r.ry);
+          const lx = c * dx - s * dz, lz = s * dx + c * dz;
+          const ax = r.sx * 0.85 + rad, ay = r.sy * 0.85 + rad, az = r.sz * 0.85 + rad;
+          const k = Math.hypot(lx / ax, dy / ay, lz / az);
+          if (k >= 1 || k < 1e-4) continue;
+          const f = 1 / k; // scale out to the surface
+          const nx = lx * f - lx, ny = dy * f - dy, nz = lz * f - lz;
+          pos.x += c * nx + s * nz;
+          pos.y += ny;
+          pos.z += -s * nx + c * nz;
+          hit = r;
+        }
+      }
+    }
+    return hit;
   }
 
   buildSnow() {
