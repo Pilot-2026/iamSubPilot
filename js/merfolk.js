@@ -298,9 +298,13 @@ export function buildMerFigure(P, { sub = false, happy = false } = {}) {
 export function animMer(rig, t, dt, speed = 0, opts = {}) {
   t += rig.t0;
   const moving = Math.min(1, Math.max(0, (speed - 0.8) / 3));
-  const f = 1.1 + Math.min(speed, 12) * 0.12;
-  const amp = 0.1 + moving * 0.12;
-  const ph = t * f * Math.PI * 2 * 0.5;
+  // calm, even tail beats: the beat rate rises only a little with speed (a fast dash = bigger strokes, not
+  // frantic wagging), and the phase is integrated so a change of speed never makes the tail jitter
+  rig.fr = (rig.fr ?? 1) + (1.0 + Math.min(speed, 24) * 0.035 - (rig.fr ?? 1)) * Math.min(1, dt * 1.5);
+  const f = rig.fr;
+  const amp = 0.1 + moving * 0.12 + Math.min(1, Math.max(0, (speed - 9) / 14)) * 0.06;
+  rig.ph = (rig.ph ?? t * Math.PI) + dt * f * Math.PI;
+  const ph = rig.ph;
   rig.tail.forEach((seg, i) => {
     seg.rotation.x = Math.sin(ph - i * 0.62) * amp * (0.4 + i * 0.22);
     seg.rotation.y = Math.sin(t * 0.7 + i * 0.5) * 0.03;
@@ -308,7 +312,7 @@ export function animMer(rig, t, dt, speed = 0, opts = {}) {
   if (rig.fluke) rig.fluke.rotation.x = Math.sin(ph - 4.2) * amp * 1.5;
   for (const fn of rig.fins) fn.g.rotation.z = fn.s * (0.15 + 0.28 * Math.sin(t * 5.5 + fn.base * 7 + fn.s));
   // arms: breaststroke while swimming, a gentle float when slow, a wave now and then (or when asked)
-  const stroke = (t * f * 0.5) % 1;
+  const stroke = ((ph / Math.PI) * 0.5) % 1;
   const q = 0.5 - 0.5 * Math.cos(stroke * Math.PI * 2);
   const waveNow = opts.wave || (t % 11 > 9.2);
   for (const arm of [rig.armL, rig.armR]) {

@@ -2,13 +2,30 @@
 // day, hour, approximate country (from the time zone, no IP address), language, device type,
 // new or returning (a first-visit date kept on this device only) and a few game events.
 // The operator's own devices (where the statistics were opened) are counted separately.
+// For the list of returning visitors each device keeps an anonymous random number (hadal.vid) – it says nothing
+// about the person; it only lets the statistics count how often the same device came back.
 // Without Firebase the page shows only this device's own numbers.
 
 import { TZ_COUNTRY } from './data/tzcountry.js';
+import { cloud } from './cloud.js';
 
 const K_FIRST = 'hadal.firstVisit';
 const K_OWNER = 'hadal.statsOwner';
 const K_LOCAL = 'hadal.statsLocal';
+const K_VID = 'hadal.vid';
+function deviceId() {
+  let v = localStorage.getItem(K_VID);
+  if (!v || !/^[A-Za-z0-9_-]{6,24}$/.test(v)) {
+    const a = new Uint8Array(9);
+    crypto.getRandomValues(a);
+    v = btoa(String.fromCharCode(...a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    try {
+      localStorage.setItem(K_VID, v);
+    } catch (e) { /* ignore */ }
+  }
+  return v;
+}
+export const myVisitorId = () => (localStorage.getItem(K_VID) || '').slice(0, 6);
 const OWNER_TZ = 'Europe/Vienna'; // days and hours are counted in the operator's time zone
 
 function partsIn(tz, d = new Date()) {
@@ -126,6 +143,12 @@ export async function recordVisit(net) {
     s.recent.unshift({ t: Date.now(), cc: v.cc, dev: v.dev, lang: v.lang, ret: v.ret });
     s.recent = s.recent.slice(0, 50);
   });
+  // returning-visitor list (own Netlify site); tests and local runs are not counted
+  if (!/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && !/[?&]autostart=/.test(location.search)) {
+    try {
+      cloud.visit({ vid: deviceId(), cc: v.cc, dev: v.dev, lang: v.lang, own: v.owner });
+    } catch (e) { /* ignore */ }
+  }
   if (!net || !net.db || !net.fb || !net.fb.increment) return;
   try {
     if (v.owner) {
@@ -173,19 +196,21 @@ export async function loadStats(net, days = 30) {
       const [allSnap, daySnaps, recentSnap] = await Promise.all([
         getDoc(doc(net.db, 'stats', 'all')),
         Promise.all(keys.map((k) => getDoc(doc(net.db, 'stats', 'd_' + k)))),
-        getDocs(query(collection(net.db, 'visits'), orderBy('t', 'desc'), limit(50))),
+        getDocs(query(collection(net.db, 'visits'), orderBy('t', 'desc'), limit(100))),
       ]);
       const recent = recentSnap.docs.map((d) => {
         const x = d.data();
         return { ...x, t: x.t && x.t.toMillis ? x.t.toMillis() : 0 };
       });
-      return { online: true, all: allSnap.exists() ? allSnap.data() : {}, days: keys.map((k, i) => ({ day: k, ...(daySnaps[i].exists() ? daySnaps[i].data() : {}) })), recent };
+      const vis = await cloud.visitors();
+      return { online: true, all: allSnap.exists() ? allSnap.data() : {}, days: keys.map((k, i) => ({ day: k, ...(daySnaps[i].exists() ? daySnaps[i].data() : {}) })), recent, visitors: vis && vis.visitors, visitorsTotal: vis && vis.total };
     } catch (e) {
       console.warn('statistics: could not load', e);
       return { online: false, error: true, ...localStats(keys) };
     }
   }
-  return { online: false, ...localStats(keys) };
+  const vis = await cloud.visitors();
+  return { online: false, ...localStats(keys), visitors: vis && vis.visitors, visitorsTotal: vis && vis.total };
 }
 
 function localStats(keys) {

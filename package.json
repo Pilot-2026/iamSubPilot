@@ -1,10 +1,11 @@
 {
   "name": "iamsubpilot",
-  "version": "0.9.7",
+  "version": "0.9.8",
   "private": true,
   "description": "iamSubPilot – 3D deep-sea sub game. The game itself needs no build step; this file only lists what the Netlify functions (online rooms) need.",
   "type": "module",
   "dependencies": {
+    "@netlify/blobs": "^10.7.13",
     "livekit-server-sdk": "^2.19.3"
   },
   "engines": {

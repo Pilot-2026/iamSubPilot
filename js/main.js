@@ -13,7 +13,7 @@ import { audio, SOUND_MODES } from './audio.js';
 import { Net } from './net.js';
 import { LEVELS, HULL_RATINGS, levelById } from './data/levels.js';
 import { CREATURES } from './data/creatures.js';
-import { pickQuestions, tierForAge } from './data/quiz.js';
+import { pickQuestions, fableQuestion, tierForAge } from './data/quiz.js';
 import { makeMissions, missionText, updateMissions } from './missions.js';
 import { ask, line, zoneKey } from './scientist.js';
 import { t, L, setLang, getLang, detectLang, fmtNum, fmtDec } from './i18n.js';
@@ -27,12 +27,15 @@ import { Recovery } from './launch.js';
 import { DeepBeacon, MapView, fmtDist } from './guide.js';
 import { Atlantis, atlantisSpot } from './atlantis.js';
 import { FABLE_SPEECH } from './fables.js';
+import { cloud, nameKey, progressOf, mergeInto } from './cloud.js';
 import { xmasSeason, buildSanta, decorateSub } from './santa.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 if (isTouch) document.body.classList.add('touch');
 const params = new URLSearchParams(location.search);
+// tests and local runs stay out of the cloud (add ?cloud=1 to test it locally)
+const CLOUD_OFF = params.has('autostart') || (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && !params.has('cloud'));
 
 // ======================= profile =======================
 const PROFILE_KEY = 'hadal.profile.v1';
@@ -63,6 +66,39 @@ function loadProfile() {
 }
 function saveProfile() {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  // progress travels with the name (after this device has been synced once for that name)
+  if (profile.name && profile.cloudKey === nameKey(profile.name) && !CLOUD_OFF) {
+    clearTimeout(saveProfile.t);
+    saveProfile.t = setTimeout(() => cloud.push(profile.name, progressOf(profile)), 2500);
+  }
+}
+
+// Cloud profile: the same name on another device brings the same research points, hangar upgrades, sub and
+// logbook. A name used for the first time takes this device's progress along; switching to a name that already
+// has progress in the cloud loads that progress.
+async function syncProfile({ quiet = false } = {}) {
+  if (!profile.name || !cloud.available || CLOUD_OFF) return false;
+  const key = nameKey(profile.name);
+  const before = JSON.stringify(progressOf(profile));
+  const res = await cloud.pull(profile.name);
+  if (!res) return false;
+  if (res.found && res.data) {
+    if (profile.cloudKey && profile.cloudKey !== key) {
+      // another name than before on this device: that name's progress replaces the old one
+      Object.assign(profile, { rp: 0, spent: 0, dives: 0, logbook: {}, upgrades: { ...DEFAULT_PROFILE().upgrades } });
+    }
+    mergeInto(profile, res.data);
+  }
+  profile.cloudKey = key;
+  localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  const saved = await cloud.push(profile.name, progressOf(profile));
+  if (saved && saved.data) {
+    mergeInto(profile, saved.data);
+    localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
+  }
+  const changed = JSON.stringify(progressOf(profile)) !== before;
+  if (changed && !quiet) toast('☁️ ' + t('cloudLoaded', { name: profile.name }));
+  return changed;
 }
 const tier = () => tierForAge(profile.age || 14);
 const rpAvailable = () => profile.rp - profile.spent;
@@ -182,11 +218,39 @@ let game = null;
 let echoTimer = null;
 const echoQueue = [];
 let echoBusy = false;
-// a speech bubble next to a point in the world (tail pointing at it; no tail when it is off screen)
-function placeBubble(el, world) {
-  const p = world.clone().project(camera);
+// a speech bubble next to a point in the world (tail pointing at it; no tail when it is off screen).
+// side > 0: keep that much room (world units) around the point free – the bubble goes beside the face with its
+// tail pointing sideways, or above the head when there is no room at the sides
+function placeBubble(el, world, side = 0) {
   el.classList.remove('hidden');
-  const W = window.innerWidth, H = window.innerHeight, bw = el.offsetWidth, bh = el.offsetHeight;
+  const W = window.innerWidth, H = window.innerHeight;
+  let p = world.clone().project(camera);
+  if (side) {
+    const bw = el.offsetWidth, bh = el.offsetHeight;
+    const sx = (p.x * 0.5 + 0.5) * W, sy = (-p.y * 0.5 + 0.5) * H;
+    const right = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0);
+    const q = world.clone().addScaledVector(right, side).project(camera);
+    const off = Math.abs((q.x - p.x) * 0.5 * W) + 16;
+    const roomR = W - (sx + off) - 10, roomL = sx - off - 10;
+    const vis = p.z < 1 && sx > 0 && sx < W && sy > 0 && sy < H;
+    if (vis && (roomR >= bw || roomL >= bw)) {
+      const toRight = roomR >= bw && (sx < W * 0.5 || roomL < bw);
+      const left = toRight ? sx + off : sx - off - bw;
+      const top = clamp(sy - bh * 0.45, 10 + (isTouch ? 0 : 60), Math.max(70, H - bh - 160));
+      el.style.left = `${left}px`;
+      el.style.top = `${top}px`;
+      el.style.setProperty('--tailY', `${clamp(sy - top, 18, bh - 18)}px`);
+      el.classList.toggle('side-r', toRight);
+      el.classList.toggle('side-l', !toRight);
+      el.classList.remove('notail');
+      return;
+    }
+    // no room beside the face: above the head instead
+    const up = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1);
+    p = world.clone().addScaledVector(up, side * 1.6).project(camera);
+  }
+  el.classList.remove('side-l', 'side-r');
+  const bw = el.offsetWidth, bh = el.offsetHeight;
   const sx = (p.x * 0.5 + 0.5) * W, sy = (-p.y * 0.5 + 0.5) * H;
   const vis = p.z < 1 && sx > -40 && sx < W + 40 && sy > -40 && sy < H + 40;
   const left = clamp((vis ? sx : W / 2) - bw * 0.3, 10, Math.max(10, W - bw - 10));
@@ -259,22 +323,65 @@ function showCard(def, info = {}) {
   const badge = fantasy ? `<span class="badge fantasy">★ ${t('fantasy')}</span>` : `<span class="badge real">${t('real')}</span>`;
   const isNew = info.isNew ? `<span class="badge new">${t('newDiscovery')}</span>` : '';
   let body = `<p>${escapeHtml(L(def.fact))}</p>`;
-  if (fantasy) {
+  if (fantasy && def.plain) {
+    // Atlantis beings: just their story
+  } else if (fantasy) {
     body += `<div class="note">${escapeHtml(t('fantasyNote'))}</div>`;
     body += `<p class="twist"><b>${t('realTwist')}:</b> ${escapeHtml(L(def.twist))}</p>`;
   } else if (!kid && def.more) {
     body += `<p>${escapeHtml(L(def.more))}</p>`;
   }
   const meta = info.depth !== undefined ? `<div class="meta">${t('foundAt', { depth: fmtNum(info.depth) })}${info.by ? ' · ' + escapeHtml(info.by) : ''}</div>` : '';
-  const big = !!info.big;
-  el.className = (fantasy ? 'fantasy' : '') + (big ? ' big' : '');
+  const big = !!info.big, peek = big && !!info.peek;
+  el.className = (fantasy ? 'fantasy' : '') + (big ? ' big' : '') + (peek ? ' peek' : '');
   el.innerHTML = `<button class="x" aria-label="${t('close')}">×</button>${big ? '<div class="card-3d"></div>' : ''}<div class="card-txt">${badge}${isNew}
     <h3>${escapeHtml(L(def.name))}</h3>${def.sci ? `<div class="sci">${escapeHtml(def.sci)}</div>` : ''}
-    ${meta}${body}${fantasy ? '' : sourceLink(def)}${big ? `<div class="row-end"><button class="btn" id="cardGo">${t('cardContinue')}</button></div>` : ''}</div>`;
+    ${meta}${body}${fantasy ? '' : sourceLink(def)}${big && !peek ? `<div class="row-end"><button class="btn" id="cardGo">${t('cardContinue')}</button></div>` : ''}</div>
+    ${peek ? '<div class="peek-bar"><i></i></div>' : ''}`;
   el.querySelector('.x').onclick = () => closeCard();
   clearTimeout(cardTimer);
-  cardOpen = { big, paused: false };
-  if (big) {
+  cardOpen = { big, paused: false, peek };
+  if (peek) {
+    // a new photo: the find turns in 3D for 5 seconds while you keep diving; press and hold the card to keep it
+    try {
+      viewer().show(el.querySelector('.card-3d'), def.model, { speed: 0.45 });
+    } catch (e) {
+      console.warn('3D view failed', e);
+    }
+    const PEEK = 5000, bar = el.querySelector('.peek-bar i'), mine = cardOpen;
+    const start = () => {
+      clearTimeout(cardTimer);
+      bar.style.transition = 'none';
+      bar.style.width = '100%';
+      void bar.offsetWidth;
+      bar.style.transition = `width ${PEEK}ms linear`;
+      bar.style.width = '0%';
+      cardTimer = setTimeout(() => cardOpen === mine && closeCard(), PEEK);
+    };
+    const hold = (e) => {
+      if (e.target.closest('.x, a')) return;
+      mine.held = true;
+      clearTimeout(cardTimer);
+      bar.style.transition = 'none';
+      bar.style.width = '100%';
+      el.classList.add('held');
+    };
+    const release = () => {
+      if (!mine.held || cardOpen !== mine) return;
+      mine.held = false;
+      el.classList.remove('held');
+      cardTimer = setTimeout(() => cardOpen === mine && closeCard(), 700);
+    };
+    el.addEventListener('pointerdown', hold);
+    window.addEventListener('pointerup', release);
+    window.addEventListener('pointercancel', release);
+    mine.off = () => {
+      el.removeEventListener('pointerdown', hold);
+      window.removeEventListener('pointerup', release);
+      window.removeEventListener('pointercancel', release);
+    };
+    requestAnimationFrame(start);
+  } else if (big) {
     // large 3D view: the camera circles the find until it is clicked away
     $('#cardBack').classList.remove('hidden');
     el.querySelector('#cardGo').onclick = () => closeCard();
@@ -301,6 +408,7 @@ function closeCard(quick = false) {
     }, 350);
   }
   $('#cardBack').classList.add('hidden');
+  if (cardOpen && cardOpen.off) cardOpen.off();
   if (cardOpen && cardOpen.big) viewer().hide();
   if (cardOpen && cardOpen.paused && game && !game.ended) {
     game.paused = false;
@@ -371,7 +479,7 @@ function showWelcome(onDone) {
     <p>${t('welcomeText')}</p>
     <div class="field"><label>${t('language')}</label>
       <div class="seg" id="wLang"><button data-l="en" class="${getLang() === 'en' ? 'on' : ''}">English</button><button data-l="de" class="${getLang() === 'de' ? 'on' : ''}">Deutsch</button></div></div>
-    <div class="field"><label for="wName">${t('nickname')}</label><input id="wName" type="text" maxlength="30" autocomplete="off" value="${escapeHtml(profile.name)}"><div class="hint" id="wNameHint"></div></div>
+    <div class="field"><label for="wName">${t('nickname')}</label><input id="wName" type="text" maxlength="30" autocomplete="off" value="${escapeHtml(profile.name)}"><div class="hint" id="wNameHint"></div><div class="hint cloud-hint">☁️ ${t('nicknameCloud')}</div></div>
     <div class="field"><label for="wAge">${t('age')}</label><input id="wAge" type="number" min="5" max="120" inputmode="numeric" value="${profile.age || ''}"><div class="hint" id="wAgeHint"></div></div>
     <div class="row-end"><button class="btn big" id="wGo">${t('letsGo')}</button></div>
     <p class="welcome-privacy">${t('welcomePrivacy')} <a href="privacy.html" target="_blank" rel="noopener">${t('privacy')}</a> · <a href="https://www.pilotfilm.at/impressum" target="_blank" rel="noopener">${t('imprint')}</a></p>`;
@@ -404,6 +512,7 @@ function showWelcome(onDone) {
       audio.init();
       closeModal();
       onDone && onDone();
+      syncProfile().then((changed) => changed && !game && $('#menu') && !$('#menu').classList.contains('hidden') && renderMenu());
     };
   });
 }
@@ -766,14 +875,25 @@ async function showLeaderboard(kind, levelId) {
       <button class="tab ${kind === 'exp' ? 'on' : ''}" data-k="exp">${t('lbExpedition')}</button>
       <button class="tab ${kind === 'race' ? 'on' : ''}" data-k="race">${t('lbRace')}</button>
       <button class="tab ${kind === 'deepest' ? 'on' : ''}" data-k="deepest">${t('lbDeepest')}</button>
+      <button class="tab ${kind === 'divers' ? 'on' : ''}" data-k="divers">☁️ ${t('lbDivers')}</button>
     </div>
-    ${kind !== 'deepest' ? `<select id="lbLevel">${levelOpts}</select>` : ''}
+    ${kind !== 'deepest' && kind !== 'divers' ? `<select id="lbLevel">${levelOpts}</select>` : ''}
     <div id="lbList" style="margin-top:10px">${t('loading')}</div>
     <div class="row-end"><button class="btn secondary" id="lbClose">${t('close')}</button></div>`, async (root) => {
     root.querySelectorAll('[data-k]').forEach((b) => (b.onclick = () => showLeaderboard(b.dataset.k, levelId)));
     const sel = root.querySelector('#lbLevel');
     if (sel) sel.onchange = () => showLeaderboard(kind, sel.value);
     root.querySelector('#lbClose').onclick = closeModal;
+    if (kind === 'divers') {
+      // every diver with progress in the cloud, most research points first
+      const list = await cloud.list();
+      const el = root.querySelector('#lbList');
+      if (!el) return;
+      const me = nameKey(profile.name);
+      const rows = (list || []).map((d, i) => `<tr class="${nameKey(d.name) === me ? 'me' : ''}"><td>${i + 1}.</td><td>${escapeHtml(d.name || '?')}</td><td>🔬 ${fmtNum(d.rp)}</td><td>🤿 ${fmtNum(d.dives)}</td><td>📖 ${fmtNum(d.species)}</td></tr>`).join('');
+      el.innerHTML = `<div style="font-size:12px;color:var(--ink-soft);margin-bottom:6px">${list ? t('lbDiversNote') : t('lbDiversOffline')}</div>` + (rows ? `<table class="lb">${rows}</table>` : list ? `<p>${t('lbEmpty')}</p>` : '');
+      return;
+    }
     const board = kind === 'deepest' ? 'deepest' : `${kind}_${levelId}`;
     const asc = kind === 'race';
     const res = await net.top(board, asc, 10);
@@ -1456,6 +1576,7 @@ class Dive {
     if (this.race) this.setupRace();
     this.setupHud();
     audio.startLoops();
+    audio.setFinMode(this.sub.group.userData.type === 'isabella');
     // launch from the ship: winch, chains, splash
     this.hooks = {
       winch: (on) => audio.winch(on),
@@ -1595,6 +1716,11 @@ class Dive {
     audio.ping();
     sonarRipple();
     const cells = this.world.startPing(this.sub.pos, this.sonarRadius);
+    if (this.atlantis && this.atlantis.sonarPing()) {
+      echoSay(t('hallSonarFound', { name: L(this.atlantis.secret.userData.info.name) }), { now: true });
+      toast('📡 ' + t('hallSonarToast'));
+      audio.discovery();
+    }
     // sonar contacts
     this.contacts = [];
     for (const it of this.cm.items) {
@@ -1706,6 +1832,16 @@ class Dive {
     audio.mission();
   }
 
+  // from the pause menu: surface (normally or as an emergency) – works also when already on the way up
+  surfaceNow(emergency) {
+    if (this.ended) return;
+    if (this.recovery) return this.recovery.skip();
+    if (!this.ending) return emergency ? this.emergency('abort') : this.actSurface();
+    if (emergency) this.ending = { emergency: true, reason: 'abort' };
+    this.sub.autoAscent = true;
+    if (this.atlantis && this.atlantis.inside && !this.portalBusy) this.portal('exit');
+  }
+
   emergency(reason) {
     if (this.ending) return;
     this.ending = { emergency: true, reason };
@@ -1734,7 +1870,7 @@ class Dive {
       else audio.discovery();
       if (team) toast(t('teamFound', { name: by || '?', what: L(def.name) }));
       else toast(isNew ? t('newDiscovery') : L(def.name), isNew ? L(def.name) : '');
-      showCard(def, { depth, isNew, by: team ? by : null, big: !team, pause: !team });
+      showCard(def, { depth, isNew, by: team ? by : null, big: !team, peek: true });
     }
     if (!team) {
       if (def.kind === 'fantasy') {
@@ -1902,7 +2038,7 @@ class Dive {
       A.clampCam(this.camPos);
       if (this.multi && net.room) net.setPlayer({ ins: kind === 'enter' ? 1 : 0 });
       if (kind === 'enter') {
-        this.fableTalk = { i: 0, t: 0, pause: 1.2, shown: -1 };
+        this.fableTalk = { i: 0, t: 0, pause: 1.2, shown: -1, legend: !A.legendRead, legendT: 0 };
         toast(`✨ ${L(A.fable.info.name)}`, t('fableHere'));
         audio.fanfare();
       } else {
@@ -1922,6 +2058,50 @@ class Dive {
     if (!this.atlantis.inside) this.portal('enter', true);
   }
 
+  // the hidden hall: treasures, the crew and the sonar secret
+  updateHall(dt) {
+    const A = this.atlantis, el = $('#hallCount');
+    if (!A || !A.inside || this.ended || !A.loot) {
+      el.classList.add('hidden');
+      return;
+    }
+    for (const ev of A.takeEvents()) {
+      if (ev.type === 'loot') {
+        audio.coin();
+        if (ev.n === ev.total) {
+          toast('💰 ' + t('hallAllLoot'));
+          audio.fanfare();
+        }
+      } else if (ev.type === 'crew') {
+        audio.giggle();
+        if (ev.n === 1) echoSay(t('hallCrewFirst'), { now: true });
+        if (ev.n === ev.total) {
+          toast('🟡 ' + t('hallAllCrew'));
+          audio.fanfare();
+        }
+      } else if (ev.type === 'secret') {
+        audio.fanfare();
+        toast('✨ ' + L(ev.name), t('hallSecretGot'));
+        echoSay(t('hallSecretSay', { name: L(ev.name) }), { now: true });
+      }
+      el.classList.remove('pulse');
+      void el.offsetWidth;
+      el.classList.add('pulse');
+    }
+    this.hallTime = (this.hallTime || 0) + dt;
+    if (!this.hallHint1 && this.hallTime > 9) {
+      this.hallHint1 = true;
+      echoSay(t(A.extras ? 'hallLootHintCrew' : 'hallLootHint'), { now: true });
+    }
+    if (!this.hallHint2 && this.hallTime > 30 && !A.secret.visible && !A.secretFound) {
+      this.hallHint2 = true;
+      echoSay(t('hallSonarHint'), { now: true });
+    }
+    const html = `💰 <b>${A.lootTaken}</b>/${A.loot.length}${A.extras ? ` · 🟡 <b>${A.crewCaught}</b>/100` : ''} · 📡 ${A.secretFound ? '✨' : '?'}`;
+    if (el.innerHTML !== html) el.innerHTML = html;
+    el.classList.remove('hidden');
+  }
+
   // the creature speaks in yellow bubbles, sentence by sentence (tap a bubble for the next one)
   updateFable(dt) {
     const el = $('#fableBubble'), A = this.atlantis, ft = this.fableTalk;
@@ -1930,6 +2110,42 @@ class Dive {
       return;
     }
     if (this.paused) return;
+    // first the legend of the creature, beside it – until it is tapped away; then it starts to speak
+    if (ft.legend) {
+      A.talking = false;
+      ft.legendT += dt;
+      if (ft.shown !== 'legend') {
+        el.querySelector('.fb-who').textContent = `📜 ${t('fableLegend')} · ${L(A.fable.info.name)}`;
+        el.querySelector('.fb-text').innerHTML = `${escapeHtml(L(A.fable.info.legend))}<span class="fb-hint">▶ ${t('fableLegendGo')}</span>`;
+        el.classList.add('legend');
+        el.classList.remove('pop');
+        void el.offsetWidth;
+        el.classList.add('pop');
+        ft.shown = 'legend';
+        el.onclick = () => {
+          ft.legend = false;
+          A.legendRead = true;
+          ft.pause = 0.7;
+          ft.shown = -1;
+          el.classList.remove('legend');
+          audio.click();
+        };
+      }
+      if (ft.legendT > 75) return el.onclick();
+      // beside the creature: big screens on the left half (below the missions), small screens at the top
+      const W = window.innerWidth, H = window.innerHeight, bw = el.offsetWidth, bh = el.offsetHeight;
+      el.classList.remove('side-l', 'side-r', 'hidden');
+      el.classList.add('notail');
+      const edge = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--edge')) || 0;
+      if (W >= 900 && H >= 560) {
+        el.style.left = `${edge + 14}px`;
+        el.style.top = `${clamp(H * 0.5 - bh * 0.35, 262, Math.max(262, H - bh - 120))}px`;
+      } else {
+        el.style.left = `${Math.max(8, (W - bw) / 2)}px`;
+        el.style.top = `${isTouch ? 8 : 70}px`;
+      }
+      return;
+    }
     const lines = FABLE_SPEECH[getLang()] || FABLE_SPEECH.en;
     if (ft.pause > 0) {
       ft.pause -= dt;
@@ -1960,7 +2176,7 @@ class Dive {
       return;
     }
     // next to the creature's mouth
-    placeBubble(el, A.fable.mouth.getWorldPosition(new THREE.Vector3()));
+    placeBubble(el, A.fable.mouth.getWorldPosition(new THREE.Vector3()), A.fable.extent * 0.14);
   }
 
   // ---------- Christmas special ----------
@@ -2530,12 +2746,15 @@ class Dive {
       const da = Math.hypot(this.sub.pos.x - this.atlantis.center.x, this.sub.pos.z - this.atlantis.center.z);
       this.world.magic = Math.min(1, Math.max(0, 1 - (da - 150) / 220)) * this.atlantis.rise;
       const hello = this.atlantis.update(dt, this.time, this.sub);
-      this.atlantis.clampSub(this.sub);
+      // surfacing: out of the hidden hall first, and straight up through the glass domes
+      if (this.sub.autoAscent && this.atlantis.inside && !this.portalBusy) this.portal('exit');
+      if (!this.sub.autoAscent) this.atlantis.clampSub(this.sub);
       if (!this.portalBusy && !this.ending) {
         const ev = this.atlantis.portalCheck(this.sub);
         if (ev) this.portal(ev);
       }
       this.updateFable(dt);
+      this.updateHall(dt);
       // a hint at the secret door, and a picture of the city for the results
       if (this.atlantis.rise >= 1 && !this.atlantis.inside) {
         if (!this.atlSnap && !this.wantSnap && this.time - this.atlantisAt > 4.5) this.wantSnap = true;
@@ -2579,8 +2798,27 @@ class Dive {
     // surfaced?
     // close to the surface (or stuck under the ship's hull): the crane takes over
     if (this.ending && !this.ended && !this.recovery && this.sub.pos.y > -6) this.startRecovery();
+    if (this.sub.autoAscent && !this.recovery && !this.paused) {
+      const st = (this.ascStuck ||= { y: this.sub.pos.y, t: 0 });
+      st.t += dt;
+      if (this.sub.pos.y > st.y + 1.5) {
+        st.y = this.sub.pos.y;
+        st.t = 0;
+      } else if (st.t > 2.5) {
+        this.sub.pos.y += dt * 25; // something holds the sub down: float up anyway
+        this.sub.vel.y = Math.max(this.sub.vel.y, 0);
+      }
+    } else this.ascStuck = null;
 
     audio.setEngine(clamp(this.sub.thrust + Math.abs(this.sub.vel.y) / 30, 0, 1));
+    // ISABELLA: a swish of water with every stroke of her tail fin
+    const mer = this.sub.group.userData.mer;
+    if (mer && mer.ph !== undefined) {
+      const k = Math.floor(mer.ph / Math.PI);
+      const spd = this.sub.vel.length();
+      if (this.finK !== undefined && k !== this.finK && spd > 1.2 && !this.paused) audio.finSwish(clamp(spd / 20, 0, 1));
+      this.finK = k;
+    }
     this.hudTimer -= dt;
     if (this.hudTimer <= 0) {
       this.hudTimer = 0.1;
@@ -2764,6 +3002,11 @@ class Dive {
     $('#hZone').textContent = t(zoneKey(depth));
     $('#hPressure').textContent = `${fmtNum(depth / 10 + 1)} bar`;
     $('#hTemp').textContent = `${fmtDec(this.temperature(depth), 1)} °C`;
+    // speed (1 world unit = 10 m): smoothed, in km/h
+    const v = this.recovery || (this.launch && !this.launch.done) ? 0 : this.sub.vel.length() * SCALE * 3.6;
+    this.shownSpeed = (this.shownSpeed || 0) + (v - (this.shownSpeed || 0)) * 0.15;
+    $('#hSpeed').textContent = fmtNum(this.shownSpeed < 3 ? 0 : Math.round(this.shownSpeed / 5) * 5);
+    $('#hSpeed').parentElement.classList.toggle('boost', !!this.boost);
     const bar = (id, v) => {
       const el = $('#b' + id);
       el.style.width = `${v}%`;
@@ -2888,6 +3131,7 @@ class Dive {
     input.enabled = false;
     $('#fableBubble').classList.add('hidden');
     $('#santaBubble').classList.add('hidden');
+    $('#hallCount').classList.add('hidden');
     audio.stopLoops();
     if (this.multi) net.setPlayer({ done: true });
     showResults(this);
@@ -3023,9 +3267,11 @@ function computeScore(g) {
   const missions = g.missions.filter((m) => m.done).length * 250;
   const mapped = Math.round(g.world.mappedPercent() * 10);
   const depthB = Math.floor(g.maxDepth / 100);
-  const sub = disc + samples + missions + mapped + depthB;
+  const A = g.atlantis;
+  const atl = A && A.loot ? A.lootTaken * 30 + A.crewCaught * 5 + (A.secretFound ? 200 : 0) : 0;
+  const sub = disc + samples + missions + mapped + depthB + atl;
   const total = g.ending && g.ending.emergency ? Math.round(sub * 0.5) : sub;
-  return { disc, samples, missions, mapped, depthB, total, missionsDone: g.missions.filter((m) => m.done).length };
+  return { disc, samples, missions, mapped, depthB, atl, total, missionsDone: g.missions.filter((m) => m.done).length };
 }
 
 function showResults(g) {
@@ -3049,20 +3295,21 @@ function showResults(g) {
   if (A && !g.atlSnap) snapAtlantis(g);
   const beings = A
     ? [
-        A.metNeptune && { key: 'fig:neptune', name: t('atlNeptuneName') },
-        A.metMermaid && { key: 'fig:mermaid', name: t('atlMermaidName') },
-        A.metFable && { key: `fable:${A.levelId}`, name: L(A.fable.info.name) },
-        A.metFable && A.extras && { key: 'crew:crew', name: t('crewName') },
-        A.metFable && A.extras && { key: 'crew:perla', name: t('perlaName') },
+        A.metNeptune && { key: 'fig:neptune', name: t('atlNeptuneName'), text: t('atlNeptune') },
+        A.metMermaid && { key: 'fig:mermaid', name: t('atlMermaidName'), text: t('atlMermaid') },
+        A.metFable && { key: `fable:${A.levelId}`, name: L(A.fable.info.name), text: L(A.fable.info.legend) },
+        A.metFable && A.extras && { key: 'crew:crew', name: t('crewName'), text: t('crewInfo') },
+        A.metFable && A.extras && { key: 'crew:perla', name: t('perlaName'), text: t('perlaInfo') },
       ].filter(Boolean)
     : [];
   const atlHtml = A
     ? `<h3 class="ptitle">🏛️ Atlantis · ${escapeHtml(L(A.theme.name))}</h3>
       <div class="atl-res">${g.atlSnap && g.atlSnap !== 'none' ? `<img class="atl-snap" src="${g.atlSnap}" alt="Atlantis">` : ''}
-      ${beings.length ? `<div class="ptiles atl-tiles">${beings.map((b) => `<div class="ptile f"><canvas data-key="${b.key}"></canvas><span>★ ${escapeHtml(b.name)}</span></div>`).join('')}</div>` : ''}</div>
+      ${beings.length ? `<div class="ptiles atl-tiles">${beings.map((b, i) => `<button class="ptile f" data-b="${i}"><canvas data-key="${b.key}"></canvas><span>★ ${escapeHtml(b.name)}</span></button>`).join('')}</div>` : ''}</div>
       ${A.metFable
         ? `<p class="atl-legend">✨ <b>${escapeHtml(L(A.fable.info.name))}</b> – ${escapeHtml(L(A.fable.info.legend))} ${A.fable.info.source.length ? `<span class="src">${t('source')}: ${A.fable.info.source.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${escapeHtml(n)}</a>`).join(' · ')}</span>` : ''}</p>`
-        : `<p class="phint">${t('atlResMissed')}</p>`}`
+        : `<p class="phint">${t('atlResMissed')}</p>`}
+      ${A.metFable && A.loot ? `<p class="atl-loot">💰 ${t('hallLoot')}: ${A.lootTaken}/${A.loot.length}${A.extras ? ` · 🟡 ${t('crewShort')}: ${A.crewCaught}/100` : ''} · ✨ ${A.secretFound ? escapeHtml(L(A.secret.userData.info.name)) : t('hallSecretMissed')}</p>` : ''}`
     : '';
   showModal(`<h1>${emergency ? '⚠ ' + t('diveEmergency') : '✅ ' + t('diveComplete')}</h1>
     <p>${escapeHtml(L(g.level.name))}${g.atlantis ? ' · 🏛️ Atlantis' : ''}</p>
@@ -3075,6 +3322,7 @@ function showResults(g) {
       <span>${t('missionsDone')} (${sc.missionsDone}/${g.missions.length})</span><span>${fmtNum(sc.missions)}</span>
       <span>${t('mapped')} (${fmtDec(g.world.mappedPercent(), 1)} %)</span><span>${fmtNum(sc.mapped)}</span>
       <span>${t('depthBonus')}</span><span>${fmtNum(sc.depthB)}</span>
+      ${g.atlantis && g.atlantis.metFable ? `<span>${t('atlScore')}</span><span>${fmtNum(sc.atl)}</span>` : ''}
       ${emergency ? `<span>× 0.5</span><span></span>` : ''}
       <span class="tot">${t('total')}</span><span class="tot">${fmtNum(sc.total)}</span>
     </div>
@@ -3086,7 +3334,13 @@ function showResults(g) {
     root.querySelector('#rQuiz').onclick = () => runQuiz(g, sc);
     root.querySelector('#rNext').onclick = () => finishQuiz(g, sc, 0);
     mountPhotoTiles(root, g.found);
-    // the Atlantis beings as rotating 3D tiles
+    // the Atlantis beings as rotating 3D tiles – tap one to see it big, turning in 3D
+    root.querySelectorAll('.atl-tiles .ptile').forEach((tile) => {
+      tile.onclick = () => {
+        const b = beings[Number(tile.dataset.b)];
+        showCard({ id: b.key, kind: 'fantasy', plain: true, model: b.key, name: { en: b.name, de: b.name }, fact: { en: b.text, de: b.text } }, { stay: true, big: true });
+      };
+    });
     const cvs = [...root.querySelectorAll('.atl-tiles canvas')];
     cvs.forEach((cv, i) =>
       setTimeout(() => {
@@ -3103,7 +3357,7 @@ function showResults(g) {
 
 // rotating 3D thumbnails (pre-rendered turntables), one after another so the screen stays smooth
 function mountPhotoTiles(root, found) {
-  const tiles = [...root.querySelectorAll('.ptile')];
+  const tiles = [...root.querySelectorAll('.ptile[data-i]')];
   tiles.forEach((tile) => {
     tile.onclick = () => {
       const f = found[Number(tile.dataset.i)];
@@ -3130,12 +3384,19 @@ function mountPhotoTiles(root, found) {
 function runQuiz(g, sc) {
   const topics = ['general', ...g.found.map((f) => f.def.id)];
   if (g.fantasyCount) topics.push('fantasy');
-  const qs = pickQuestions(tier(), topics, 3, getLang(), profile.seenQuestions);
+  const qs = pickQuestions(tier(), topics, 4, getLang(), profile.seenQuestions);
+  // met the fable creature in Atlantis? Then one bonus question about its legend
+  const A = g.atlantis;
+  if (A && A.metFable) {
+    const fq = fableQuestion(A.levelId, getLang(), profile.seenQuestions);
+    if (fq) qs.push(fq);
+  }
   let i = 0;
   let correct = 0;
   const show = () => {
     const q = qs[i];
     showModal(`<h1>💬 ${t('debriefTitle')}</h1><div class="qprog">${i === 0 ? t('debriefIntro') + ' · ' : ''}${i + 1}/${qs.length}</div>
+      ${q.fable ? `<div class="qfable">✨ ${escapeHtml(L(g.atlantis.fable.info.name))}</div>` : ''}
       <p style="font-size:18px;font-weight:700">${escapeHtml(q.q)}</p>
       <div class="qopts">${q.a.map((a, k) => `<button class="qopt" data-k="${k}">${escapeHtml(a)}</button>`).join('')}</div>
       <div class="qfb" id="qfb"></div>
@@ -3156,14 +3417,20 @@ function runQuiz(g, sc) {
             audio.click();
             root.querySelector('#qfb').textContent = t('wrong', { a: q.a[q.c] });
           }
-          profile.seenQuestions = [...profile.seenQuestions, q.key].slice(-24);
+          if (q.src) {
+            const s = document.createElement('div');
+            s.className = 'qsrc';
+            s.innerHTML = `${t('source')}: <a href="${q.src[1]}" target="_blank" rel="noopener">${escapeHtml(q.src[0])}</a>`;
+            root.querySelector('#qfb').after(s);
+          }
+          profile.seenQuestions = [...profile.seenQuestions, q.key].slice(-80);
           root.querySelector('#qNext').classList.remove('hidden');
         };
       });
       root.querySelector('#qNext').onclick = () => {
         i++;
         if (i < qs.length) show();
-        else finishQuiz(g, sc, correct);
+        else finishQuiz(g, sc, correct, qs.length);
       };
     });
   };
@@ -3171,7 +3438,7 @@ function runQuiz(g, sc) {
   else finishQuiz(g, sc, 0);
 }
 
-async function finishQuiz(g, sc, correct) {
+async function finishQuiz(g, sc, correct, asked = 0) {
   const quiz = correct * 50;
   const total = sc.total + quiz;
   profile.rp += total;
@@ -3184,7 +3451,7 @@ async function finishQuiz(g, sc, correct) {
   showModal(`<h1>🏁 ${t('diveComplete')}</h1>
     <div class="score-list">
       <span>${t('score')}</span><span>${fmtNum(sc.total)}</span>
-      <span>${t('quizBonus')} (${correct}/3)</span><span>${fmtNum(quiz)}</span>
+      ${asked ? `<span>${t('quizBonus')} (${correct}/${asked})</span><span>${fmtNum(quiz)}</span>` : ''}
       <span class="tot">${t('total')}</span><span class="tot">${fmtNum(total)}</span>
     </div>
     <p>🔬 ${t('research')}: <b>${fmtNum(rpAvailable())}</b> · ${t('saveScore')} ✓</p>
@@ -3288,6 +3555,7 @@ function showPause() {
       <button class="btn secondary" id="pLog">📖 ${t('logbook')}</button>
       <div class="seg" id="pSound">${SOUND_MODES.map((m) => `<button data-s="${m}" class="${audio.mode === m ? 'on' : ''}">${soundLabel(m)}</button>`).join('')}</div>
       ${radio && voiceAllowed() ? `<button class="btn secondary" id="pRadio">${radio.enabled ? '📻 ' + t('radioOn') : '🔇 ' + t('radioOff')}</button>` : ''}
+      ${game.race ? '' : `<button class="btn secondary" id="pSurface">⤒ ${t('btnSurface')}</button>`}
       <button class="btn secondary" id="pAbort">⚠ ${t('abort')}</button>
     </div>
     <p style="font-size:13px;color:var(--ink-soft);margin-top:14px">${t('keysHint')}</p>`, (root) => {
@@ -3308,10 +3576,14 @@ function showPause() {
       radio.setEnabled(!radio.enabled);
       showPause();
     };
+    if (root.querySelector('#pSurface')) root.querySelector('#pSurface').onclick = () => {
+      resume();
+      game.surfaceNow(false);
+    };
     root.querySelector('#pAbort').onclick = () => {
       resume();
       if (game.race) game.actSurface();
-      else game.emergency('abort');
+      else game.surfaceNow(true);
     };
   });
 }
@@ -3705,6 +3977,8 @@ async function boot() {
   }
   await net.init();
   recordVisit(net);
+  // progress from the cloud (same name on another device)
+  syncProfile().then((changed) => changed && !game && $('#menu') && !$('#menu').classList.contains('hidden') && renderMenu());
   $('#loading').classList.add('hidden');
   requestAnimationFrame(loop);
 

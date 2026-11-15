@@ -545,14 +545,17 @@ void main(){
 }`;
 const PORTAL_FS = `
 #include <fog_pars_fragment>
-uniform float uT; uniform vec3 uC; uniform vec3 uC2; uniform vec2 uS;
+uniform float uT; uniform vec3 uC; uniform vec3 uC2; uniform vec2 uS; uniform float uDim;
 varying vec3 vP;
 void main(){
   vec2 q = (vP.xy - vec2(0.0, uS.y * 0.55)) / vec2(uS.x * 0.5, uS.y * 0.55);
   float r = length(q), a = atan(q.y, q.x);
   float sw = 0.5 + 0.5 * sin(a * 5.0 + r * 9.0 - uT * 2.6);
   vec3 col = mix(uC2, uC, sw) * (1.15 - r * 0.45) + vec3(1.0) * pow(max(0.0, 1.0 - r), 3.0) * 0.9;
-  gl_FragColor = vec4(col, 0.93);
+  // hidden door: almost a dark doorway – only now and then a faint shimmer runs through it
+  float hint = uDim < 0.99 ? pow(max(0.0, sin(uT * 0.7 + r * 3.0)), 8.0) * 0.35 : 0.0;
+  col = col * uDim + mix(uC2, uC, sw) * hint;
+  gl_FragColor = vec4(col, uDim < 0.99 ? 0.96 : 0.93);
   #include <fog_fragment>
 }`;
 
@@ -561,6 +564,92 @@ function shaderMat(vs, fs, uni, o = {}) {
 }
 
 // ---------------------------------------------------------------- the city
+// ------------------------------------------------ things to find in the hidden hall
+// one secret per trench: invisible until a sonar ping reveals it
+export const HALL_SECRETS = {
+  java: { kind: 'pearl', col: 0xdfefff, name: { en: 'Moon Pearl', de: 'Mondperle' } },
+  southsandwich: { kind: 'chest', name: { en: 'Captain Bushybeard’s treasure chest', de: 'Kapitän Rauschebarts Schatztruhe' } },
+  puertorico: { kind: 'crystal', col: 0x8af2ff, name: { en: 'Ice Heart crystal', de: 'Eisherz-Kristall' } },
+  izu: { kind: 'compass', name: { en: 'Golden compass of Captain Eight-Arms', de: 'Goldener Kompass von Kapitän Achtarm' } },
+  kuril: { kind: 'crystal', col: 0xc08aff, name: { en: 'Storm crystal', de: 'Sturmkristall' } },
+  tonga: { kind: 'bell', name: { en: 'The Dutchman’s ship’s bell', de: 'Schiffsglocke des Holländers' } },
+  mariana: { kind: 'pearl', col: 0xffd27a, name: { en: 'Golden deep-sea pearl', de: 'Goldene Tiefseeperle' } },
+};
+const LOOT_GOLD = () => new THREE.MeshStandardMaterial({ color: 0xffcf4a, metalness: 0.9, roughness: 0.25, emissive: 0x7a5200, emissiveIntensity: 0.65 });
+function lootMesh(kind, col = 0xff4fa8) {
+  const g = new THREE.Group(), gold = LOOT_GOLD();
+  const put = (geo, mat, p = [0, 0, 0], r = [0, 0, 0], sc = 1) => {
+    const m = new THREE.Mesh(geo, mat);
+    m.position.set(...p);
+    m.rotation.set(...r);
+    if (Array.isArray(sc)) m.scale.set(...sc);
+    else m.scale.setScalar(sc);
+    g.add(m);
+    return m;
+  };
+  const jewel = (c) => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.75, metalness: 0.2, roughness: 0.1 });
+  if (kind === 'coin') {
+    put(new THREE.CylinderGeometry(0.62, 0.62, 0.12, 30), gold, [0, 0, 0], [PI / 2, 0, 0]);
+    put(new THREE.TorusGeometry(0.58, 0.05, 6, 30), gold);
+    for (const z of [-0.07, 0.07]) for (let k = 0; k < 5; k++) put(new THREE.ConeGeometry(0.09, 0.32, 4), gold, [Math.sin((k / 5) * TAU) * 0.15, Math.cos((k / 5) * TAU) * 0.15, z], [0, 0, -(k / 5) * TAU]);
+  } else if (kind === 'gem') {
+    put(new THREE.OctahedronGeometry(0.5, 0), jewel(col), [0, 0, 0], [0, 0, 0], [1, 1.45, 1]);
+  } else if (kind === 'pearl') {
+    put(new THREE.SphereGeometry(0.36, 20, 14), new THREE.MeshStandardMaterial({ color: col === 0xff4fa8 ? 0xfff6fa : col, metalness: 0.35, roughness: 0.12, emissive: 0x6a5a6a, emissiveIntensity: 0.5 }), [0, 0.12, 0]);
+    put(new THREE.SphereGeometry(0.7, 18, 8, 0, TAU, PI / 2, PI / 2), new THREE.MeshStandardMaterial({ color: 0xffb8d0, side: THREE.DoubleSide, roughness: 0.4, emissive: 0x5a2a3a, emissiveIntensity: 0.4 }), [0, 0.12, 0], [0, 0, 0], [1, 0.45, 1]);
+  } else if (kind === 'goblet') {
+    put(new THREE.LatheGeometry([[0, 0], [0.38, 0.02], [0.1, 0.12], [0.07, 0.55], [0.32, 0.7], [0.42, 1.05], [0.38, 1.08]].map(([a, b]) => new THREE.Vector2(a, b)), 22), gold, [0, -0.55, 0]);
+    for (let k = 0; k < 3; k++) put(new THREE.SphereGeometry(0.07, 8, 6), jewel([0xff3050, 0x40ff80, 0x4080ff][k]), [Math.sin((k / 3) * TAU) * 0.36, 0.25, Math.cos((k / 3) * TAU) * 0.36]);
+  } else if (kind === 'crown') {
+    put(new THREE.CylinderGeometry(0.5, 0.45, 0.32, 24, 1, true), Object.assign(gold, { side: THREE.DoubleSide }));
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * TAU;
+      put(new THREE.ConeGeometry(0.11, 0.38, 6), gold, [Math.sin(a) * 0.47, 0.34, Math.cos(a) * 0.47]);
+      put(new THREE.SphereGeometry(0.06, 8, 6), jewel([0xff3050, 0x40c8ff][k % 2]), [Math.sin(a) * 0.47, 0.55, Math.cos(a) * 0.47]);
+    }
+  } else if (kind === 'chest') {
+    const wood = new THREE.MeshStandardMaterial({ color: 0x8a4a1e, roughness: 0.7, emissive: 0x2a1006, emissiveIntensity: 0.4 });
+    put(new THREE.BoxGeometry(1.4, 0.8, 0.9), wood, [0, 0.4, 0]);
+    put(new THREE.CylinderGeometry(0.45, 0.45, 1.4, 16, 1, false, 0, PI), wood, [0, 0.8, -0.2], [-0.9, 0, PI / 2]);
+    for (const x of [-0.55, 0.55]) put(new THREE.BoxGeometry(0.1, 0.84, 0.94), gold, [x, 0.4, 0]);
+    put(new THREE.BoxGeometry(0.22, 0.26, 0.06), gold, [0, 0.62, 0.47]);
+    for (let k = 0; k < 14; k++) put(new THREE.CylinderGeometry(0.14, 0.14, 0.04, 10), gold, [(Math.random() - 0.5) * 1.0, 0.82 + Math.random() * 0.15, (Math.random() - 0.5) * 0.5 + 0.1], [Math.random(), 0, Math.random()]);
+    for (let k = 0; k < 4; k++) put(new THREE.OctahedronGeometry(0.12, 0), jewel([0xff3050, 0x40ff80, 0x4080ff, 0xffd84a][k]), [(k - 1.5) * 0.28, 0.98, 0.15]);
+    // a little skull-and-crossbones? no – a friendly golden anchor on the lid
+    put(new THREE.TorusGeometry(0.12, 0.03, 6, 12, PI), gold, [0, 1.0, -0.62], [-0.9 + PI, 0, 0]);
+  } else if (kind === 'crystal') {
+    const m = jewel(col);
+    put(new THREE.OctahedronGeometry(0.5, 0), m, [0, 0.2, 0], [0, 0, 0], [0.8, 2.0, 0.8]);
+    for (let k = 0; k < 5; k++) put(new THREE.OctahedronGeometry(0.28, 0), m, [Math.sin(k * 1.26) * 0.42, -0.2, Math.cos(k * 1.26) * 0.42], [Math.sin(k) * 0.5, 0, Math.cos(k) * 0.5], [0.7, 1.6, 0.7]);
+  } else if (kind === 'compass') {
+    put(new THREE.CylinderGeometry(0.7, 0.7, 0.18, 32), gold, [0, 0, 0], [PI / 2, 0, 0]);
+    put(new THREE.CircleGeometry(0.6, 32), new THREE.MeshStandardMaterial({ color: 0xfff4dc, emissive: 0x5a4a2a, emissiveIntensity: 0.4 }), [0, 0, 0.1]);
+    put(new THREE.ConeGeometry(0.09, 0.5, 4), new THREE.MeshBasicMaterial({ color: 0xd8202a }), [0, 0.25, 0.13]);
+    put(new THREE.ConeGeometry(0.09, 0.5, 4), new THREE.MeshBasicMaterial({ color: 0x2a3a5a }), [0, -0.25, 0.13], [0, 0, PI]);
+    put(new THREE.TorusGeometry(0.16, 0.05, 6, 14), gold, [0, 0.82, 0]);
+  } else if (kind === 'bell') {
+    put(new THREE.LatheGeometry([[0, 0.9], [0.22, 0.88], [0.3, 0.6], [0.36, 0.25], [0.52, 0.02], [0.55, 0], [0.5, -0.02]].map(([a, b]) => new THREE.Vector2(a, b)), 26), Object.assign(gold, { side: THREE.DoubleSide }), [0, -0.45, 0]);
+    put(new THREE.SphereGeometry(0.12, 10, 8), gold, [0, -0.45, 0]);
+    put(new THREE.TorusGeometry(0.12, 0.04, 6, 12), gold, [0, 0.55, 0]);
+  }
+  return g;
+}
+let RING_TEX = null;
+function ringTex() {
+  if (RING_TEX) return RING_TEX;
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.strokeStyle = '#fff';
+  g.lineWidth = 9;
+  g.shadowColor = '#fff';
+  g.shadowBlur = 14;
+  g.beginPath();
+  g.arc(64, 64, 46, 0, TAU);
+  g.stroke();
+  return (RING_TEX = new THREE.CanvasTexture(c));
+}
+
 export class Atlantis {
   constructor(scene, world, center, seed = 1, levelId = 'java', opts = {}) {
     this.scene = scene;
@@ -626,12 +715,13 @@ export class Atlantis {
       tubeGlass: shaderMat(VS, GLASS_FS, glassU([0, 0]), glassO),
       energy: shaderMat(VS, ENERGY_FS, { uC: { value: new THREE.Color(T.glow) }, uT: this.uT }),
       water: shaderMat(VS, WATER_FS, { uC: { value: new THREE.Color(T.glow) }, uT: this.uT }, { transparent: true, depthWrite: false }),
-      portal: shaderMat(PORTAL_VS, PORTAL_FS, { uC: { value: new THREE.Color(T.glow).lerp(new THREE.Color(1, 1, 1), 0.25) }, uC2: { value: new THREE.Color(T.trim).multiplyScalar(0.6) }, uT: this.uT, uS: { value: new THREE.Vector2(4.4, 5.4) } }, { transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+      portal: shaderMat(PORTAL_VS, PORTAL_FS, { uC: { value: new THREE.Color(T.glow).lerp(new THREE.Color(1, 1, 1), 0.25) }, uC2: { value: new THREE.Color(T.trim).multiplyScalar(0.6) }, uT: this.uT, uS: { value: new THREE.Vector2(4.4, 5.4) }, uDim: { value: 1 } }, { transparent: true, depthWrite: false, side: THREE.DoubleSide }),
+      portalHidden: shaderMat(PORTAL_VS, PORTAL_FS, { uC: { value: new THREE.Color(T.glow).lerp(new THREE.Color(1, 1, 1), 0.25) }, uC2: { value: new THREE.Color(T.trim).multiplyScalar(0.25) }, uT: this.uT, uS: { value: new THREE.Vector2(4.4, 5.4) }, uDim: { value: 0.16 } }, { transparent: true, depthWrite: false, side: THREE.DoubleSide }),
       kelp: shaderMat(KELP_VS, KELP_FS, { uA: { value: new THREE.Color(T.kelp[0]) }, uB: { value: new THREE.Color(T.kelp[1]) }, uT: this.uT }, { side: THREE.DoubleSide }),
       rays: new THREE.ShaderMaterial({ uniforms: { uC: { value: new THREE.Color(0xd8f6ff).lerp(new THREE.Color(T.glass), 0.3) }, uT: this.uT }, vertexShader: RAYS_VS, fragmentShader: RAYS_FS, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide }),
     };
     // the shared uniform object must stay the same (merge() copies it)
-    for (const k of ['domeGlass', 'tubeGlass', 'energy', 'water', 'kelp', 'portal']) M[k].uniforms.uT = this.uT;
+    for (const k of ['domeGlass', 'tubeGlass', 'energy', 'water', 'kelp', 'portal', 'portalHidden']) M[k].uniforms.uT = this.uT;
     this.M = M;
   }
 
@@ -1020,6 +1110,9 @@ export class Atlantis {
   // ------------------------------------------------ centrepieces (one per theme)
   centre(kind, pa) {
     const M = this.M, rnd = this.r;
+    // the secret door is not on the side facing the plaza (where Neptune looks) but at a side or at the back,
+    // in a gap of the building's architecture – you have to swim around and look closely
+    const gapDoor = (step, choices) => pa + step * choices[Math.floor(rnd() * choices.length)];
     const plinth = (r, steps = 3, h = 0.9) => {
       for (let k = 0; k < steps; k++) this.add(M.stone2, new THREE.CylinderGeometry(r - k * 1.4, r - k * 1.4 + 0.3, h, 64), M4(0, h / 2 + k * h, 0));
       this.add(M.gold, ring(r - (steps - 1) * 1.4, 0.15, 64), M4(0, steps * h, 0));
@@ -1039,8 +1132,9 @@ export class Atlantis {
       this.add(M.stone, new THREE.CylinderGeometry(18.2, 18.2, 0.8, 64, 1, true), M4(0, y + 11.2, 0));
       this.add(M.gold, ring(18.25, 0.2, 64), M4(0, y + 11.6, 0));
       // four Gothic gables with rose windows
-      for (let q = 0; q < 4; q++) this.gable(pa + q * (PI / 2), 16.2, y, 9, 15, q === 0);
-      this.makeDoor(this.B, pa, 18.25, y, { porchFrom: 0 });
+      const dq = [1, 2, 3][Math.floor(rnd() * 3)];
+      for (let q = 0; q < 4; q++) this.gable(pa + q * (PI / 2), 16.2, y, 9, 15, q === dq);
+      this.makeDoor(this.B, pa + dq * (PI / 2), 18.25, y, { porchFrom: 0 });
       this.dome(0, y + 11, 0, 15.6, { garden: true });
       // corner turrets
       for (let q = 0; q < 4; q++) {
@@ -1084,7 +1178,7 @@ export class Atlantis {
       beam.position.set(0, cy + H + 125, 0);
       beam.rotation.x = PI; // brightest at the crystal
       this.life.add(beam);
-      this.makeDoor(this.B, pa, 14.3, y, { porchFrom: 9.6 });
+      this.makeDoor(this.B, gapDoor(PI / 4, [2, 3, 5, 6]), 14.3, y, { porchFrom: 9.6 });
       this.cols.push({ x: 0, z: 0, r: 12.5, y1: y + 13 }, { x: 0, z: 0, r: 4.8, y1: cy + H + 8 });
       return { r: 20, tip: cy + H + 20, ports: [{ x: 0, z: 0, pr: 10.8, y: y + 9 }] };
     }
@@ -1095,21 +1189,22 @@ export class Atlantis {
         this.tower(Math.cos(a) * 14, Math.sin(a) * 14, 2, 16, 'dome');
       }
       const s = this.spiral(0, 0, 10, 54, 4.5, pa - 4.9);
-      this.makeDoor(this.B, pa, 16, y, { porchFrom: 9.2 });
+      this.makeDoor(this.B, gapDoor(PI / 2, [1, 2, 3]), 16, y, { porchFrom: 9.2 });
       this.cols.push({ x: 0, z: 0, r: 13, y1: 54 });
       return { r: 18, tip: s.tip, ports: [{ x: 0, z: 0, pr: 12.4, y: 16 }] };
     }
     if (kind === 'crystals') {
       const y = plinth(20);
+      const da = gapDoor(PI / 4, [3, 4, 5]);
       this.drum(0, y, 0, 12, 9, { floors: 2, seg: 56 });
       this.dome(0, y + 9, 0, 11.6, { lantern: false, garden: true });
       for (let i = 0; i < 10; i++) {
         const a = (i / 10) * TAU + rnd() * 0.3, d = 15 + rnd() * 3, h = 16 + rnd() * 26;
-        if (Math.abs(Math.atan2(Math.sin(a - pa), Math.cos(a - pa))) < 0.5) continue; // the way to the door stays free
+        if (Math.abs(Math.atan2(Math.sin(a - da), Math.cos(a - da))) < 0.45) continue; // the way to the door stays free
         this.crystal(Math.cos(a) * d, y - 1, Math.sin(a) * d, 1.6 + rnd() * 1.4, h, Math.cos(a) * 0.22, Math.sin(a) * 0.22);
       }
       this.crystal(0, y + 9, 0, 3, 46, 0, 0);
-      this.makeDoor(this.B, pa, 14.8, y, { porchFrom: 11.4 });
+      this.makeDoor(this.B, da, 14.8, y, { porchFrom: 11.4 });
       this.cols.push({ x: 0, z: 0, r: 13, y1: y + 9 }, { x: 0, z: 0, r: 3.4, y1: y + 60 });
       return { r: 20, tip: y + 64, ports: [{ x: 0, z: 0, pr: 11.8, y: y + 6 }] };
     }
@@ -1129,7 +1224,7 @@ export class Atlantis {
         rr -= 4.4;
       }
       const t = this.tier(0, 0, rr * 0.9, 26);
-      this.makeDoor(this.B, pa, 23.25, 0, { porchFrom: 0, w: 4.2, h: 4.2 });
+      this.makeDoor(this.B, pa + PI * (0.6 + rnd() * 0.8), 23.25, 0, { porchFrom: 0, w: 4.2, h: 4.2 });
       this.cols.push({ x: 0, z: 0, r: 23.5, y1: 4.6 }, { x: 0, z: 0, r: 18.6, y1: 9.2 }, { x: 0, z: 0, r: 14.2, y1: 13.8 }, { x: 0, z: 0, r: 9.8, y1: 18.4 });
       return { r: 23, tip: t.tip + 18, ports: [{ x: 0, z: 0, pr: 14, y: 11.6 }] };
     }
@@ -1141,7 +1236,7 @@ export class Atlantis {
       this.drum(0, y, 0, 4, 7, { floors: 2, seg: 32 });
       this.dome(0, y + 7, 0, 3.9, { garden: false });
       this.cols.push({ x: 0, z: 0, r: 4.6, y1: y + 7 });
-      this.makeDoor(this.B, pa, 7.6, y, { porchFrom: 3.6 });
+      this.makeDoor(this.B, pa + PI, 7.6, y, { porchFrom: 3.6 });
       // the forge: a glowing orb held by spinning golden rings
       const orb = new THREE.Mesh(new THREE.SphereGeometry(2.4, 32, 20), M.energy);
       orb.position.set(0, 22, 0);
@@ -1168,7 +1263,7 @@ export class Atlantis {
       this.cols.push({ x, z, r: 5.2, y1: y + 6 });
     }
     this.cols.push({ x: 0, z: 0, r: 13.6, y1: y + 9 });
-    this.makeDoor(this.B, pa, 15.6, y, { porchFrom: 12.4 });
+    this.makeDoor(this.B, gapDoor((2 * PI) / 5, [1, 2, 3, 4]), 15.6, y, { porchFrom: 12.4 });
     return { r: 25, tip: y + 36, ports: [{ x: 0, z: 0, pr: 12.8, y: y + 5 }] };
   }
 
@@ -1205,20 +1300,24 @@ export class Atlantis {
     sh.lineTo(w / 2, sp);
     sh.absarc(0, sp, w / 2, 0, PI, false);
     sh.closePath();
-    const surf = new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), M.portal);
+    const hidden = !inward; // outside it must not catch the eye: a plain dark stone doorway
+    const surf = new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), hidden ? M.portalHidden : M.portal);
     surf.applyMatrix4(P.clone().multiply(M4(0, 0, 0.12)));
     surf.renderOrder = 2;
     parent.add(surf);
     // pillars, a golden arch with a gem, lamps on both sides, a step
     for (const sx of [-1, 1]) {
       L(M.ashlar, new THREE.BoxGeometry(0.9, sp, 0.9), M4(sx * (w / 2 + 0.45), sp / 2, 0));
+      if (hidden) continue;
       L(M.gold, new THREE.BoxGeometry(1.1, 0.3, 1.1), M4(sx * (w / 2 + 0.45), sp, 0));
       L(M.gold, new THREE.CylinderGeometry(0.06, 0.08, 1.2, 6), M4(sx * (w / 2 + 1.3), 0.6, 0.4));
       L(M.warm, new THREE.SphereGeometry(0.3, 10, 8), M4(sx * (w / 2 + 1.3), 1.4, 0.4));
     }
     L(M.ashlar, new THREE.TorusGeometry(w / 2 + 0.45, 0.45, 8, 24, PI), M4(0, sp, 0));
-    L(M.gold, new THREE.TorusGeometry(w / 2 + 0.92, 0.1, 6, 24, PI), M4(0, sp, 0.2));
-    L(M.energy, new THREE.OctahedronGeometry(0.42, 0), M4(0, h + 0.55, 0.3, 0, 0, 0, 1, 1.4, 1));
+    if (!hidden) {
+      L(M.gold, new THREE.TorusGeometry(w / 2 + 0.92, 0.1, 6, 24, PI), M4(0, sp, 0.2));
+      L(M.energy, new THREE.OctahedronGeometry(0.42, 0), M4(0, h + 0.55, 0.3, 0, 0, 0, 1, 1.4, 1));
+    }
     L(M.stone2, new THREE.BoxGeometry(w + 2.4, 0.3, 2.2), M4(0, -0.15, 0.6));
     // a short porch through thick walls
     const depth = porchFrom > 0 ? r - porchFrom : 0;
@@ -1226,7 +1325,7 @@ export class Atlantis {
       for (const sx of [-1, 1]) L(M.ashlar, new THREE.BoxGeometry(0.9, h + 0.6, depth), M4(sx * (w / 2 + 0.45), (h + 0.6) / 2, -depth / 2));
       L(M.ashlar, new THREE.BoxGeometry(w + 1.8, 0.9, depth), M4(0, h + 1.05, -depth / 2));
       L(M.trim, uvs(new THREE.BoxGeometry(w + 1.9, 0.4, depth + 0.05), 3, 1), M4(0, h + 0.4, -depth / 2));
-      L(M.gold, new THREE.BoxGeometry(w + 1.9, 0.12, depth + 0.1), M4(0, h + 1.55, -depth / 2));
+      if (!hidden) L(M.gold, new THREE.BoxGeometry(w + 1.9, 0.12, depth + 0.1), M4(0, h + 1.55, -depth / 2));
     }
     if (!inward) this.door = { a, r, y0, w, h };
     return surf;
@@ -1344,19 +1443,19 @@ export class Atlantis {
     // mystic spotlights: coloured beams from the dome onto the creature, three coloured lamps
     const cols = [T.glow, 0xff6ad8, 0xffd27a, 0x8a7aff, 0x6affc0, 0xffffff];
     this.spots = [];
-    for (let i = 0; i < 6; i++) {
-      const a = D.a + 0.5 + (i / 6) * TAU, src = new THREE.Vector3(Math.cos(a) * (RR - 5), H + RR * 0.3, Math.sin(a) * (RR - 5));
+    for (let i = 0; i < 10; i++) {
+      const a = D.a + 0.5 + (i / 10) * TAU, src = new THREE.Vector3(Math.cos(a) * (RR - 5), H + RR * (0.22 + (i % 2) * 0.14), Math.sin(a) * (RR - 5));
       const dir = this.fableC.clone().sub(src), len = dir.length() + 4;
       const geo = new THREE.CylinderGeometry(0.5, Math.max(4.8, f.extent * 0.32), len, 24, 1, true).translate(0, -len / 2, 0);
       attr1(geo, 'aPh', () => i * 1.7);
       const mat = M.rays.clone();
-      mat.uniforms = { uC: { value: new THREE.Color(cols[i]) }, uT: this.uT };
+      mat.uniforms = { uC: { value: new THREE.Color(cols[i % cols.length]) }, uT: this.uT };
       const cone = new THREE.Mesh(geo, mat);
       cone.position.copy(src);
       cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir.normalize());
       cone.userData.base = cone.quaternion.clone();
       hall.add(cone);
-      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: cols[i] }));
+      const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.6, 12, 8), new THREE.MeshBasicMaterial({ color: cols[i % cols.length] }));
       lamp.position.copy(src);
       hall.add(lamp);
       this.spots.push(cone);
@@ -1376,6 +1475,235 @@ export class Atlantis {
     pg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     this.hallSparks = new THREE.Points(pg, new THREE.PointsMaterial({ map: softDot(), color: T.glow, size: 0.5, transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending }));
     hall.add(this.hallSparks);
+    this.buildLoot(hall, RR, H, dais);
+    this.buildHallFx(hall, RR, H, cols);
+  }
+
+  // a light show in the hall: a slowly turning fan of light rays from the top of the dome, sweeping coloured
+  // beams, glowing orbs drifting through the hall and shimmering light patterns (caustics) on the floor
+  buildHallFx(hall, RR, H, cols) {
+    const rnd = this.r, M = this.M, fx = (this.hallFx = {});
+    const rayMat = (c) => {
+      const m = M.rays.clone();
+      m.uniforms = { uC: { value: new THREE.Color(c) }, uT: this.uT };
+      return m;
+    };
+    // fan of god rays from the apex of the dome
+    const apex = new THREE.Vector3(0, H + RR * 0.55, 0);
+    fx.fan = new THREE.Group();
+    fx.fan.position.copy(apex);
+    for (let i = 0; i < 18; i++) {
+      const len = apex.y + 2, a = (i / 18) * TAU, out = RR * (0.35 + (i % 3) * 0.17);
+      const geo = new THREE.CylinderGeometry(0.15, 1.2 + (i % 4) * 0.5, len, 12, 1, true).translate(0, -len / 2, 0);
+      attr1(geo, 'aPh', () => i * 0.9);
+      const m = new THREE.Mesh(geo, rayMat(cols[i % cols.length]));
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), new THREE.Vector3(Math.cos(a) * out, -len, Math.sin(a) * out).normalize());
+      fx.fan.add(m);
+    }
+    hall.add(fx.fan);
+    // sweeping beams from lamps high up on the wall (like a light show)
+    fx.beams = [];
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * TAU + 0.2, src = new THREE.Vector3(Math.cos(a) * (RR - 1.2), H * (0.55 + (i % 2) * 0.3), Math.sin(a) * (RR - 1.2));
+      const len = RR * 1.5;
+      const geo = new THREE.CylinderGeometry(0.12, 0.9, len, 10, 1, true).translate(0, -len / 2, 0);
+      attr1(geo, 'aPh', () => i * 1.3);
+      const b = new THREE.Mesh(geo, rayMat(cols[(i + 2) % cols.length]));
+      b.position.copy(src);
+      b.userData = { a, ph: rnd() * TAU, sp: 0.25 + rnd() * 0.3 };
+      const lamp = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: cols[(i + 2) % cols.length], transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      lamp.scale.setScalar(2.4);
+      lamp.position.copy(src);
+      hall.add(b, lamp);
+      fx.beams.push(b);
+    }
+    // glowing orbs drifting through the hall
+    fx.orbs = [];
+    for (let i = 0; i < 16; i++) {
+      const o = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: cols[i % cols.length], transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending }));
+      o.scale.setScalar(1.6 + rnd() * 1.4);
+      o.userData = { r: RR * (0.3 + rnd() * 0.55), y: 3 + rnd() * (H + 4), sp: (rnd() < 0.5 ? -1 : 1) * (0.08 + rnd() * 0.12), ph: rnd() * TAU, bob: rnd() * TAU };
+      hall.add(o);
+      fx.orbs.push(o);
+    }
+    // shimmering caustics on the floor
+    const caus = new THREE.ShaderMaterial({
+      uniforms: { uT: this.uT, uC: { value: new THREE.Color(cols[0]).lerp(new THREE.Color(0xffffff), 0.4) }, uR: { value: RR } },
+      vertexShader: 'varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `uniform float uT; uniform vec3 uC; uniform float uR; varying vec2 vP;
+        float c(vec2 p, float t){ vec2 i = p; float v = 0.0;
+          for (int n = 0; n < 3; n++) { float tt = t * (1.0 - 0.2 * float(n)); i = p + vec2(cos(tt - i.x) + sin(tt + i.y), sin(tt - i.y) + cos(tt + i.x)); v += 1.0 / length(vec2(p.x / (sin(i.x + tt) * 2.2), p.y / (cos(i.y + tt) * 2.2))); }
+          return v / 3.0; }
+        void main(){ vec2 p = vP * 0.22; float v = c(p, uT * 0.35); v = pow(clamp(1.2 - v * 0.9, 0.0, 1.0), 6.0);
+          float edge = 1.0 - smoothstep(uR * 0.75, uR, length(vP));
+          gl_FragColor = vec4(uC, v * 0.45 * edge); }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(RR, 64), caus);
+    floor.rotation.x = -PI / 2;
+    floor.position.y = 0.12;
+    floor.renderOrder = 1;
+    hall.add(floor);
+  }
+
+  updateHallFx(t) {
+    const fx = this.hallFx;
+    if (!fx) return;
+    fx.fan.rotation.y = t * 0.06;
+    for (const b of fx.beams) {
+      const u = b.userData, sw = Math.sin(t * u.sp + u.ph);
+      // aim across the hall and sweep from side to side, up and down
+      const dir = new THREE.Vector3(-Math.cos(u.a + sw * 0.6), -0.35 + Math.sin(t * u.sp * 1.3 + u.ph) * 0.25, -Math.sin(u.a + sw * 0.6)).normalize();
+      b.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+    }
+    for (const o of fx.orbs) {
+      const u = o.userData, a = u.ph + t * u.sp;
+      o.position.set(Math.cos(a) * u.r, u.y + Math.sin(t * 0.6 + u.bob) * 2, Math.sin(a) * u.r);
+      o.material.opacity = 0.55 + 0.4 * Math.sin(t * 2 + u.bob);
+    }
+  }
+
+  // treasures to collect by swimming through them, and one secret only the sonar shows
+  buildLoot(hall, RR, H, dais) {
+    const rnd = this.r, D = this.door, T = this.theme;
+    const s = Math.max(0.9, this.subLen * 0.17);
+    this.hallEvents = [];
+    this.loot = [];
+    this.lootTaken = 0;
+    this.crewCaught = 0;
+    this.secretFound = false;
+    const kinds = ['coin', 'gem', 'pearl', 'goblet', 'crown', 'coin', 'gem', 'pearl', 'coin', 'gem', 'goblet', 'crown'];
+    const gemCols = [T.glow, 0xff4fa8, 0x46ff8a, 0xffd84a, 0x8a6aff, 0x46c8ff];
+    kinds.forEach((kind, i) => {
+      const a = D.a + 0.75 + ((i + 0.2 + rnd() * 0.6) / kinds.length) * (TAU - 1.5);
+      const d = dais + 3 + rnd() * Math.max(2, RR - dais - 11);
+      const o = lootMesh(kind, gemCols[i % gemCols.length]);
+      o.scale.setScalar(s);
+      const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: kind === 'gem' ? gemCols[i % gemCols.length] : 0xffd86a, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+      halo.scale.setScalar(2.6);
+      o.add(halo);
+      o.position.set(Math.cos(a) * d, 2.2 + rnd() * Math.min(H * 0.5, 8), Math.sin(a) * d);
+      o.userData = { base: o.position.y, ph: rnd() * TAU, s };
+      hall.add(o);
+      this.loot.push(o);
+    });
+    // the secret: hidden between two columns, near the floor – only a sonar ping makes it appear
+    const S = HALL_SECRETS[this.levelId] || HALL_SECRETS.java;
+    const sa = D.a + PI + (rnd() - 0.5) * 1.6, sd = RR - 4.6;
+    const sec = lootMesh(S.kind, S.col);
+    sec.scale.setScalar(s * 1.7);
+    sec.position.set(Math.cos(sa) * sd, 1.9, Math.sin(sa) * sd);
+    sec.rotation.y = -sa - PI / 2;
+    sec.visible = false;
+    const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTex(), color: 0x9affff, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+    ring.scale.setScalar(3);
+    sec.add(ring);
+    const glowS = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot(), color: S.col || 0xffd86a, transparent: true, opacity: 0.8, depthWrite: false, blending: THREE.AdditiveBlending }));
+    glowS.scale.setScalar(3.4);
+    sec.add(glowS);
+    sec.userData = { ring, info: S };
+    hall.add(sec);
+    this.secret = sec;
+    // little bursts of sparkles
+    this.bursts = [0, 1, 2, 3].map(() => {
+      const n = 36, g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+      const p = new THREE.Points(g, new THREE.PointsMaterial({ map: softDot(), color: 0xffe27a, size: 0.7, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+      p.visible = false;
+      p.frustumCulled = false;
+      p.userData = { v: new Float32Array(n * 3), t: 9 };
+      hall.add(p);
+      return p;
+    });
+    this.burstI = 0;
+    // the crew can be collected too (Captain Bushybeard)
+    if (this.extras) this.extras.onCatch = (n, total, at) => {
+      this.crewCaught = n;
+      this.burst(at, 0xffe24a);
+      this.hallEvents.push({ type: 'crew', n, total });
+    };
+  }
+
+  burst(at, color) {
+    const p = this.bursts[this.burstI++ % this.bursts.length], a = p.geometry.attributes.position.array, v = p.userData.v;
+    for (let i = 0; i < a.length / 3; i++) {
+      a.set([at.x, at.y, at.z], i * 3);
+      const th = Math.random() * TAU, ph = Math.acos(2 * Math.random() - 1), sp = 3 + Math.random() * 5;
+      v.set([Math.sin(ph) * Math.cos(th) * sp, Math.cos(ph) * sp + 2, Math.sin(ph) * Math.sin(th) * sp], i * 3);
+    }
+    p.material.color.setHex(color);
+    p.userData.t = 0;
+    p.visible = true;
+    p.geometry.attributes.position.needsUpdate = true;
+  }
+
+  // sonar ping inside the hall: reveals the secret (true the first time)
+  sonarPing() {
+    if (!this.inside || !this.secret || this.secret.visible || this.secretFound) return false;
+    this.secret.visible = true;
+    this.secret.userData.shown = 0;
+    return true;
+  }
+
+  takeEvents() {
+    const e = this.hallEvents || [];
+    this.hallEvents = [];
+    return e;
+  }
+
+  updateLoot(t, dt, subL) {
+    const reach = this.subLen * 0.5 + 1.3;
+    for (const o of this.loot) {
+      const u = o.userData;
+      if (u.gone) continue;
+      if (u.fly !== undefined) {
+        u.fly += dt / 0.35;
+        o.position.lerp(subL, Math.min(1, u.fly));
+        o.scale.setScalar(u.s * Math.max(0.01, 1 - u.fly));
+        if (u.fly >= 1) {
+          u.gone = true;
+          o.visible = false;
+        }
+        continue;
+      }
+      o.rotation.y = t * 1.4 + u.ph;
+      o.position.y = u.base + Math.sin(t * 1.6 + u.ph) * 0.35;
+      if (o.position.distanceTo(subL) < reach) {
+        u.fly = 0;
+        this.lootTaken++;
+        this.burst(o.position, 0xffe27a);
+        this.hallEvents.push({ type: 'loot', n: this.lootTaken, total: this.loot.length });
+      }
+    }
+    const sec = this.secret;
+    if (sec && sec.visible && !this.secretFound) {
+      const u = sec.userData;
+      u.shown += dt;
+      const k = (t * 0.9) % 1;
+      u.ring.scale.setScalar(2 + k * 5);
+      u.ring.material.opacity = 1 - k;
+      sec.position.y = 1.9 + Math.sin(t * 1.5) * 0.25;
+      if (sec.position.distanceTo(subL) < reach + 0.6) {
+        this.secretFound = true;
+        this.burst(sec.position, 0x9affff);
+        this.burst(sec.position.clone().add(new THREE.Vector3(0, 1, 0)), 0xffe27a);
+        sec.visible = false;
+        this.hallEvents.push({ type: 'secret', name: u.info.name });
+      }
+    }
+    for (const p of this.bursts) {
+      const d = p.userData;
+      if (d.t > 1.2) continue;
+      d.t += dt;
+      const a = p.geometry.attributes.position.array, v = d.v;
+      for (let i = 0; i < a.length; i++) {
+        a[i] += v[i] * dt;
+        v[i] *= 1 - dt * 2.2;
+      }
+      p.material.opacity = Math.max(0, 1 - d.t / 1.2);
+      p.geometry.attributes.position.needsUpdate = true;
+      if (d.t > 1.2) p.visible = false;
+    }
   }
 
   // ------------------------------------------------ inside / outside
@@ -1890,11 +2218,14 @@ export class Atlantis {
     this.uT.value = t;
     if (this.inside) {
       this.fable.anim(t, dt, !!this.talking);
-      if (this.extras) this.extras.update(t, dt, sub.pos.clone().sub(this.hall.position));
+      const subL = sub.pos.clone().sub(this.hall.position);
+      if (this.extras) this.extras.update(t, dt, subL, this.subLen * 0.42);
+      this.updateLoot(t, dt, subL);
+      this.updateHallFx(t);
       this.spots.forEach((c, i) => {
         c.quaternion.copy(c.userData.base);
-        c.rotateX(Math.sin(t * 0.5 + i) * 0.08);
-        c.rotateZ(Math.cos(t * 0.4 + i * 1.3) * 0.08);
+        c.rotateX(Math.sin(t * 0.5 + i) * 0.13);
+        c.rotateZ(Math.cos(t * 0.4 + i * 1.3) * 0.13);
       });
       this.hallLights.forEach((L, i) => {
         const a = t * 0.35 + (i / 3) * TAU;

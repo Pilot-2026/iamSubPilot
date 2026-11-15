@@ -2,7 +2,7 @@
 // Charts are plain SVG/HTML: one hue per single series, hover/tap tooltips, a table for the last visits.
 
 import { t, getLang } from './i18n.js';
-import { loadStats } from './stats.js';
+import { loadStats, myVisitorId } from './stats.js';
 
 const C1 = '#2639c9'; // main series
 const C2 = '#c2410c'; // second series (returning visitors)
@@ -158,18 +158,38 @@ function pageRecent(S) {
   if (!S.recent || !S.recent.length) return `<p class="st-empty">${t('statsNoData')}</p>`;
   const df = new Intl.DateTimeFormat(getLang() === 'de' ? 'de-AT' : 'en-GB', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Vienna' });
   return `<div class="st-tablewrap"><table class="st-table"><thead><tr><th>${t('statsWhen')}</th><th>${t('statsCountry')}</th><th>${t('statsDevice')}</th><th>${t('statsLang')}</th><th>${t('statsType')}</th></tr></thead><tbody>
-    ${S.recent.map((r) => `<tr><td>${r.t ? esc(df.format(new Date(r.t))) : '–'}</td><td>${flag(r.cc)} ${esc(countryName(r.cc))}</td><td>${esc(t('dev_' + r.dev) || r.dev || '')}</td><td>${esc(r.lang || '')}</td><td>${r.ret ? t('statsReturning') : t('statsNew')}</td></tr>`).join('')}
-    </tbody></table></div>`;
+    ${S.recent.map((r) => `<tr class="${r.own ? 'own' : ''}"><td>${r.t ? esc(df.format(new Date(r.t))) : '–'}</td><td>${flag(r.cc)} ${esc(countryName(r.cc))}</td><td>${esc(t('dev_' + r.dev) || r.dev || '')}</td><td>${esc(r.lang || '')}</td><td>${r.ret ? t('statsReturning') : t('statsNew')}</td></tr>`).join('')}
+    </tbody></table></div><p class="st-note">${t('statsRecentOwnNote')}</p>`;
 }
 
-const PAGES = [pageOverview, pageCountries, pageTimes, pageDevices, pageGame, pageRecent];
+// returning visitors: every device has an anonymous random number; own devices are marked
+function pageVisitors(S) {
+  const V = S.visitors;
+  if (!V) return `<p class="st-empty">${t('statsVisitorsOffline')}</p>`;
+  if (!V.length) return `<p class="st-empty">${t('statsVisitorsNone')}</p>`;
+  const me = myVisitorId();
+  const ret = V.filter((v) => v.n >= 2), reg = V.filter((v) => v.n >= 5), own = V.filter((v) => v.own);
+  const dfm = new Intl.DateTimeFormat(getLang() === 'de' ? 'de-AT' : 'en-GB', { dateStyle: 'short', timeStyle: 'short', timeZone: 'Europe/Vienna' });
+  const rows = [...V].sort((a, b) => b.n - a.n || b.last - a.last).filter((v) => v.n >= 2 || v.own).slice(0, 150);
+  return `<div class="st-tiles">
+      ${tile(t('statsDevicesTotal'), fmt(S.visitorsTotal || V.length))}
+      ${tile(t('statsRet2'), fmt(ret.length), pct(ret.length, V.length))}
+      ${tile(t('statsRet5'), fmt(reg.length))}
+      ${tile(t('statsOwnDevices'), fmt(own.length))}
+    </div>
+    <div class="st-tablewrap st-vis"><table class="st-table"><thead><tr><th></th><th>${t('statsNVisits')}</th><th>${t('statsFirst')}</th><th>${t('statsLast')}</th><th>${t('statsCountry')}</th><th>${t('statsDevice')}</th><th>${t('statsLang')}</th></tr></thead><tbody>
+    ${rows.length ? rows.map((v) => `<tr class="${v.own ? 'own' : ''}"><td>${v.own ? `<b class="st-me">🏠 ${t('statsMe')}</b>` : `#${esc(v.id)}`}${v.id === me ? ` <small>(${t('statsThisDevice')})</small>` : ''}</td><td><b>${fmt(v.n)}</b></td><td>${esc(dfm.format(new Date(v.first)))}</td><td>${esc(dfm.format(new Date(v.last)))}</td><td>${flag(v.cc)} ${esc(countryName(v.cc))}</td><td>${esc(t('dev_' + v.dev) || v.dev)}</td><td>${esc(v.lang || '')}</td></tr>`).join('') : `<tr><td colspan="7" class="st-empty">${t('statsRetNone')}</td></tr>`}
+    </tbody></table></div>
+    <p class="st-note">${t('statsVisitorsNote')}</p>`;
+}
+
+const PAGES = [pageOverview, pageVisitors, pageRecent, pageCountries, pageTimes, pageDevices, pageGame];
 
 export async function openStats(ctx) {
   const { net, showModal, closeModal, ownerNote } = ctx;
   showModal(`<div data-wide></div><h1>📊 ${t('statsTitle')}</h1><p>${t('statsLoading')}</p>`, null, 'stats');
   const S = await loadStats(net, 30);
   S.all = S.all || {};
-  let tab = 0;
   const render = () => {
     const status = S.online
       ? `<span class="st-badge on">● ${t('statsOnline')}</span>`
@@ -180,18 +200,28 @@ export async function openStats(ctx) {
     ].join('');
     showModal(`<div data-wide></div>
       <div class="st-head"><h1>📊 ${t('statsTitle')}</h1>${status}<button class="x st-x" aria-label="${t('close')}">×</button></div>
-      <div class="st-tabs" role="tablist">${t('statsTabs').map((n, i) => `<button role="tab" class="${i === tab ? 'on' : ''}" data-tab="${i}">${esc(n)}</button>`).join('')}</div>
-      <div class="st-page">${PAGES[tab](S, ctx)}</div>
-      ${notes}
-      <div class="st-tip hidden"></div>`, (root) => {
+      <div class="st-tabs" role="navigation">${t('statsSections').map((n, i) => `<button data-sec="${i}">${esc(n)}</button>`).join('')}</div>
+      <div class="st-scroll">
+        ${PAGES.map((pg, i) => `<section class="st-page" id="st-sec${i}"><h2>${esc(t('statsSections')[i])}</h2>${pg(S, ctx)}</section>`).join('')}
+        ${notes}
+        <div class="st-tip hidden"></div>
+      </div>`, (root) => {
       root.querySelector('.st-x').onclick = closeModal;
+      const sc = root.querySelector('.st-scroll');
       root.querySelectorAll('.st-tabs button').forEach((b) => {
-        b.onclick = () => {
-          tab = Number(b.dataset.tab);
-          render();
-        };
+        b.onclick = () => sc.scrollTo({ top: root.querySelector('#st-sec' + b.dataset.sec).offsetTop - 4, behavior: 'smooth' }); // .st-scroll is the offset parent
       });
-      bindTips(root);
+      // the section you are looking at is highlighted in the menu
+      const mark = () => {
+        let cur = 0;
+        PAGES.forEach((_, i) => {
+          if (root.querySelector('#st-sec' + i).offsetTop - 30 <= sc.scrollTop) cur = i;
+        });
+        root.querySelectorAll('.st-tabs button').forEach((b, i) => b.classList.toggle('on', i === cur));
+      };
+      sc.addEventListener('scroll', mark, { passive: true });
+      mark();
+      bindTips(sc);
     }, 'stats');
   };
   render();

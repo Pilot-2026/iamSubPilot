@@ -1085,7 +1085,8 @@ export class Sub {
       return;
     }
     const fwd = this.forward();
-    const boost = input.boost ? 1.6 : 1;
+    // boost: clearly faster (and quicker to pick up speed)
+    const boost = input.boost ? 2.6 : 1;
     const maxSpeed = 9 * boost * (opts.speedMul || 1);
     // turning
     this.yaw -= input.turn * 1.5 * dt;
@@ -1093,7 +1094,7 @@ export class Sub {
     const targetSpeed = input.throttle * maxSpeed;
     const horiz = new THREE.Vector3(this.vel.x, 0, this.vel.z);
     const curFwd = horiz.dot(fwd);
-    const newFwd = lerp(curFwd, targetSpeed, 1 - Math.exp(-dt * 1.6));
+    const newFwd = lerp(curFwd, targetSpeed, 1 - Math.exp(-dt * (input.boost ? 2.4 : 1.6)));
     // remove sideways drift quickly
     const side = horiz.clone().addScaledVector(fwd, -curFwd).multiplyScalar(Math.exp(-dt * 3));
     this.vel.x = fwd.x * newFwd + side.x;

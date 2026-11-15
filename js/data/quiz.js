@@ -1,6 +1,8 @@
 // Debrief questions, grouped by age tier. c = index of the correct answer.
 // topic links a question to a creature id (asked preferably after finding it) or 'general'.
 
+import { MORE_QUESTIONS, FABLE_QUESTIONS } from './quiz-more.js';
+
 export const QUESTIONS = [
   // ---------- sharks ----------
   { tier: 'kid', topic: 'hammerhead',
@@ -198,6 +200,24 @@ function shuffle(arr, rnd = Math.random) {
 }
 
 // Pick n questions for a tier, preferring topics the player met during the dive.
+QUESTIONS.push(...MORE_QUESTIONS);
+
+const localise = (q, lang) => {
+  const loc = q[lang] || q.en;
+  // shuffle answers but remember the correct one
+  const idx = shuffle([0, 1, 2, 3]);
+  return { key: q.en.q, q: loc.q, a: idx.map((i) => loc.a[i]), c: idx.indexOf(loc.c), src: q.src || null };
+};
+
+// a bonus question about the fable creature's legend (after meeting it in Atlantis)
+export function fableQuestion(levelId, lang = 'en', avoid = []) {
+  const list = FABLE_QUESTIONS[levelId] || [];
+  if (!list.length) return null;
+  const fresh = list.filter((q) => !avoid.includes(q.en.q));
+  const pickFrom = fresh.length ? fresh : list;
+  return { ...localise(pickFrom[Math.floor(Math.random() * pickFrom.length)], lang), fable: true };
+}
+
 export function pickQuestions(tier, topics, n = 3, lang = 'en', avoid = []) {
   const order = tier === 'kid' ? ['kid', 'junior'] : tier === 'junior' ? ['junior', 'kid', 'adult'] : ['adult', 'junior'];
   let pool = [];
@@ -208,15 +228,5 @@ export function pickQuestions(tier, topics, n = 3, lang = 'en', avoid = []) {
     pool = pool.concat(preferred, rest);
     if (pool.length >= n * 2) break;
   }
-  return pool.slice(0, n).map((q) => {
-    const loc = q[lang] || q.en;
-    // shuffle answers but remember the correct one
-    const idx = shuffle([0, 1, 2, 3]);
-    return {
-      key: q.en.q,
-      q: loc.q,
-      a: idx.map((i) => loc.a[i]),
-      c: idx.indexOf(loc.c),
-    };
-  });
+  return pool.slice(0, n).map((q) => localise(q, lang));
 }

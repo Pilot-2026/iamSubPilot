@@ -1093,14 +1093,34 @@ function rauschebart() {
       const tg = new THREE.BufferGeometry();
       tg.setAttribute('position', new THREE.BufferAttribute(tp, 3));
       g.add(new THREE.Points(tg, new THREE.PointsMaterial({ map: dot(), color: 0xffd8ff, size: 0.55, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })));
-      let ti = 0, tAcc = 0;
-      const prev = new THREE.Vector3();
-      return {
+      let ti = 0, tAcc = 0, caught = 0;
+      const prev = new THREE.Vector3(), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
+      const ex = {
         group: g,
-        update(t, dt, sub) {
+        onCatch: null,
+        // catchR: the sub's reach – swim through a crew member and it jumps for joy, does a double flip and
+        // pops into your sub (onCatch(count, total, position))
+        update(t, dt, sub, catchR = 0) {
           crew.forEach((c, i) => {
+            if (c.gone) return;
+            if (!c.caught && catchR > 0 && Math.hypot(sub.x - c.x, sub.z - c.z) < catchR + c.s * 1.1 && sub.y < 0.95 + c.s * 2.3 + catchR) {
+              c.caught = true;
+              c.b = 'joy';
+              c.d = c.tm = 1.5;
+              caught++;
+              if (ex.onCatch) ex.onCatch(caught, N, new THREE.Vector3(c.x, 0.95 + c.s * 1.2, c.z));
+            }
             c.tm -= dt;
-            if (c.tm <= 0) pick(c);
+            if (c.tm <= 0) {
+              if (c.caught) {
+                c.gone = true;
+                bodies.setMatrixAt(i, ZERO);
+                armsM.setMatrixAt(i * 2, ZERO);
+                armsM.setMatrixAt(i * 2 + 1, ZERO);
+                return;
+              }
+              pick(c);
+            }
             const k = 1 - c.tm / c.d; // 0..1 through the current trick
             let y = 0, sx = 1, sy = 1, rx = 0, rz = 0, aL = 0.35, aR = 0.35, h = 0.55 * c.s * 2.1;
             const hop = (f) => {
@@ -1148,11 +1168,18 @@ function rauschebart() {
               sy = 1 + Math.sin(t * 22 + i) * 0.07;
               rx = Math.sin(t * 11) * 0.12 - 0.15;
               aL = aR = -0.2;
+            } else if (c.b === 'joy') {
+              // caught: a big happy jump with a double flip, arms up – then it pops away into the sub
+              y = 4 * k * (1 - k) * h * 4.5;
+              rx = -Math.min(1, k * 1.25) * TAU * 2;
+              aL = aR = 2.8 + Math.sin(t * 20) * 0.2;
+              const pop = k > 0.82 ? Math.max(0.01, (1 - k) / 0.18) : 1 + Math.sin(k * PI) * 0.25;
+              sx = sy = pop;
             }
             p3.set(c.x, 0.95 + y, c.z);
             e.set(rx, c.yaw, rz);
             q.setFromEuler(e);
-            m4.compose(p3, q, s3.set(c.s * sx, c.s * sy, c.s * sx));
+            m4.compose(p3, q, s3.set(c.s * sx, c.s * sy, c.s * (c.b === 'joy' ? sy : sx)));
             bodies.setMatrixAt(i, m4);
             for (const [j, sd, a] of [[0, -1, aL], [1, 1, aR]]) {
               mA.makeRotationZ(sd * -a).setPosition(sd * 0.84, 1.15, 0.05);
@@ -1177,6 +1204,7 @@ function rauschebart() {
           }
         },
       };
+      return ex;
     },
   };
 }

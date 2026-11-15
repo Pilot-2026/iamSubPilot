@@ -12,6 +12,14 @@ const TRACKS = [
   { name: 'Dolphin Dance', root: 55, scale: 'mixo', prog: [0, 6, 3, 0], bpm: 112, beats: 4, arp: [0, 2, 3, 2, 4, 2, 3, 1], melody: 0.6, sparkle: 0.25, dolphins: 2 },
   { name: 'Floating Lights', root: 62, scale: 'lydian', prog: [0, 1, 0, 4], bpm: 84, beats: 4, arp: [0, 1, 2, 4, 3, 2, 1, 2], melody: 0.4, sparkle: 0.55 },
   { name: "Explorer's March", root: 57, scale: 'major', prog: [0, 3, 5, 4], bpm: 104, beats: 4, arp: [0, 2, 4, 2, 1, 2, 3, 2], melody: 0.6, sparkle: 0.3 },
+  // more cheerful pieces – some with many whale songs, some with lots of dolphins
+  { name: 'Humpback Lullaby', root: 58, scale: 'major', prog: [0, 5, 3, 4], bpm: 76, beats: 4, arp: [0, 1, 2, 3, 2, 1, 2, 1], melody: 0.4, sparkle: 0.5, whales: 2.4 },
+  { name: 'Coral Carnival', root: 62, scale: 'major', prog: [0, 4, 5, 3, 0, 4, 3, 4], bpm: 124, beats: 4, arp: [0, 2, 1, 2, 3, 2, 4, 2], melody: 0.65, sparkle: 0.3, dolphins: 2.6 },
+  { name: 'Sea Turtle Stroll', root: 60, scale: 'mixo', prog: [0, 3, 0, 4], bpm: 92, beats: 4, arp: [0, 2, 3, 1, 2, 3, 4, 3], melody: 0.55, sparkle: 0.35, whales: 1.4 },
+  { name: 'Moonlit Lagoon', root: 64, scale: 'lydian', prog: [0, 1, 5, 4], bpm: 80, beats: 3, arp: [0, 2, 3, 4, 3, 2], melody: 0.45, sparkle: 0.6, whales: 1.8, dolphins: 1.2 },
+  { name: 'Happy Plankton', root: 67, scale: 'major', prog: [0, 3, 4, 0], bpm: 140, beats: 4, arp: [0, 1, 2, 1, 3, 1, 2, 1], melody: 0.5, sparkle: 0.4, dolphins: 2 },
+  { name: 'Whale Song Sunrise', root: 55, scale: 'major', prog: [0, 4, 3, 4, 5, 3, 0, 4], bpm: 88, beats: 4, arp: [0, 2, 4, 3, 2, 4, 3, 1], melody: 0.5, sparkle: 0.45, whales: 2.8, dolphins: 1.3 },
+  { name: 'Bubble Polka', root: 65, scale: 'major', prog: [0, 4, 0, 4, 3, 0, 4, 0], bpm: 120, beats: 2, arp: [0, 2, 1, 3], melody: 0.6, sparkle: 0.3, dolphins: 1.8 },
 ];
 const BARS_PER_TRACK = 28; // about 1–1.5 minutes, then the next piece follows
 const mtof = (m) => 440 * Math.pow(2, (m - 69) / 12);
@@ -227,7 +235,7 @@ class AudioFX {
     }
     if (N.whale < ahead) {
       this.whale(N.whale);
-      N.whale += (intro ? 7 : 11) + Math.random() * (intro ? 7 : 10);
+      N.whale += ((intro ? 7 : 11) + Math.random() * (intro ? 7 : 10)) / (tr.whales || 1);
     }
     if (N.dolphin < ahead) {
       this.dolphins(N.dolphin);
@@ -652,6 +660,18 @@ class AudioFX {
     this.tone(f * 2, 0.5, { vol: 0.08, type: 'sine', when: 0.12 });
     this.noise(0.5, { vol: 0.12, freq: 6000, q: 0.8, type: 'highpass' });
   }
+  // a treasure collected: a bright double chime
+  coin() {
+    this.tone(mtof(88), 0.25, { vol: 0.12, type: 'triangle' });
+    this.tone(mtof(95), 0.45, { vol: 0.12, type: 'triangle', when: 0.08 });
+    this.tone(mtof(100), 0.3, { vol: 0.05, type: 'sine', when: 0.16, echo: true });
+  }
+  // a crew member caught: a quick happy "yippee" giggle (rising chirps with vibrato)
+  giggle() {
+    const base = 74 + Math.floor(Math.random() * 5);
+    [0, 4, 7, 12].forEach((s, i) => this.tone(mtof(base + s), 0.09, { vol: 0.07, type: 'square', when: i * 0.07, toFreq: mtof(base + s + 2) }));
+    this.tone(mtof(base + 16), 0.3, { vol: 0.06, type: 'triangle', when: 0.3, toFreq: mtof(base + 19) });
+  }
   // Christmas: the chorus of "Jingle Bells" (James Lord Pierpont, 1857 – public domain) with sleigh bells
   jingle() {
     const mel = [[64, 1], [64, 1], [64, 2], [64, 1], [64, 1], [64, 2], [64, 1], [67, 1], [60, 1.5], [62, 0.5], [64, 4],
@@ -747,13 +767,69 @@ class AudioFX {
     ag.connect(this.fxBus);
     a1.start();
     a2.start();
-    this.engine = { o, f, g };
+    // soft rushing water (the mermaid sub ISABELLA has no motor: you hear the water and her tail fin)
+    const len = this.ctx.sampleRate * 2, buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate), d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) {
+      last = last * 0.96 + (Math.random() * 2 - 1) * 0.04; // brown-ish noise
+      d[i] = last * 6;
+    }
+    const ws = this.ctx.createBufferSource();
+    ws.buffer = buf;
+    ws.loop = true;
+    const wf = this.ctx.createBiquadFilter();
+    wf.type = 'lowpass';
+    wf.frequency.value = 500;
+    const wg = this.ctx.createGain();
+    wg.gain.value = 0;
+    ws.connect(wf);
+    wf.connect(wg);
+    wg.connect(this.fxBus);
+    ws.start();
+    this.engine = { o, f, g, ws, wf, wg };
     this.ambient = { a1, a2, ag };
+  }
+
+  // ISABELLA swims with her tail: no engine hum, rushing water instead (finSwish on every tail stroke)
+  setFinMode(on) {
+    this.finMode = !!on;
+  }
+
+  finSwish(level = 0.5) {
+    if (!this.ctx || !this.finMode) return;
+    const c = this.ctx, t0 = c.currentTime, dur = 0.55;
+    const len = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource();
+    src.buffer = buf;
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 0.9;
+    f.frequency.setValueAtTime(320, t0);
+    f.frequency.exponentialRampToValueAtTime(900 + level * 500, t0 + 0.18);
+    f.frequency.exponentialRampToValueAtTime(260, t0 + dur);
+    const g = c.createGain(), v = 0.05 + level * 0.11;
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(v, t0 + 0.09);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+    src.connect(f);
+    f.connect(g);
+    g.connect(this.fxBus);
+    if (this.reverb) g.connect(this.reverb);
+    src.start(t0);
+    // now and then a few small bubbles
+    if (Math.random() < 0.35 + level * 0.3) for (let i = 0; i < 3; i++) this.tone(500 + Math.random() * 700, 0.05, { vol: 0.025, toFreq: 1300 + Math.random() * 600, when: 0.12 + i * 0.07 });
   }
 
   setEngine(level) {
     if (!this.engine) return;
     const t = this.ctx.currentTime;
+    this.engine.wg.gain.setTargetAtTime(this.finMode ? 0.02 + level * 0.06 : 0, t, 0.3);
+    this.engine.wf.frequency.setTargetAtTime(350 + level * 600, t, 0.3);
+    if (this.finMode) {
+      this.engine.g.gain.setTargetAtTime(0, t, 0.2);
+      return;
+    }
     this.engine.g.gain.setTargetAtTime(0.03 + level * 0.07, t, 0.2);
     this.engine.o.frequency.setTargetAtTime(50 + level * 30, t, 0.2);
     this.engine.f.frequency.setTargetAtTime(150 + level * 250, t, 0.2);
@@ -763,6 +839,7 @@ class AudioFX {
     if (!this.engine) return;
     try {
       this.engine.o.stop();
+      this.engine.ws.stop();
       this.ambient.a1.stop();
       this.ambient.a2.stop();
     } catch (e) {
