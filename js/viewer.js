@@ -6,7 +6,7 @@ import * as THREE from './vendor/three.min.js';
 import { buildModel, animUpper } from './creatures.js';
 import { buildSubModel, animateSubModel } from './sub.js';
 import { buildMerFigure, animMer, MER_PALETTES, buildNeptune, animNeptune } from './merfolk.js';
-import { buildFable } from './fables.js';
+import { buildFable, buildCompanion } from './fables.js';
 
 function makeFigure(name) {
   const f = name === 'neptune' ? buildNeptune() : buildMerFigure(MER_PALETTES.atlantis);
@@ -24,6 +24,7 @@ export function viewer() {
 // Build a model by kind: 'sub:<id>' or a creature model name.
 export function makeModel(key) {
   if (key.startsWith('fig:')) return makeFigure(key.slice(4)); // Neptune / mermaid: only shown after meeting them in Atlantis
+  if (key.startsWith('crew:')) return buildCompanion(key.slice(5)); // Captain Bushybeard's crew member and the sea fairy
   if (key.startsWith('fable:')) return buildFable(key.slice(6), 6).group; // the secret fable creatures (results, after meeting them)
   if (key.startsWith('sub:')) {
     const m = buildSubModel(key.slice(4), null, false);

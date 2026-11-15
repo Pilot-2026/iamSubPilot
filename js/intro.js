@@ -4,6 +4,7 @@
 // cruising around it with their lights on.
 
 import * as THREE from './vendor/three.min.js';
+import { xmasSeason, buildSanta } from './santa.js';
 import { buildModel, animUpper } from './creatures.js';
 import { buildSubModel, animateSubModel } from './sub.js';
 import { fishGeometry, fishMaterial, fishTime } from './schools.js';
@@ -417,6 +418,13 @@ export class Aquarium {
     this.trailNext = 0;
     this.scene.add(this.trail);
     this.flashes = [];
+    // Christmas season: Santa's seahorse sleigh swims through the aquarium now and then
+    if (!OG && (xmasSeason() || /[?&]xmas=1/.test(location.search))) {
+      this.santa = buildSanta();
+      this.santa.group.scale.setScalar(0.62);
+      this.santa.group.visible = false;
+      this.scene.add(this.santa.group);
+    }
   }
 
   letterAnim(m, rng, i) {
@@ -590,6 +598,18 @@ export class Aquarium {
       if (bp[i * 3 + 1] > 17) bp[i * 3 + 1] = -14 - Math.random() * 4;
     }
     this.bubbles.geometry.attributes.position.needsUpdate = true;
+
+    // Santa: every 30 s a slow pass from one side to the other, behind the letters
+    if (this.santa) {
+      const cyc = (t + 22) % 30, g = this.santa.group;
+      g.visible = cyc < 16;
+      if (g.visible) {
+        const dir = Math.floor((t + 22) / 30) % 2 ? 1 : -1, u = cyc / 16;
+        g.position.set(dir * (-34 + u * 68), 7 + Math.sin(u * Math.PI) * 1.5, -9);
+        g.rotation.y = dir * Math.PI / 2;
+        this.santa.anim(t, dt, false);
+      }
+    }
 
     // animals on elliptic orbits (some pass in front of, some behind the letters)
     for (const a of this.actors) {

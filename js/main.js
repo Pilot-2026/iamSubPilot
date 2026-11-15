@@ -27,6 +27,7 @@ import { Recovery } from './launch.js';
 import { DeepBeacon, MapView, fmtDist } from './guide.js';
 import { Atlantis, atlantisSpot } from './atlantis.js';
 import { FABLE_SPEECH } from './fables.js';
+import { xmasSeason, buildSanta, decorateSub } from './santa.js';
 
 const $ = (s) => document.querySelector(s);
 const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
@@ -181,6 +182,20 @@ let game = null;
 let echoTimer = null;
 const echoQueue = [];
 let echoBusy = false;
+// a speech bubble next to a point in the world (tail pointing at it; no tail when it is off screen)
+function placeBubble(el, world) {
+  const p = world.clone().project(camera);
+  el.classList.remove('hidden');
+  const W = window.innerWidth, H = window.innerHeight, bw = el.offsetWidth, bh = el.offsetHeight;
+  const sx = (p.x * 0.5 + 0.5) * W, sy = (-p.y * 0.5 + 0.5) * H;
+  const vis = p.z < 1 && sx > -40 && sx < W + 40 && sy > -40 && sy < H + 40;
+  const left = clamp((vis ? sx : W / 2) - bw * 0.3, 10, Math.max(10, W - bw - 10));
+  const top = clamp((vis ? sy : H * 0.32) - bh - 30, 10 + (isTouch ? 0 : 60), Math.max(70, H - bh - 160));
+  el.style.left = `${left}px`;
+  el.style.top = `${top}px`;
+  el.style.setProperty('--tail', `${clamp((vis ? sx : W / 2) - left, 24, bw - 24)}px`);
+  el.classList.toggle('notail', !vis);
+}
 function echoSay(text, opts = {}) {
   if (!text) return;
   if (opts.now) {
@@ -1414,6 +1429,8 @@ class Dive {
     this.ending = null;
     this.ended = false;
     this.paused = false;
+    // Christmas special: Santa swims by in every dive of the season (and whenever the secret code calls him)
+    this.santaNext = xmasSeason() || /[?&]xmas=1/.test(location.search) ? 18 : Infinity;
     this.missions = this.race ? [] : makeMissions(level, this.cm, this.rng);
     this.beacon = this.race ? null : new DeepBeacon(this.scene, this.cm.deepest);
     this.mapView = new MapView(this);
@@ -1469,7 +1486,7 @@ class Dive {
     toast(L(level.name), L(level.ocean));
     if (this.multi && net.room) {
       // team data belongs to this dive (dv = its seed): nothing from an earlier dive in the same room counts
-      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false, ins: 0 });
+      net.setPlayer({ dv: seed, md: [], ph: [], col: [], atl: null, finish: null, done: false, ins: 0, xm: 0 });
       this.syncPlayers(net.room.players);
     }
   }
@@ -1943,17 +1960,98 @@ class Dive {
       return;
     }
     // next to the creature's mouth
-    const p = A.fable.mouth.getWorldPosition(new THREE.Vector3()).project(camera);
-    el.classList.remove('hidden');
-    const W = window.innerWidth, H = window.innerHeight, bw = el.offsetWidth, bh = el.offsetHeight;
-    const sx = (p.x * 0.5 + 0.5) * W, sy = (-p.y * 0.5 + 0.5) * H;
-    const vis = p.z < 1 && sx > -40 && sx < W + 40 && sy > -40 && sy < H + 40;
-    const left = clamp((vis ? sx : W / 2) - bw * 0.3, 10, Math.max(10, W - bw - 10));
-    const top = clamp((vis ? sy : H * 0.32) - bh - 30, 10 + (isTouch ? 0 : 60), Math.max(70, H - bh - 160));
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
-    el.style.setProperty('--tail', `${clamp((vis ? sx : W / 2) - left, 24, bw - 24)}px`);
-    el.classList.toggle('notail', !vis);
+    placeBubble(el, A.fable.mouth.getWorldPosition(new THREE.Vector3()));
+  }
+
+  // ---------- Christmas special ----------
+  // Santa comes (code = true: called with the secret code, which also dresses up your own sub)
+  summonSanta(code = false) {
+    if (this.ended || this.race) return;
+    if (code && !this.xmasDeco) {
+      this.xmasDeco = decorateSub(this.sub.group);
+      if (this.multi) net.setPlayer({ xm: 1 });
+      toast('🎄 ' + t('santaSub'));
+    }
+    if (this.santaVisit) {
+      this.santaVisit.t = Math.min(this.santaVisit.t, 6); // he is here already: stays a little longer
+      this.santaVisit.say = 0;
+      return;
+    }
+    this.santaVisit = { t: 0, dur: 52, a: Math.atan2(-Math.cos(this.sub.yaw), -Math.sin(this.sub.yaw)) + 0.6, say: 1.5, said: 0, code };
+    this.santaWait = code;
+  }
+
+  updateSanta(dt) {
+    if (this.xmasDeco) this.xmasDeco.update(this.time);
+    for (const r of this.remote.values()) {
+      if (r.data && r.data.xm && !r.xmas) r.xmas = decorateSub(r.group);
+      if (r.xmas) r.xmas.update(this.time);
+    }
+    const el = $('#santaBubble');
+    const away = this.ended || (this.launch && !this.launch.done) || this.recovery || (this.atlantis && this.atlantis.inside) || this.sub.pos.y > -4;
+    if (!this.santaVisit && this.time > this.santaNext && !away) {
+      this.santaNext = this.time + 150;
+      this.summonSanta(false);
+    }
+    const v = this.santaVisit;
+    if (!v || away) {
+      if (this.santa) this.santa.group.visible = false;
+      el.classList.add('hidden');
+      return;
+    }
+    if (!this.santa) {
+      this.santa = buildSanta();
+      this.santa.group.scale.setScalar(0.75);
+      // a magical glow, so he can be seen in the dark depths too
+      this.santa.group.traverse((o) => {
+        const m = o.material;
+        if (m && m.isMeshStandardMaterial && m.emissiveIntensity < 0.5) {
+          if (!m.vertexColors) m.emissive.copy(m.color);
+          m.emissiveIntensity = 0.5;
+        }
+      });
+      this.scene.add(this.santa.group);
+    }
+    const S = this.santa, g = S.group;
+    if (v.t === 0) {
+      echoSay(t('santaHere'), { now: true });
+      audio.jingle();
+    }
+    v.t += dt;
+    // swims in from far away, circles around you, then swims off again
+    const k = v.t / v.dur, R = 24 + Math.max(0, 1 - v.t / 7) * 60 + Math.max(0, (v.t - (v.dur - 8)) / 8) * 70;
+    v.a += dt * (9.5 / R);
+    const c = this.sub.pos, x = c.x + Math.cos(v.a) * R, z = c.z + Math.sin(v.a) * R;
+    const floor = this.world.heightAt(x, z) + 7;
+    const y = Math.max(floor, Math.min(c.y + 1 + Math.sin(v.t * 0.4) * 1.5, -3));
+    g.position.set(x, g.position.y && v.t > dt ? g.position.y + (y - g.position.y) * Math.min(1, dt * 2) : y, z);
+    g.rotation.y = Math.atan2(-Math.sin(v.a), Math.cos(v.a)); // along the circle, counter-clockwise
+    g.visible = true;
+    const talking = el && !el.classList.contains('hidden');
+    S.anim(this.time, dt, talking && v.sayT < 3.6);
+    // "Ho ho ho, merry Christmas, <name>!" whenever he is near
+    const near = g.position.distanceTo(c) < 52 && k < 0.92;
+    v.say -= dt;
+    if (near && v.say <= 0 && !this.paused) {
+      const name = (profile.name || '').trim();
+      el.querySelector('.fb-who').textContent = '🎅 ' + t('santaName');
+      el.querySelector('.fb-text').textContent = t('santaSay', { name: name ? ', ' + name : '' });
+      el.classList.remove('pop', 'hidden');
+      void el.offsetWidth;
+      el.classList.add('pop');
+      el.onclick = () => (v.say = 0.01, v.sayT = 99);
+      v.sayT = 0;
+      v.say = 11;
+      if (!v.said++) audio.discovery();
+    }
+    v.sayT = (v.sayT ?? 99) + dt;
+    if (!near || v.sayT > 5.5) el.classList.add('hidden');
+    else placeBubble(el, S.mouth.getWorldPosition(new THREE.Vector3()));
+    if (v.t >= v.dur) {
+      this.santaVisit = null;
+      g.visible = false;
+      el.classList.add('hidden');
+    }
   }
 
   // ---------- network ----------
@@ -2457,6 +2555,8 @@ class Dive {
       }
     }
 
+    this.updateSanta(dt);
+
     // guide: beacon over the deepest point, map
     if (this.beacon) this.beacon.update(this.time);
     this.mapView.mark(this.sub.pos, dt);
@@ -2787,6 +2887,7 @@ class Dive {
     this.ended = true;
     input.enabled = false;
     $('#fableBubble').classList.add('hidden');
+    $('#santaBubble').classList.add('hidden');
     audio.stopLoops();
     if (this.multi) net.setPlayer({ done: true });
     showResults(this);
@@ -2794,6 +2895,8 @@ class Dive {
 
   dispose() {
     if (this.mapView) this.mapView.toggle(false);
+    $('#santaBubble').classList.add('hidden');
+    if (this.santa) this.scene.remove(this.santa.group);
     audio.winch(false);
     $('#skipHint').classList.add('hidden');
     this.contactEls.forEach((e) => e.remove());
@@ -2949,6 +3052,8 @@ function showResults(g) {
         A.metNeptune && { key: 'fig:neptune', name: t('atlNeptuneName') },
         A.metMermaid && { key: 'fig:mermaid', name: t('atlMermaidName') },
         A.metFable && { key: `fable:${A.levelId}`, name: L(A.fable.info.name) },
+        A.metFable && A.extras && { key: 'crew:crew', name: t('crewName') },
+        A.metFable && A.extras && { key: 'crew:perla', name: t('perlaName') },
       ].filter(Boolean)
     : [];
   const atlHtml = A
@@ -2956,7 +3061,7 @@ function showResults(g) {
       <div class="atl-res">${g.atlSnap && g.atlSnap !== 'none' ? `<img class="atl-snap" src="${g.atlSnap}" alt="Atlantis">` : ''}
       ${beings.length ? `<div class="ptiles atl-tiles">${beings.map((b) => `<div class="ptile f"><canvas data-key="${b.key}"></canvas><span>★ ${escapeHtml(b.name)}</span></div>`).join('')}</div>` : ''}</div>
       ${A.metFable
-        ? `<p class="atl-legend">✨ <b>${escapeHtml(L(A.fable.info.name))}</b> – ${escapeHtml(L(A.fable.info.legend))} <span class="src">${t('source')}: ${A.fable.info.source.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${escapeHtml(n)}</a>`).join(' · ')}</span></p>`
+        ? `<p class="atl-legend">✨ <b>${escapeHtml(L(A.fable.info.name))}</b> – ${escapeHtml(L(A.fable.info.legend))} ${A.fable.info.source.length ? `<span class="src">${t('source')}: ${A.fable.info.source.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener">${escapeHtml(n)}</a>`).join(' · ')}</span>` : ''}</p>`
         : `<p class="phint">${t('atlResMissed')}</p>`}`
     : '';
   showModal(`<h1>${emergency ? '⚠ ' + t('diveEmergency') : '✅ ' + t('diveComplete')}</h1>
@@ -3248,7 +3353,20 @@ function showStats() {
 window.addEventListener('keydown', (e) => {
   if ((e.code === 'Digit9' || e.code === 'Numpad9' || e.key === '9') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName))) secretPress();
   if ((e.code === 'Digit1' || e.code === 'Numpad1') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) && $('#radioMenu').classList.contains('hidden')) cheatPress();
+  if ((e.code === 'Digit2' || e.code === 'Numpad2') && !(e.target && /INPUT|TEXTAREA/.test(e.target.tagName)) && $('#radioMenu').classList.contains('hidden')) santaPress();
 });
+// 5 × "2" (or 10 taps on your own sub): Santa Claus comes – and your sub gets dressed up for Christmas
+const santaKeys = { n: 0, last: 0 };
+function santaPress() {
+  if (!game || game.ended || game.race) return;
+  const now = performance.now();
+  santaKeys.n = now - santaKeys.last < 2000 ? santaKeys.n + 1 : 1;
+  santaKeys.last = now;
+  if (santaKeys.n >= 5) {
+    santaKeys.n = 0;
+    game.summonSanta(true);
+  }
+}
 // 5 × "1": every mission done → Atlantis (in Atlantis: straight to the fable creature)
 const cheat = { n: 0, last: 0 };
 function cheatPress() {
@@ -3474,8 +3592,19 @@ function bindCameraDrag() {
       game.recovery.skip();
       return;
     }
-    // double tap on the sub: back to the view from behind
+    // double tap on the sub: back to the view from behind; 10 taps on it: Santa Claus
     const now = performance.now();
+    {
+      const p = game.sub.pos.clone().project(camera);
+      const sx = (p.x * 0.5 + 0.5) * window.innerWidth, sy = (-p.y * 0.5 + 0.5) * window.innerHeight;
+      const onSub = p.z < 1 && Math.hypot(e.clientX - sx, e.clientY - sy) < Math.max(90, Math.min(window.innerWidth, window.innerHeight) * 0.16);
+      camDrag.subTaps = onSub && now - (camDrag.subLast || 0) < 2000 ? (camDrag.subTaps || 0) + 1 : onSub ? 1 : 0;
+      camDrag.subLast = now;
+      if (camDrag.subTaps >= 10) {
+        camDrag.subTaps = 0;
+        game.summonSanta(true);
+      }
+    }
     if (now - camDrag.lastTap < 340 && Math.hypot(e.clientX - camDrag.tapX, e.clientY - camDrag.tapY) < 40) {
       const p = game.sub.pos.clone().project(camera);
       const sx = (p.x * 0.5 + 0.5) * window.innerWidth, sy = (-p.y * 0.5 + 0.5) * window.innerHeight;
@@ -3553,6 +3682,7 @@ async function boot() {
   window.SUBPILOT = { game: null, profile, net, startDive, levels: LEVELS, input };
   window.HADAL = window.SUBPILOT; // old name, kept for the test scripts
   Object.defineProperty(window.SUBPILOT, 'radio', { get: () => radio });
+  Object.defineProperty(window.SUBPILOT, 'camera', { get: () => camera });
   try {
     initRenderer();
   } catch (e) {

@@ -36,7 +36,7 @@ export const FABLE_SPEECH = {
   ],
 };
 
-// ---------------------------------------------------------------- the seven creatures (names, legend, sources)
+// ---------------------------------------------------------------- the seven creatures in the order of the trenches (names, legend, sources)
 export const FABLES = {
   java: {
     name: { en: 'Moon-Pearl Dragon', de: 'Mondperlen-Drache' },
@@ -46,23 +46,15 @@ export const FABLES = {
     },
     source: [['Wikipedia: Bakunawa', 'https://en.wikipedia.org/wiki/Bakunawa']],
   },
-  mariana: {
-    name: { en: 'Leviathan', de: 'Leviathan' },
+  southsandwich: {
+    name: { en: 'Captain Bushybeard', de: 'Kapitän Rauschebart' },
     legend: {
-      en: 'Leviathan is a giant sea monster from ancient Middle Eastern myths and the Hebrew Bible – sometimes a sea serpent, sometimes a whale-like dragon.',
-      de: 'Leviathan ist ein riesiges Meeresungeheuer aus alten Mythen des Nahen Ostens und der Hebräischen Bibel – mal eine Seeschlange, mal ein walartiger Drache.',
+      en: 'Captain Bushybeard comes from the bedtime stories that Isabella’s dad tells her – a friendly pirate with the longest beard on all seven seas. His merry yellow crew, the Gigglings, and the sea fairy Princess Perla live with him.',
+      de: 'Kapitän Rauschebart stammt aus den Gutenachtgeschichten, die Isabellas Papa erzählt – ein freundlicher Pirat mit dem längsten Bart aller sieben Meere. Bei ihm wohnen seine fröhliche gelbe Mannschaft, die Kicherlinge, und die Meeresfee Prinzessin Perla.',
     },
-    source: [['Britannica: Leviathan', 'https://www.britannica.com/topic/Leviathan-Middle-Eastern-mythology']],
+    source: [],
   },
   puertorico: {
-    name: { en: 'Captain Eight-Arms', de: 'Kapitän Achtarm' },
-    legend: {
-      en: 'Sailors told of colossal octopuses that could grab whole ships – in 1801 the naturalist Pierre Denys de Montfort even drew one attacking a sailing ship. Captain Eight-Arms is our friendly pirate version.',
-      de: 'Seeleute erzählten von gewaltigen Kraken, die ganze Schiffe packen konnten – 1801 zeichnete der Naturforscher Pierre Denys de Montfort sogar einen, der ein Segelschiff angreift. Kapitän Achtarm ist unsere freundliche Piraten-Version.',
-    },
-    source: [['Biodiversity Heritage Library: Release the Kraken!', 'https://blog.biodiversitylibrary.org/2014/10/release-kraken']],
-  },
-  southsandwich: {
     name: { en: 'Ice Kraken', de: 'Eis-Kraken' },
     legend: {
       en: 'The Kraken is a sea monster from Norwegian sailors’ tales, perhaps imagined from sightings of giant squid. Bishop Erik Pontoppidan described it in his Natural History of Norway (1752).',
@@ -71,6 +63,14 @@ export const FABLES = {
     source: [['Britannica: kraken', 'https://www.britannica.com/topic/kraken']],
   },
   izu: {
+    name: { en: 'Captain Eight-Arms', de: 'Kapitän Achtarm' },
+    legend: {
+      en: 'Sailors told of colossal octopuses that could grab whole ships – in 1801 the naturalist Pierre Denys de Montfort even drew one attacking a sailing ship. Captain Eight-Arms is our friendly pirate version.',
+      de: 'Seeleute erzählten von gewaltigen Kraken, die ganze Schiffe packen konnten – 1801 zeichnete der Naturforscher Pierre Denys de Montfort sogar einen, der ein Segelschiff angreift. Kapitän Achtarm ist unsere freundliche Piraten-Version.',
+    },
+    source: [['Biodiversity Heritage Library: Release the Kraken!', 'https://blog.biodiversitylibrary.org/2014/10/release-kraken']],
+  },
+  kuril: {
     name: { en: 'Umibōzu the Sea Giant', de: 'Umibōzu, der Meeresriese' },
     legend: {
       en: 'Umibōzu (“sea monk”) is a yōkai from Japanese folklore: a giant dark figure with a round head that suddenly rises from the sea in front of sailors.',
@@ -78,7 +78,7 @@ export const FABLES = {
     },
     source: [['Wikipedia: Umibōzu', 'https://en.wikipedia.org/wiki/Umib%C5%8Dzu']],
   },
-  kuril: {
+  tonga: {
     name: { en: 'The Flying Dutchman', de: 'Der Fliegende Holländer' },
     legend: {
       en: 'The Flying Dutchman is a legendary ghost ship of European sailors’ lore, doomed to sail the seas forever and never reach port.',
@@ -86,16 +86,13 @@ export const FABLES = {
     },
     source: [['Britannica: Flying Dutchman', 'https://www.britannica.com/topic/Flying-Dutchman']],
   },
-  tonga: {
-    name: { en: 'Zaratan the Island Turtle', de: 'Zaratan, die Inselschildkröte' },
+  mariana: {
+    name: { en: 'Leviathan', de: 'Leviathan' },
     legend: {
-      en: 'In medieval bestiaries sailors mistake a giant sea creature for an island and land on its back – the aspidochelone (“shield turtle”), later also called zaratan.',
-      de: 'In mittelalterlichen Tierbüchern halten Seeleute ein riesiges Meerestier für eine Insel und landen auf seinem Rücken – den Aspidochelone („Schildkröte“), später auch Zaratan genannt.',
+      en: 'Leviathan is a giant sea monster from ancient Middle Eastern myths and the Hebrew Bible – sometimes a sea serpent, sometimes a whale-like dragon.',
+      de: 'Leviathan ist ein riesiges Meeresungeheuer aus alten Mythen des Nahen Ostens und der Hebräischen Bibel – mal eine Seeschlange, mal ein walartiger Drache.',
     },
-    source: [
-      ['The Medieval Bestiary: Whale (aspidochelone)', 'https://www.medievalbestiary.bestiary.ca/imagesources/imgsrc104305.htm'],
-      ['A Book of Creatures: Aspidochelone', 'https://abookofcreatures.com/2019/08/16/aspidochelone/'],
-    ],
+    source: [['Britannica: Leviathan', 'https://www.britannica.com/topic/Leviathan-Middle-Eastern-mythology']],
   },
 };
 
@@ -274,7 +271,7 @@ function dragon() {
   };
 }
 
-// ---------------------------------------------------------------- 2 · Leviathan (Mariana)
+// ---------------------------------------------------------------- 7 · Leviathan (Mariana)
 function leviathan() {
   const G = new THREE.Group();
   const skin = shiny(0x3a5ad0, 0.26, { metalness: 0.3, roughness: 0.38 });
@@ -330,7 +327,7 @@ function leviathan() {
   };
 }
 
-// ---------------------------------------------------------------- 3 · Captain Eight-Arms, octopus pirate (Puerto Rico)
+// ---------------------------------------------------------------- 4 · Captain Eight-Arms, octopus pirate (Izu)
 function captain() {
   const G = new THREE.Group();
   const skin = shiny(0xe24a3c, 0.2, { roughness: 0.5 });
@@ -424,7 +421,7 @@ function captain() {
   };
 }
 
-// ---------------------------------------------------------------- 4 · Ice Kraken (South Sandwich)
+// ---------------------------------------------------------------- 3 · Ice Kraken (Puerto Rico)
 function kraken() {
   const G = new THREE.Group();
   const ice = new THREE.MeshStandardMaterial({ color: 0xa8e2ff, emissive: 0x3a9ae0, emissiveIntensity: 0.5, roughness: 0.15, metalness: 0.15, transparent: true, opacity: 0.92 });
@@ -476,7 +473,7 @@ function kraken() {
   };
 }
 
-// ---------------------------------------------------------------- 5 · Umibōzu, the sea giant (Izu)
+// ---------------------------------------------------------------- 5 · Umibōzu, the sea giant (Kuril)
 function umibozu() {
   const G = new THREE.Group();
   const body = new THREE.MeshStandardMaterial({ color: 0x1c2c66, emissive: 0x2a3c9a, emissiveIntensity: 0.5, roughness: 0.3, transparent: true, opacity: 0.94 });
@@ -546,7 +543,7 @@ function umibozu() {
   };
 }
 
-// ---------------------------------------------------------------- 6 · The Flying Dutchman, a ghost ship (Kuril)
+// ---------------------------------------------------------------- 6 · The Flying Dutchman, a ghost ship (Tonga)
 function tattered() {
   const c = document.createElement('canvas');
   c.width = c.height = 128;
@@ -630,6 +627,7 @@ function ghostShip() {
   return {
     group: G,
     mouth,
+    turn: 0.5,
     anim(t, dt, talk) {
       ship.rotation.z = Math.sin(t * 0.7) * 0.07;
       ship.rotation.x = Math.sin(t * 0.5) * 0.035;
@@ -651,104 +649,407 @@ function ghostShip() {
   };
 }
 
-// ---------------------------------------------------------------- 7 · Zaratan, the island turtle (Tonga)
-function zaratan() {
+// ---------------------------------------------------------------- 2 · Captain Bushybeard (South Sandwich)
+// A friendly pirate from the owner's bedtime stories for Isabella: tricorn hat, eye patch, a hook for a hand, a
+// wooden leg and an enormous beard. One of his crew sits on his shoulder; in his hall a hundred of them hop
+// about, and a little sea fairy flies around. (The crew and the fairy are original designs.)
+
+// a crew member ("Kicherling"): round, yellow, striped sailor shirt, red spotted bandana, two big eyes
+function mergeColored(parts) {
+  let n = 0;
+  const geos = parts.map(([geo, hex, m, paintFn]) => {
+    const g = geo.index ? geo.toNonIndexed() : geo.clone();
+    if (m) g.applyMatrix4(m);
+    const p = g.attributes.position, col = new Float32Array(p.count * 3), c = new THREE.Color();
+    for (let i = 0; i < p.count; i++) {
+      c.set(paintFn ? paintFn(p.getX(i), p.getY(i), p.getZ(i)) : hex);
+      col.set([c.r, c.g, c.b], i * 3);
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    n += p.count;
+    return g;
+  });
+  const out = new THREE.BufferGeometry();
+  for (const name of ['position', 'normal', 'color']) {
+    const arr = new Float32Array(n * 3);
+    let o = 0;
+    for (const g of geos) {
+      arr.set(g.attributes[name].array, o * 3);
+      o += g.attributes.position.count;
+    }
+    out.setAttribute(name, new THREE.BufferAttribute(arr, 3));
+  }
+  out.computeBoundingSphere();
+  return out;
+}
+const T4 = (x, y, z, rx = 0, ry = 0, rz = 0, sx = 1, sy = sx, sz = sx) =>
+  new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)), new THREE.Vector3(sx, sy, sz));
+let crewGeo = null;
+export function crewGeometry() {
+  if (crewGeo) return crewGeo;
+  const YEL = 0xffd23a;
+  const shirt = (x, y) => (y > 0.82 ? YEL : Math.floor((y + 1) * 9) % 2 ? 0x2f5fd8 : 0xf4f6ff);
+  const bandana = (x, y, z) => (Math.sin(Math.atan2(z, x) * 10) * Math.sin(y * 18) > 0.72 ? 0xffffff : 0xe2322a);
+  const body = mergeColored([
+    [new THREE.SphereGeometry(0.9, 24, 18), 0, T4(0, 1.05, 0, 0, 0, 0, 1, 1.05, 0.95), shirt],
+    [new THREE.SphereGeometry(0.93, 24, 8, 0, TAU, 0, 0.95), 0, T4(0, 1.12, -0.02, -0.18, 0, 0, 1, 1.0, 0.98), bandana],
+    [new THREE.ConeGeometry(0.16, 0.42, 6), 0xe2322a, T4(0.1, 1.55, -0.92, -2.2, 0, 0.5)],
+    [new THREE.ConeGeometry(0.16, 0.42, 6), 0xe2322a, T4(-0.12, 1.5, -0.9, -2.0, 0, -0.6)],
+    [new THREE.SphereGeometry(0.25, 14, 10), 0xffffff, T4(-0.29, 1.27, 0.72)],
+    [new THREE.SphereGeometry(0.25, 14, 10), 0xffffff, T4(0.29, 1.27, 0.72)],
+    [new THREE.SphereGeometry(0.12, 10, 8), 0x2a1a10, T4(-0.29, 1.27, 0.94)],
+    [new THREE.SphereGeometry(0.12, 10, 8), 0x2a1a10, T4(0.29, 1.27, 0.94)],
+    [new THREE.SphereGeometry(0.04, 6, 4), 0xffffff, T4(-0.25, 1.32, 1.04)],
+    [new THREE.SphereGeometry(0.04, 6, 4), 0xffffff, T4(0.33, 1.32, 1.04)],
+    [new THREE.TorusGeometry(0.24, 0.05, 6, 14, PI), 0x8a1a1a, T4(0, 0.97, 0.84, -0.25, 0, PI)],
+    [new THREE.SphereGeometry(0.1, 8, 6), 0xffa0a0, T4(-0.5, 1.02, 0.66, 0, 0, 0, 1, 0.6, 0.5)],
+    [new THREE.SphereGeometry(0.1, 8, 6), 0xffa0a0, T4(0.5, 1.02, 0.66, 0, 0, 0, 1, 0.6, 0.5)],
+    [new THREE.SphereGeometry(0.3, 10, 8), 0x6a3a1a, T4(-0.33, 0.13, 0.12, 0, 0, 0, 0.85, 0.45, 1.25)],
+    [new THREE.SphereGeometry(0.3, 10, 8), 0x6a3a1a, T4(0.33, 0.13, 0.12, 0, 0, 0, 0.85, 0.45, 1.25)],
+  ]);
+  const arm = mergeColored([
+    [new THREE.CylinderGeometry(0.11, 0.13, 0.62, 8), YEL, T4(0, -0.31, 0)],
+    [new THREE.SphereGeometry(0.15, 10, 8), YEL, T4(0, -0.64, 0)],
+  ]);
+  crewGeo = { body, arm, mat: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.45, metalness: 0.05, emissive: 0x2a2000, emissiveIntensity: 0.35 }) };
+  return crewGeo;
+}
+// one crew member as a normal object (the one on the captain's shoulder)
+function crewMember() {
+  const G = crewGeometry(), g = new THREE.Group();
+  g.add(new THREE.Mesh(G.body, G.mat));
+  const arms = [-1, 1].map((sx) => {
+    const a = new THREE.Mesh(G.arm, G.mat);
+    a.position.set(sx * 0.84, 1.15, 0.05);
+    g.add(a);
+    return a;
+  });
+  return { group: g, arms };
+}
+
+// the sea fairy princess: shell dress, translucent fin wings, a starfish crown and a pearl wand
+function seaFairy() {
   const G = new THREE.Group();
-  const body = grp(G, [0, 3, 0]);
-  const skin = shiny(0x6a8a5a, 0.18, { roughness: 0.6 });
-  const shellG = new THREE.SphereGeometry(4.3, 44, 20, 0, TAU, 0, PI / 2);
-  // painted shell plates (hexagons with darker seams)
-  const sp = shellG.attributes.position, col = new Float32Array(sp.count * 3), c = new THREE.Color();
-  for (let i = 0; i < sp.count; i++) {
-    const x = sp.getX(i) / 1.3, z = sp.getZ(i) / 1.3;
-    const q = (x * 0.577 - z / 3) / 1, r = (z * 2) / 3 / 1;
-    let rq = Math.round(q), rr = Math.round(r), rs = Math.round(-q - r);
-    const dq = Math.abs(rq - q), dr = Math.abs(rr - r), ds = Math.abs(rs + q + r);
-    if (dq > dr && dq > ds) rq = -rr - rs;
-    else if (dr > ds) rr = -rq - rs;
-    const edge = Math.max(dq, dr, ds);
-    const h = Math.sin(rq * 12.9 + rr * 78.2) * 0.5 + 0.5;
-    c.setHSL(0.09 + h * 0.05, 0.45, 0.28 + h * 0.12);
-    if (edge > 0.36) c.multiplyScalar(0.55);
-    col.set([c.r, c.g, c.b], i * 3);
+  const skin = std(0xffdcc8, { roughness: 0.55, emissive: 0x5a3020, emissiveIntensity: 0.2 });
+  const hairM = shiny(0xb98cff, 0.3, { roughness: 0.4 });
+  const dressG = new THREE.LatheGeometry([[0, 0], [1.05, 0.05], [0.95, 0.5], [0.6, 1.35], [0.32, 2.0], [0.28, 2.3], [0, 2.35]].map(([a, b]) => new THREE.Vector2(a, b)), 28);
+  const dp = dressG.attributes.position, dc = new Float32Array(dp.count * 3), c = new THREE.Color();
+  for (let i = 0; i < dp.count; i++) {
+    const y = dp.getY(i), a = Math.atan2(dp.getZ(i), dp.getX(i));
+    c.set(0x5ff0e0).lerp(new THREE.Color(0xff8ab8), Math.min(1, y / 2.3));
+    if (y < 0.5) c.lerp(new THREE.Color(0xffffff), 0.35 * (0.5 + 0.5 * Math.sin(a * 14))); // scalloped shell hem
+    dc.set([c.r, c.g, c.b], i * 3);
   }
-  shellG.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  add(body, shellG, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, emissive: 0x2a1a08, emissiveIntensity: 0.4 }), [0, 0, 0], [0, 0, 0], [1, 0.52, 1.2]);
-  add(body, new THREE.TorusGeometry(4.3, 0.38, 8, 56), std(0x5a4024), [0, 0.05, 0], [PI / 2, 0, 0], [1, 1.2, 1]);
-  add(body, new THREE.SphereGeometry(4.1, 32, 10, 0, TAU, PI / 2, PI / 2), std(0xe8d8a0), [0, 0.05, 0], [0, 0, 0], [1, 0.22, 1.18]);
-  // the little island on the back
-  const isl = grp(body, [0, 2.1, -0.2]);
-  add(isl, new THREE.SphereGeometry(2.3, 26, 12, 0, TAU, 0, PI / 2), std(0xf2dc9a, { emissive: 0x6a5a2a, emissiveIntensity: 0.3 }), [0, -0.2, 0], [0, 0, 0], [1.25, 0.42, 1.15]);
-  const palms = [];
-  for (const [px, pz, lean] of [[-0.9, 0.3, 0.35], [0.7, -0.6, -0.3]]) {
-    const root = grp(isl, [px, 0.6, pz], [0, 0, lean]);
-    root.rotation.order = 'ZYX';
-    const trunk = [];
-    let pp = root;
-    for (let k = 0; k < 6; k++) {
-      const j = grp(pp, k ? [0, 0.55, 0] : [0, 0, 0]);
-      add(j, new THREE.CylinderGeometry(0.11 - k * 0.008, 0.13 - k * 0.008, 0.6, 8), std(0x8a6a3a), [0, 0.28, 0]);
-      add(j, new THREE.TorusGeometry(0.12, 0.025, 4, 10), std(0x6a4a2a), [0, 0.05, 0], [PI / 2, 0, 0]);
-      trunk.push(j);
-      pp = j;
+  dressG.setAttribute('color', new THREE.BufferAttribute(dc, 3));
+  const body = grp(G, [0, 0, 0]);
+  add(body, dressG, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.3, metalness: 0.2, emissive: 0x3a2a4a, emissiveIntensity: 0.45 }));
+  for (let k = 0; k < 7; k++) add(body, new THREE.SphereGeometry(0.06, 6, 4), glow(0xffffff), [Math.cos(k * 0.9) * 0.55, 0.6 + (k % 3) * 0.35, Math.sin(k * 0.9) * 0.55 * 0.9 + 0.1]);
+  const head = grp(body, [0, 2.75, 0]);
+  add(head, new THREE.SphereGeometry(0.5, 22, 16), skin);
+  eye(head, 0.13, [-0.17, 0.05, 0.42], { iris: 0x7a3aff, ry: -0.2 });
+  eye(head, 0.13, [0.17, 0.05, 0.42], { iris: 0x7a3aff, ry: 0.2 });
+  add(head, new THREE.TorusGeometry(0.1, 0.025, 6, 12, PI), glow(0xd84a6a), [0, -0.17, 0.46], [0, 0, PI]);
+  for (const sx of [-1, 1]) add(head, new THREE.SphereGeometry(0.07, 8, 6), glow(0xff9ab8, { transparent: true, opacity: 0.6 }), [sx * 0.3, -0.08, 0.38]);
+  add(head, new THREE.SphereGeometry(0.54, 20, 12, 0, TAU, 0, PI * 0.55), hairM, [0, 0.05, -0.04]);
+  add(head, new THREE.SphereGeometry(0.28, 14, 10), hairM, [0, 0.55, -0.15]);
+  add(head, new THREE.SphereGeometry(0.09, 8, 6), glow(0xffffff), [0, 0.6, 0.12]);
+  const curls = [];
+  for (const sx of [-1, 1]) curls.push(chainY(grp(head, [sx * 0.42, -0.05, -0.05]), 5, 0.22, 0.12, 0.07, hairM));
+  // a starfish crown with pearls
+  const crown = grp(head, [0, 0.5, 0.18], [-0.3, 0, 0]);
+  for (let k = 0; k < 5; k++) add(crown, new THREE.ConeGeometry(0.07, 0.3, 5), shiny(0xff7a4a, 0.4), [Math.cos((k / 5) * TAU + PI / 2) * 0.12, Math.sin((k / 5) * TAU + PI / 2) * 0.12, 0], [0, 0, (k / 5) * TAU]);
+  add(crown, new THREE.SphereGeometry(0.06, 8, 6), glow(0xffffff), [0, 0, 0.04]);
+  // arms, one with the pearl wand
+  const arms = [];
+  for (const sx of [-1, 1]) {
+    const a = grp(body, [sx * 0.3, 2.15, 0.05]);
+    add(a, new THREE.CylinderGeometry(0.06, 0.07, 0.8, 8), skin, [0, -0.4, 0]);
+    add(a, new THREE.SphereGeometry(0.08, 8, 6), skin, [0, -0.82, 0]);
+    arms.push(a);
+  }
+  const wand = grp(arms[1], [0, -0.85, 0.05], [0.4, 0, 0]);
+  add(wand, new THREE.CylinderGeometry(0.025, 0.025, 1.1, 6), shiny(0xf2c24a, 0.5, { metalness: 0.8 }), [0, 0.5, 0]);
+  add(wand, new THREE.SphereGeometry(0.14, 12, 10), glow(0xfff0fa), [0, 1.1, 0]);
+  const wh = softHalo(0xffd8ff, 1.4);
+  wh.position.set(0, 1.1, 0);
+  wand.add(wh);
+  // four translucent fin wings
+  const wingM = new THREE.MeshStandardMaterial({ color: 0xd8f8ff, emissive: 0x8ad8ff, emissiveIntensity: 0.7, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false });
+  const wings = [];
+  for (const sx of [-1, 1]) {
+    for (const [y, sz, tilt] of [[2.1, 1.3, 0.35], [1.6, 0.9, -0.3]]) {
+      const w = grp(body, [sx * 0.12, y, -0.2]);
+      add(w, new THREE.CircleGeometry(1, 20), wingM, [sx * sz * 0.9, sz * 0.25, 0], [0, 0, sx * tilt], [sz * 0.95, sz * 0.5, 1]);
+      w.userData.sx = sx;
+      wings.push(w);
     }
-    const crown = grp(pp, [0, 0.6, 0]);
-    for (let l = 0; l < 7; l++) {
-      const leaf = grp(crown, [0, 0, 0], [0, (l / 7) * TAU, 0]);
-      add(leaf, new THREE.PlaneGeometry(0.45, 1.9, 1, 4), std(0x3aa84a, { side: THREE.DoubleSide, emissive: 0x1a5a1a, emissiveIntensity: 0.4 }), [0, -0.2, 0.85], [-1.15, 0, 0]);
-    }
-    for (let k = 0; k < 3; k++) add(crown, new THREE.SphereGeometry(0.12, 8, 6), std(0x6a4a1a), [Math.cos(k * 2) * 0.15, -0.1, Math.sin(k * 2) * 0.15]);
-    palms.push({ trunk, crown });
   }
-  const hut = grp(isl, [0.9, 0.5, 0.8], [0, -0.5, 0]);
-  add(hut, new THREE.BoxGeometry(0.9, 0.7, 0.8), std(0xd8b070), [0, 0.35, 0]);
-  add(hut, new THREE.ConeGeometry(0.85, 0.7, 4), std(0xc89a4a), [0, 1.05, 0], [0, PI / 4, 0]);
-  add(hut, new THREE.PlaneGeometry(0.25, 0.4), glow(0xffd27a), [0, 0.25, 0.41]);
-  add(isl, new THREE.BoxGeometry(0.6, 0.35, 0.4), std(0x6a3a1a), [-0.4, 0.55, 1.1]);
-  add(isl, new THREE.SphereGeometry(0.22, 10, 6, 0, TAU, 0, PI / 2), glow(0xffd84a), [-0.4, 0.72, 1.1]);
-  for (let k = 0; k < 10; k++) add(isl, new THREE.ConeGeometry(0.08, 0.35, 4), std(0x4ab84a), [Math.cos(k * 2.3) * 1.8, 0.35, Math.sin(k * 2.3) * 1.5]);
-  // head with wise eyes, bushy brows and a smile
-  const neck = grp(body, [0, 0.2, 4.9]);
-  add(neck, new THREE.CylinderGeometry(0.75, 0.9, 1.6, 16), skin, [0, 0, 0.3], [PI / 2 - 0.3, 0, 0]);
-  const head = grp(neck, [0, 0.45, 1.3]);
-  add(head, new THREE.SphereGeometry(1.1, 24, 18), skin, [0, 0, 0], [0, 0, 0], [1, 0.85, 1.2]);
-  add(head, new THREE.ConeGeometry(0.45, 0.6, 12), std(0x4a5a3a), [0, -0.15, 1.3], [PI / 2, 0, 0], [1.2, 1, 0.6]);
-  const eyes = [eye(head, 0.3, [-0.55, 0.38, 0.75], { iris: 0x7a4a1a, ry: -0.4 }), eye(head, 0.3, [0.55, 0.38, 0.75], { iris: 0x7a4a1a, ry: 0.4 })];
-  for (const sx of [-1, 1]) for (let k = 0; k < 4; k++) add(head, new THREE.SphereGeometry(0.12, 8, 6), std(0xf4f4f0), [sx * (0.35 + k * 0.12), 0.72 + Math.sin(k) * 0.04, 0.85 - k * 0.04]);
-  const jaw = grp(head, [0, -0.35, 0.4]);
-  add(jaw, new THREE.SphereGeometry(0.75, 18, 10, 0, TAU, PI / 2, PI / 2), std(0x4a5a3a), [0, 0.12, 0.35], [0, 0, 0], [1, 0.5, 1.2]);
-  const flips = [];
-  for (const [sx, z, big] of [[-1, 2.4, 1], [1, 2.4, 1], [-1, -3.2, 0.65], [1, -3.2, 0.65]]) {
-    const f = grp(body, [sx * 3.6, -0.3, z]);
-    add(f, new THREE.SphereGeometry(1, 18, 10), skin, [sx * 1.6 * big, 0, big > 0.8 ? 0.4 : -0.2], [0, sx * 0.4, 0], [2.4 * big, 0.25, 1.0 * big]);
-    f.userData = { sx, big };
-    flips.push(f);
-  }
-  const mouth = grp(head, [0, -0.25, 1.5]);
   return {
     group: G,
-    mouth,
-    anim(t, dt, talk) {
-      flips.forEach((f) => {
-        const { sx, big } = f.userData;
-        f.rotation.z = sx * Math.sin(t * 0.9 + (big > 0.8 ? 0 : 1.5)) * (big > 0.8 ? 0.45 : 0.25);
-        f.rotation.y = sx * Math.cos(t * 0.9) * 0.2;
-      });
-      body.position.y = 3 + Math.sin(t * 0.9) * 0.25;
-      body.rotation.z = Math.sin(t * 0.45) * 0.03;
-      neck.rotation.x = Math.sin(t * 0.6) * 0.08;
-      head.rotation.y = Math.sin(t * 0.35) * 0.2;
-      jaw.rotation.x = talk ? 0.15 + 0.15 * Math.abs(Math.sin(t * 10)) : 0.02;
-      eyes.forEach((e) => (e.scale.y = blink(t, 0.4)));
-      palms.forEach(({ trunk, crown }, s) => {
-        trunk.forEach((j, i) => (j.rotation.z = Math.sin(t * 1.1 + s + i * 0.3) * 0.03));
-        crown.rotation.y = Math.sin(t * 0.8 + s) * 0.15;
-      });
+    update(t) {
+      wings.forEach((w, i) => (w.rotation.y = w.userData.sx * (0.35 + Math.sin(t * 20 + i * 0.4) * 0.55)));
+      arms[0].rotation.z = -0.4 + Math.sin(t * 2) * 0.2;
+      arms[1].rotation.z = 0.5 + Math.sin(t * 1.6) * 0.3;
+      arms[1].rotation.x = -0.6 + Math.sin(t * 1.3) * 0.3;
+      body.rotation.z = Math.sin(t * 1.1) * 0.12;
+      curls.forEach((cl) => cl.forEach((j, i) => (j.rotation.z = Math.sin(t * 3 + i) * 0.15)));
     },
   };
 }
 
-const BUILD = { java: dragon, mariana: leviathan, puertorico: captain, southsandwich: kraken, izu: umibozu, kuril: ghostShip, tonga: zaratan };
+// the captain's company on their own (results screen turntables): sized to about 6 units
+export function buildCompanion(kind) {
+  if (kind === 'perla') {
+    const f = seaFairy();
+    f.update(0.4);
+    f.group.scale.setScalar(6 / 3.6);
+    return f.group;
+  }
+  const m = crewMember();
+  m.arms[0].rotation.z = -2.4;
+  m.group.scale.setScalar(6 / 2.4);
+  return m.group;
+}
+
+function rauschebart() {
+  const G = new THREE.Group();
+  const skin = std(0xf2c09a, { roughness: 0.55, emissive: 0x5a2a1a, emissiveIntensity: 0.2 });
+  const coat = shiny(0x1c2c6a, 0.18, { roughness: 0.55 });
+  const red = shiny(0xc8282a, 0.2, { roughness: 0.5 });
+  const gold = shiny(0xf2c24a, 0.4, { metalness: 0.85, roughness: 0.28 });
+  const black = std(0x1a1414, { roughness: 0.6 });
+  const wood = std(0x8a5a2a, { roughness: 0.75 });
+  const shirtM = std(0xf4eedc, { roughness: 0.7 });
+  const beardM = shiny(0xb04a1c, 0.18, { roughness: 0.8 });
+  const steel = std(0xd8e0ea, { metalness: 0.9, roughness: 0.2, emissive: 0x3a4250, emissiveIntensity: 0.3 });
+  const body = grp(G);
+  // legs: a boot and a wooden peg
+  add(body, new THREE.CylinderGeometry(0.42, 0.38, 2.0, 14), coat, [0.55, 1.6, 0]);
+  add(body, new THREE.CylinderGeometry(0.4, 0.42, 0.9, 14), black, [0.55, 0.45, 0.05]);
+  add(body, new THREE.SphereGeometry(0.42, 14, 10), black, [0.55, 0.12, 0.35], [0, 0, 0], [1, 0.5, 1.5]);
+  add(body, new THREE.CylinderGeometry(0.42, 0.38, 1.1, 14), coat, [-0.55, 2.1, 0]);
+  add(body, new THREE.CylinderGeometry(0.3, 0.14, 1.65, 10), wood, [-0.55, 0.82, 0]);
+  add(body, new THREE.TorusGeometry(0.31, 0.06, 6, 14), steel, [-0.55, 1.6, 0], [PI / 2, 0, 0]);
+  // a big belly in a long navy coat with gold buttons, a red sash and a belt
+  add(body, new THREE.LatheGeometry([[0, 2.0], [1.55, 2.05], [1.45, 3.0], [1.3, 4.2], [1.15, 5.4], [0.9, 6.0], [0, 6.1]].map(([a, b]) => new THREE.Vector2(a, b)), 30), coat);
+  add(body, new THREE.SphereGeometry(1.1, 22, 16), shirtM, [0, 4.0, 0.62], [0, 0, 0], [0.9, 1.25, 0.75]);
+  for (const sx of [-1, 1]) for (let k = 0; k < 5; k++) add(body, new THREE.SphereGeometry(0.1, 8, 6), gold, [sx * 0.72, 5.3 - k * 0.55, 1.05 - k * 0.02]);
+  add(body, new THREE.TorusGeometry(1.42, 0.2, 8, 30), red, [0, 3.35, 0], [PI / 2, 0, 0]);
+  add(body, new THREE.TorusGeometry(1.4, 0.09, 6, 30), black, [0, 3.0, 0], [PI / 2, 0, 0]);
+  add(body, new THREE.BoxGeometry(0.5, 0.42, 0.12), gold, [0, 3.0, 1.42]);
+  add(body, new THREE.BoxGeometry(0.28, 0.9, 0.1), red, [0.9, 2.85, 1.05], [0, 0.6, 0.2]);
+  for (const sx of [-1, 1]) {
+    add(body, new THREE.BoxGeometry(0.8, 0.18, 0.55), gold, [sx * 1.05, 5.95, 0], [0, 0, sx * -0.25]);
+    for (let k = 0; k < 5; k++) add(body, new THREE.CylinderGeometry(0.03, 0.03, 0.35, 4), gold, [sx * (0.75 + k * 0.13), 5.68, 0.18]);
+  }
+  // arms: the right one ends in a big hook, the left one waves
+  const armR = grp(body, [-1.25, 5.6, 0.1], [0.15, 0, -0.35]);
+  add(armR, new THREE.CylinderGeometry(0.36, 0.32, 2.0, 12), coat, [0, -1.0, 0]);
+  add(armR, new THREE.CylinderGeometry(0.4, 0.4, 0.35, 12), red, [0, -1.95, 0]);
+  add(armR, new THREE.CylinderGeometry(0.22, 0.12, 0.45, 10), steel, [0, -2.3, 0]);
+  add(armR, new THREE.TorusGeometry(0.38, 0.09, 8, 20, PI * 1.35), steel, [0.32, -2.8, 0], [0, 0, PI * 0.8]);
+  add(armR, new THREE.ConeGeometry(0.1, 0.25, 8), steel, [0.68, -2.62, 0], [0, 0, -0.6]);
+  const armL = grp(body, [1.25, 5.6, 0.1], [0, 0, 0.35]);
+  add(armL, new THREE.CylinderGeometry(0.36, 0.32, 1.9, 12), coat, [0, -0.95, 0]);
+  add(armL, new THREE.CylinderGeometry(0.4, 0.4, 0.35, 12), red, [0, -1.85, 0]);
+  const hand = grp(armL, [0, -2.25, 0]);
+  add(hand, new THREE.SphereGeometry(0.34, 14, 10), skin, [0, 0, 0], [0, 0, 0], [0.9, 1.1, 0.7]);
+  add(hand, new THREE.CapsuleGeometry(0.09, 0.25, 4, 8), skin, [0.32, 0.12, 0.05], [0, 0, -0.9]);
+  // head: rosy face, big nose, one eye and a patch, bushy brows
+  const head = grp(body, [0, 6.9, 0.25]);
+  add(head, new THREE.SphereGeometry(0.95, 26, 20), skin, [0, 0, 0], [0, 0, 0], [1, 1.05, 0.95]);
+  add(head, new THREE.SphereGeometry(0.28, 14, 10), std(0xe89a80, { roughness: 0.5 }), [0, -0.05, 0.92]);
+  for (const sx of [-1, 1]) add(head, new THREE.SphereGeometry(0.22, 10, 8), glow(0xff8a8a, { transparent: true, opacity: 0.5 }), [sx * 0.5, -0.12, 0.72]);
+  const eyeL = eye(head, 0.2, [0.36, 0.25, 0.78], { iris: 0x3a7a2a, ry: 0.25 });
+  add(head, new THREE.CylinderGeometry(0.24, 0.24, 0.08, 16), black, [-0.36, 0.25, 0.86], [PI / 2, 0, 0.2]);
+  add(head, new THREE.TorusGeometry(0.98, 0.04, 6, 30), black, [0, 0.35, 0], [PI / 2 - 0.3, 0.3, 0]);
+  for (const sx of [-1, 1]) add(head, new THREE.BoxGeometry(0.52, 0.14, 0.18), beardM, [sx * 0.37, 0.52, 0.8], [0, 0, sx * -0.18]);
+  const mouthMesh = add(head, new THREE.SphereGeometry(0.2, 12, 8), glow(0x5a0a12), [0, -0.5, 0.82], [0, 0, 0], [1.4, 0.5, 0.4]);
+  // the enormous beard: wide, bushy and so long it reaches down to the boots
+  const beard = [];
+  let bp = grp(head, [0, -0.55, 0.55]);
+  const bw = [1.35, 1.75, 1.65, 1.2, 0.7];
+  const beardHi = shiny(0xc85a26, 0.2, { roughness: 0.8 });
+  for (let k = 0; k < 5; k++) {
+    const j = grp(bp, k ? [0, -0.95, 0.04] : [0, 0, 0]);
+    add(j, new THREE.SphereGeometry(1, 24, 16), beardM, [0, -0.48, 0.05], [0, 0, 0], [bw[k], 0.72, 0.6]);
+    for (const a of [-1.2, -0.6, 0.6, 1.2]) add(j, new THREE.SphereGeometry(0.26, 10, 8), beardHi, [Math.sin(a) * bw[k] * 0.82, -0.42 + Math.abs(a) * 0.1, 0.38 + Math.cos(a) * 0.12]);
+    beard.push(j);
+    bp = j;
+  }
+  for (let k = 0; k < 3; k++) add(beard[4], new THREE.SphereGeometry(0.13, 10, 8), gold, [(k - 1) * 0.3, -1.0, 0.3]);
+  for (const sx of [-1, 1]) {
+    const braid = chainY(grp(beard[1], [sx * 1.55, -0.5, 0.15]), 5, 0.42, 0.22, 0.12, beardHi);
+    add(braid[4], new THREE.SphereGeometry(0.13, 8, 6), gold, [0, -0.42, 0]);
+  }
+  // the curly moustache
+  const tache = [];
+  for (const sx of [-1, 1]) tache.push(add(head, new THREE.TorusGeometry(0.42, 0.14, 8, 18, PI * 1.25), beardM, [sx * 0.42, -0.32, 0.86], [0, sx > 0 ? PI : 0, -0.35]));
+  // a big tricorn with gold trim, a golden anchor and a red feather
+  const hat = grp(head, [0, 0.72, -0.05], [-0.12, 0, 0]);
+  add(hat, new THREE.CylinderGeometry(0.85, 1.0, 0.85, 24), black, [0, 0.4, 0]);
+  add(hat, new THREE.CylinderGeometry(1.9, 1.9, 0.13, 3), black, [0, -0.02, 0]);
+  for (let e = 0; e < 3; e++) {
+    const th = PI / 3 + (e * TAU) / 3;
+    const b = add(hat, new THREE.BoxGeometry(1.9 * 1.7, 0.62, 0.12), black, [Math.sin(th) * 0.9, 0.22, Math.cos(th) * 0.9]);
+    b.rotation.order = 'YXZ';
+    b.rotation.set(-0.55, th, 0);
+  }
+  add(hat, new THREE.TorusGeometry(1.86, 0.05, 4, 3), gold, [0, 0.02, 0], [PI / 2, 0, -PI / 2]);
+  const anchor = grp(hat, [0, 0.42, 1.08], [-0.45, 0, 0]);
+  add(anchor, new THREE.CylinderGeometry(0.04, 0.04, 0.5, 6), gold);
+  add(anchor, new THREE.TorusGeometry(0.17, 0.04, 6, 14, PI), gold, [0, -0.2, 0], [0, 0, PI]);
+  add(anchor, new THREE.BoxGeometry(0.3, 0.05, 0.05), gold, [0, 0.14, 0]);
+  add(anchor, new THREE.TorusGeometry(0.06, 0.025, 6, 10), gold, [0, 0.3, 0]);
+  const feather = chainY(grp(hat, [0.75, 0.55, -0.3], [PI - 0.5, 0, -0.5]), 6, 0.35, 0.16, 0.05, red);
+  // a crew member on his left shoulder
+  const mate = crewMember();
+  mate.group.scale.setScalar(0.6);
+  mate.group.position.set(1.15, 6.08, -0.05);
+  body.add(mate.group);
+  const mouth = grp(head, [0, -0.5, 1.0]);
+  return {
+    group: G,
+    mouth,
+    anim(t, dt, talk) {
+      body.position.y = Math.abs(Math.sin(t * 0.9)) * 0.06;
+      body.rotation.z = Math.sin(t * 0.9) * 0.03;
+      head.rotation.y = Math.sin(t * 0.5) * 0.15;
+      head.rotation.x = Math.sin(t * 0.7) * 0.04;
+      mouthMesh.scale.y = talk ? 0.5 + 0.5 * Math.abs(Math.sin(t * 11)) : 0.35;
+      tache.forEach((m, s) => (m.rotation.z = -0.35 + (talk ? Math.sin(t * 11) * 0.1 : 0)));
+      beard.forEach((j, k) => k && (j.rotation.x = Math.sin(t * 0.9 - k * 0.5) * 0.035 + (talk ? Math.sin(t * 11) * 0.01 : 0)));
+      armL.rotation.z = 0.35 + 1.9 + Math.sin(t * 3) * 0.35; // waving
+      armL.rotation.x = -0.2;
+      hand.rotation.z = Math.sin(t * 6) * 0.3;
+      armR.rotation.x = 0.15 + Math.sin(t * 0.8) * 0.08;
+      eyeL.scale.y = blink(t, 0.6);
+      feather.forEach((j, i) => (j.rotation.z = Math.sin(t * 1.8 + i * 0.5) * 0.12));
+      // the little mate giggles and waves
+      mate.group.position.y = 6.08 + Math.abs(Math.sin(t * 4)) * 0.12;
+      mate.arms[0].rotation.z = -2.4 + Math.sin(t * 7) * 0.5;
+      mate.arms[1].rotation.z = 0.3 + Math.sin(t * 5) * 0.2;
+    },
+    // in his hall: a hundred crew members hop about and a sea fairy flies around
+    makeExtras({ R, dais, subLen }) {
+      const g = new THREE.Group();
+      const CG = crewGeometry(), N = 100;
+      const bodies = new THREE.InstancedMesh(CG.body, CG.mat, N), armsM = new THREE.InstancedMesh(CG.arm, CG.mat, N * 2);
+      bodies.frustumCulled = armsM.frustumCulled = false;
+      g.add(bodies, armsM);
+      const rnd = Math.random, crew = [];
+      const spot = () => {
+        const a = rnd() * TAU, d = dais + 2.5 + rnd() * Math.max(2, R - dais - 9);
+        return [Math.cos(a) * d, Math.sin(a) * d];
+      };
+      const KINDS = ['hop', 'walk', 'walk', 'flip', 'spin', 'dance', 'wave', 'tumble', 'laugh'];
+      for (let i = 0; i < N; i++) {
+        const [x, z] = spot();
+        crew.push({ x, z, yaw: rnd() * TAU, b: 'hop', tm: rnd() * 3, ph: rnd(), s: (subLen * 0.36) / 2.1 * (0.85 + rnd() * 0.3), tx: x, tz: z, d: 3 });
+      }
+      const pick = (c) => {
+        c.b = KINDS[(rnd() * KINDS.length) | 0];
+        c.d = c.b === 'flip' ? 1.1 : c.b === 'tumble' ? 2.4 : 2 + rnd() * 3;
+        c.tm = c.d;
+        if (c.b === 'walk') [c.tx, c.tz] = spot();
+      };
+      const m4 = new THREE.Matrix4(), mA = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), p3 = new THREE.Vector3(), s3 = new THREE.Vector3();
+      const fairy = seaFairy();
+      fairy.group.scale.setScalar((subLen * 0.75) / 3.2);
+      g.add(fairy.group);
+      const TN = 70, tp = new Float32Array(TN * 3).fill(9999);
+      const tg = new THREE.BufferGeometry();
+      tg.setAttribute('position', new THREE.BufferAttribute(tp, 3));
+      g.add(new THREE.Points(tg, new THREE.PointsMaterial({ map: dot(), color: 0xffd8ff, size: 0.55, transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending })));
+      let ti = 0, tAcc = 0;
+      const prev = new THREE.Vector3();
+      return {
+        group: g,
+        update(t, dt, sub) {
+          crew.forEach((c, i) => {
+            c.tm -= dt;
+            if (c.tm <= 0) pick(c);
+            const k = 1 - c.tm / c.d; // 0..1 through the current trick
+            let y = 0, sx = 1, sy = 1, rx = 0, rz = 0, aL = 0.35, aR = 0.35, h = 0.55 * c.s * 2.1;
+            const hop = (f) => {
+              const ph = (t * f + c.ph) % 1;
+              y = 4 * ph * (1 - ph) * h;
+              if (ph < 0.08 || ph > 0.94) {
+                sy = 0.82;
+                sx = 1.1;
+              }
+              return ph;
+            };
+            if (c.b === 'hop') hop(1.6);
+            else if (c.b === 'walk') {
+              const dx = c.tx - c.x, dz = c.tz - c.z, dd = Math.hypot(dx, dz);
+              if (dd > 0.3) {
+                const v = Math.min(dd, dt * 4.5 * c.s * 2);
+                c.x += (dx / dd) * v;
+                c.z += (dz / dd) * v;
+                c.yaw = Math.atan2(dx, dz);
+              }
+              hop(2.4);
+              aL = 0.35 + Math.sin(t * 12 + i) * 0.5;
+              aR = 0.35 - Math.sin(t * 12 + i) * 0.5;
+            } else if (c.b === 'flip') {
+              y = 4 * k * (1 - k) * h * 3.2;
+              rx = -k * TAU;
+              aL = aR = 2.6;
+            } else if (c.b === 'spin') {
+              hop(2);
+              c.yaw += dt * 9;
+              aL = aR = 1.5;
+            } else if (c.b === 'dance') {
+              rz = Math.sin(t * 9 + i) * 0.3;
+              y = Math.abs(Math.sin(t * 9 + i)) * h * 0.3;
+              aL = 2.4 + Math.sin(t * 9) * 0.4;
+              aR = 2.4 - Math.sin(t * 9) * 0.4;
+            } else if (c.b === 'wave') {
+              c.yaw = Math.atan2(sub.x - c.x, sub.z - c.z);
+              aR = 2.6 + Math.sin(t * 10 + i) * 0.4;
+              y = Math.abs(Math.sin(t * 3 + i)) * h * 0.15;
+            } else if (c.b === 'tumble') {
+              rz = (k < 0.25 ? k / 0.25 : k < 0.7 ? 1 : (1 - k) / 0.3) * (PI / 2);
+              aL = aR = 1.2;
+            } else if (c.b === 'laugh') {
+              sy = 1 + Math.sin(t * 22 + i) * 0.07;
+              rx = Math.sin(t * 11) * 0.12 - 0.15;
+              aL = aR = -0.2;
+            }
+            p3.set(c.x, 0.95 + y, c.z);
+            e.set(rx, c.yaw, rz);
+            q.setFromEuler(e);
+            m4.compose(p3, q, s3.set(c.s * sx, c.s * sy, c.s * sx));
+            bodies.setMatrixAt(i, m4);
+            for (const [j, sd, a] of [[0, -1, aL], [1, 1, aR]]) {
+              mA.makeRotationZ(sd * -a).setPosition(sd * 0.84, 1.15, 0.05);
+              armsM.setMatrixAt(i * 2 + j, mA.premultiply(m4));
+            }
+          });
+          bodies.instanceMatrix.needsUpdate = armsM.instanceMatrix.needsUpdate = true;
+          // the fairy flies a big figure of eight through the hall
+          const u = t * 0.16, rr = R * 0.55;
+          prev.copy(fairy.group.position);
+          fairy.group.position.set(Math.sin(u) * rr, R * 0.32 + Math.sin(u * 1.7) * R * 0.12, Math.sin(2 * u) * rr * 0.55);
+          const v = fairy.group.position.clone().sub(prev);
+          if (v.lengthSq() > 1e-6) fairy.group.rotation.y = Math.atan2(v.x, v.z);
+          fairy.update(t);
+          tAcc += dt;
+          if (tAcc > 0.03) {
+            tAcc = 0;
+            const w = fairy.group.position;
+            tp.set([w.x + (rnd() - 0.5) * 0.6, w.y + 0.8 + (rnd() - 0.5) * 0.6, w.z + (rnd() - 0.5) * 0.6], ti * 3);
+            ti = (ti + 1) % TN;
+            tg.attributes.position.needsUpdate = true;
+          }
+        },
+      };
+    },
+  };
+}
+
+const BUILD = { java: dragon, southsandwich: rauschebart, puertorico: kraken, izu: captain, kuril: umibozu, tonga: ghostShip, mariana: leviathan };
 
 // Build the creature of a trench. size = largest extent in world units (the hall makes it 4 × as big as the sub).
 export function buildFable(id, size = 0) {

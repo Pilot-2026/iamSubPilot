@@ -1327,13 +1327,18 @@ export class Atlantis {
     this.makeDoor(B, D.a, RR - 0.15, 0, { inward: true, parent: hall });
     B.build(hall);
     // the creature, facing the door
-    const ry = Math.atan2(Math.cos(D.a), Math.sin(D.a)) + (this.levelId === 'kuril' ? 0.5 : 0);
+    const ry = Math.atan2(Math.cos(D.a), Math.sin(D.a)) + (f.turn || 0);
     f.group.rotation.y = ry;
     const c = f.center.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), ry);
     const lift = 1.6 + Math.max(0.8, f.extent * 0.05) - f.bottom;
     f.group.position.set(-c.x, lift, -c.z);
     hall.add(f.group);
     this.fable = f;
+    // company in the hall (Captain Bushybeard: his hopping crew and the sea fairy)
+    if (f.makeExtras) {
+      this.extras = f.makeExtras({ R: RR, dais, subLen: this.subLen });
+      hall.add(this.extras.group);
+    }
     this.fableC = new THREE.Vector3(0, lift + f.center.y, 0);
     this.fableR = f.extent * 0.34;
     // mystic spotlights: coloured beams from the dome onto the creature, three coloured lamps
@@ -1885,6 +1890,7 @@ export class Atlantis {
     this.uT.value = t;
     if (this.inside) {
       this.fable.anim(t, dt, !!this.talking);
+      if (this.extras) this.extras.update(t, dt, sub.pos.clone().sub(this.hall.position));
       this.spots.forEach((c, i) => {
         c.quaternion.copy(c.userData.base);
         c.rotateX(Math.sin(t * 0.5 + i) * 0.08);

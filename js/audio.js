@@ -652,6 +652,19 @@ class AudioFX {
     this.tone(f * 2, 0.5, { vol: 0.08, type: 'sine', when: 0.12 });
     this.noise(0.5, { vol: 0.12, freq: 6000, q: 0.8, type: 'highpass' });
   }
+  // Christmas: the chorus of "Jingle Bells" (James Lord Pierpont, 1857 – public domain) with sleigh bells
+  jingle() {
+    const mel = [[64, 1], [64, 1], [64, 2], [64, 1], [64, 1], [64, 2], [64, 1], [67, 1], [60, 1.5], [62, 0.5], [64, 4],
+      [65, 1], [65, 1], [65, 1.5], [65, 0.5], [65, 1], [64, 1], [64, 1], [64, 0.5], [64, 0.5], [64, 1], [62, 1], [62, 1], [64, 1], [62, 2], [67, 2]];
+    const beat = 0.2;
+    let w = 0;
+    for (const [m, d] of mel) {
+      this.tone(mtof(m + 12), Math.min(0.5, d * beat + 0.08), { vol: 0.12, type: 'triangle', when: w });
+      this.tone(mtof(m), Math.min(0.5, d * beat + 0.05), { vol: 0.05, type: 'square', when: w });
+      w += d * beat;
+    }
+    for (let k = 0; w > 0 && k < w / (beat * 0.5); k++) this.tone(5200 + Math.random() * 1400, 0.05, { vol: 0.025, type: 'square', when: k * beat * 0.5 });
+  }
   fanfare() {
     [60, 64, 67, 72, 67, 72, 76, 79].forEach((m, i) => this.tone(mtof(m), i === 7 ? 1.2 : 0.22, { vol: 0.16, type: i % 2 ? 'square' : 'triangle', when: i * 0.13 }));
   }
