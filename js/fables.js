@@ -49,8 +49,8 @@ export const FABLES = {
   southsandwich: {
     name: { en: 'Captain Bushybeard', de: 'Kapitän Rauschebart' },
     legend: {
-      en: 'Captain Bushybeard comes from the bedtime stories that Isabella’s dad tells her – a friendly pirate with the longest beard on all seven seas. His merry yellow crew, the Gigglings, and the sea fairy Princess Perla live with him.',
-      de: 'Kapitän Rauschebart stammt aus den Gutenachtgeschichten, die Isabellas Papa erzählt – ein freundlicher Pirat mit dem längsten Bart aller sieben Meere. Bei ihm wohnen seine fröhliche gelbe Mannschaft, die Kicherlinge, und die Meeresfee Prinzessin Perla.',
+      en: 'Captain Bushybeard comes from the bedtime stories that Isabella’s dad tells her – a friendly pirate with a mighty snow-white beard. His merry yellow crew, the Gigglings, and the sea fairy Princess Perla live with him.',
+      de: 'Kapitän Rauschebart stammt aus den Gutenachtgeschichten, die Isabellas Papa erzählt – ein freundlicher Pirat mit einem prächtigen schneeweißen Bart. Bei ihm wohnen seine fröhliche gelbe Mannschaft, die Kicherlinge, und die Meeresfee Prinzessin Perla.',
     },
     source: [],
   },
@@ -811,6 +811,70 @@ export function buildCompanion(kind) {
   return m.group;
 }
 
+// fine hair: many thin, tapered strands in one mesh (each strand = a list of points). They sway in the vertex
+// shader: attribute aHair = [position along the strand 0..1, phase], uniforms shared through `u`.
+function hairMesh(strands, u, { r0 = 0.028, r1 = 0.007, sway = 0.1, talk = 0.03 } = {}) {
+  const RS = 4;
+  let nv = 0, ni = 0;
+  for (const st of strands) {
+    nv += st.pts.length * RS;
+    ni += (st.pts.length - 1) * RS * 6;
+  }
+  const pos = new Float32Array(nv * 3), nor = new Float32Array(nv * 3), col = new Float32Array(nv * 3), hr = new Float32Array(nv * 2), idx = new Uint32Array(ni);
+  const T = new THREE.Vector3(), N = new THREE.Vector3(), B = new THREE.Vector3(), up = new THREE.Vector3(), c = new THREE.Color();
+  let v = 0, k = 0;
+  for (const st of strands) {
+    const P = st.pts, n = P.length, base = v;
+    c.set(st.color);
+    let first = true;
+    for (let i = 0; i < n; i++) {
+      T.subVectors(P[Math.min(n - 1, i + 1)], P[Math.max(0, i - 1)]).normalize();
+      if (first) {
+        up.set(0, 0, 1);
+        if (Math.abs(T.dot(up)) > 0.9) up.set(1, 0, 0);
+        N.crossVectors(T, up).normalize();
+        first = false;
+      } else N.addScaledVector(T, -N.dot(T)).normalize();
+      B.crossVectors(T, N);
+      const f = i / (n - 1), r = (st.r0 ?? r0) + ((st.r1 ?? r1) - (st.r0 ?? r0)) * f;
+      for (let j = 0; j < RS; j++) {
+        const a = (j / RS) * TAU, ca = Math.cos(a), sa = Math.sin(a);
+        const nx = N.x * ca + B.x * sa, ny = N.y * ca + B.y * sa, nz = N.z * ca + B.z * sa;
+        pos.set([P[i].x + nx * r, P[i].y + ny * r, P[i].z + nz * r], v * 3);
+        nor.set([nx, ny, nz], v * 3);
+        col.set([c.r, c.g, c.b], v * 3);
+        hr.set([f, st.ph], v * 2);
+        v++;
+      }
+    }
+    for (let i = 0; i < n - 1; i++)
+      for (let j = 0; j < RS; j++) {
+        const a = base + i * RS + j, b = base + i * RS + ((j + 1) % RS);
+        idx.set([a, b, a + RS, b, b + RS, a + RS], k);
+        k += 6;
+      }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.BufferAttribute(nor, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  g.setAttribute('aHair', new THREE.BufferAttribute(hr, 2));
+  g.setIndex(new THREE.BufferAttribute(idx, 1));
+  g.computeBoundingSphere();
+  const mat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05, emissive: 0x8a8a8a, emissiveIntensity: 0.3, side: THREE.DoubleSide });
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = u.uTime;
+    sh.uniforms.uTalk = u.uTalk;
+    sh.vertexShader = 'attribute vec2 aHair;\nuniform float uTime;\nuniform float uTalk;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float hq = aHair.x * aHair.x;
+      transformed.x += sin(uTime * 1.3 + aHair.y * 6.2831 + aHair.x * 3.0) * ${sway.toFixed(3)} * hq;
+      transformed.z += sin(uTime * 0.9 + aHair.y * 4.1) * ${(sway * 0.4).toFixed(3)} * hq;
+      transformed.y += uTalk * sin(uTime * 11.0 + aHair.y) * ${talk.toFixed(3)} * aHair.x;`);
+  };
+  mat.customProgramCacheKey = () => `hair${sway}-${talk}`;
+  return new THREE.Mesh(g, mat);
+}
+
 function rauschebart() {
   const G = new THREE.Group();
   const skin = std(0xf2c09a, { roughness: 0.55, emissive: 0x5a2a1a, emissiveIntensity: 0.2 });
@@ -820,7 +884,6 @@ function rauschebart() {
   const black = std(0x1a1414, { roughness: 0.6 });
   const wood = std(0x8a5a2a, { roughness: 0.75 });
   const shirtM = std(0xf4eedc, { roughness: 0.7 });
-  const beardM = shiny(0xb04a1c, 0.18, { roughness: 0.8 });
   const steel = std(0xd8e0ea, { metalness: 0.9, roughness: 0.2, emissive: 0x3a4250, emissiveIntensity: 0.3 });
   const body = grp(G);
   // legs: a boot and a wooden peg
@@ -863,28 +926,96 @@ function rauschebart() {
   const eyeL = eye(head, 0.2, [0.36, 0.25, 0.78], { iris: 0x3a7a2a, ry: 0.25 });
   add(head, new THREE.CylinderGeometry(0.24, 0.24, 0.08, 16), black, [-0.36, 0.25, 0.86], [PI / 2, 0, 0.2]);
   add(head, new THREE.TorusGeometry(0.98, 0.04, 6, 30), black, [0, 0.35, 0], [PI / 2 - 0.3, 0.3, 0]);
-  for (const sx of [-1, 1]) add(head, new THREE.BoxGeometry(0.52, 0.14, 0.18), beardM, [sx * 0.37, 0.52, 0.8], [0, 0, sx * -0.18]);
   const mouthMesh = add(head, new THREE.SphereGeometry(0.2, 12, 8), glow(0x5a0a12), [0, -0.5, 0.82], [0, 0, 0], [1.4, 0.5, 0.4]);
-  // the enormous beard: wide, bushy and so long it reaches down to the boots
-  const beard = [];
-  let bp = grp(head, [0, -0.55, 0.55]);
-  const bw = [1.35, 1.75, 1.65, 1.2, 0.7];
-  const beardHi = shiny(0xc85a26, 0.2, { roughness: 0.8 });
-  for (let k = 0; k < 5; k++) {
-    const j = grp(bp, k ? [0, -0.95, 0.04] : [0, 0, 0]);
-    add(j, new THREE.SphereGeometry(1, 24, 16), beardM, [0, -0.48, 0.05], [0, 0, 0], [bw[k], 0.72, 0.6]);
-    for (const a of [-1.2, -0.6, 0.6, 1.2]) add(j, new THREE.SphereGeometry(0.26, 10, 8), beardHi, [Math.sin(a) * bw[k] * 0.82, -0.42 + Math.abs(a) * 0.1, 0.38 + Math.cos(a) * 0.12]);
-    beard.push(j);
-    bp = j;
+  // a big snow-white beard of fine strands: from the jaw line down over the chest (the coat and belt stay visible)
+  const hairU = { uTime: { value: 0 }, uTalk: { value: 0 } };
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const white = () => new THREE.Color(0xffffff).lerp(new THREE.Color(0xc9d0da), rnd() * 0.55).getHex();
+  const HR = [0.95, 0.9975, 0.9025]; // the head's radii
+  const onHead = (az, el, out = 1) => new THREE.Vector3(Math.sin(az) * Math.cos(el) * HR[0] * out, Math.sin(el) * HR[1] * out, Math.cos(az) * Math.cos(el) * HR[2] * out);
+  // front of the coat / belly in the head's frame, so the strands lie on top of it
+  const COAT = [[2.05, 1.55], [3.0, 1.45], [4.2, 1.3], [5.4, 1.15], [6.0, 0.9], [6.1, 0]];
+  const front = (x, y) => {
+    const by = y + 6.9;
+    let r = 0;
+    for (let i = 0; i < COAT.length - 1; i++)
+      if (by >= COAT[i][0] && by <= COAT[i + 1][0]) r = COAT[i][1] + ((COAT[i + 1][1] - COAT[i][1]) * (by - COAT[i][0])) / (COAT[i + 1][0] - COAT[i][0]);
+    let z = r > Math.abs(x) ? Math.sqrt(r * r - x * x) : -9;
+    const q = 1 - (x / 0.99) ** 2 - ((by - 4) / 1.375) ** 2;
+    if (q > 0) z = Math.max(z, 0.62 + 0.825 * Math.sqrt(q));
+    return z - 0.25;
+  };
+  const beardStrands = [];
+  const rows = [[170, 0, 0], [64, 0.17, 0.5], [38, 0.33, 0.85]];
+  for (const [n, lift, minAz] of rows) {
+    for (let i = 0; i < n; i++) {
+      const a = -1 + (2 * (i + rnd() * 0.6)) / n;
+      if (Math.abs(a) < minAz / 1.35) continue; // the mouth stays free
+      const az = a * 1.35, el = -0.2 - 0.75 * Math.cos(az) + lift;
+      const root = onHead(az, el, 0.97);
+      const L = 1.95 * (1 - 0.6 * Math.abs(a) ** 1.4) * (0.82 + 0.3 * rnd()) * (1 - lift * 0.5);
+      const pts = [], wig = rnd() * TAU, wa = 0.03 + rnd() * 0.04;
+      for (let j = 0; j < 13; j++) {
+        const f = j / 12;
+        const x = root.x * (1 + 0.3 * Math.sin(f * PI) - 0.32 * f) + Math.sin(f * 9 + wig) * wa;
+        const y = root.y - L * f - Math.abs(root.x) * 0.15 * f;
+        let z = root.z + 0.42 * Math.sin(Math.min(1, f * 2.5) * PI * 0.5) + Math.cos(f * 7 + wig) * wa;
+        z = Math.max(z, front(x, y) + 0.1 + 0.16 * rnd());
+        pts.push(new THREE.Vector3(x, y, z));
+      }
+      // the tip curls a little forward
+      const tip = pts[12];
+      pts.push(tip.clone().add(new THREE.Vector3(0, -0.08, 0.1)));
+      beardStrands.push({ pts, ph: rnd(), color: white(), r0: 0.034 + rnd() * 0.014, r1: 0.007 });
+    }
   }
-  for (let k = 0; k < 3; k++) add(beard[4], new THREE.SphereGeometry(0.13, 10, 8), gold, [(k - 1) * 0.3, -1.0, 0.3]);
-  for (const sx of [-1, 1]) {
-    const braid = chainY(grp(beard[1], [sx * 1.55, -0.5, 0.15]), 5, 0.42, 0.22, 0.12, beardHi);
-    add(braid[4], new THREE.SphereGeometry(0.13, 8, 6), gold, [0, -0.42, 0]);
+  // sideburns from under the hat down to the jaw, and white hair at the back of the head
+  for (const sx of [-1, 1])
+    for (let i = 0; i < 14; i++) {
+      const az = sx * (1.3 + rnd() * 0.35), pts = [];
+      for (let j = 0; j < 8; j++) {
+        const f = j / 7;
+        pts.push(onHead(az, 0.32 - 0.72 * f, 1.0 + 0.04 * Math.sin(f * PI)));
+      }
+      beardStrands.push({ pts, ph: rnd(), color: white(), r0: 0.03, r1: 0.012 });
+    }
+  for (let i = 0; i < 64; i++) {
+    const az = PI * 0.55 + (i / 63) * PI * 0.9 + (rnd() - 0.5) * 0.05, pts = [], len = 0.9 + rnd() * 0.25;
+    for (let j = 0; j < 9; j++) {
+      const f = j / 8;
+      pts.push(onHead(az, 0.38 - len * 1.15 * f, 1.0 + 0.1 * f * f));
+    }
+    beardStrands.push({ pts, ph: rnd(), color: white(), r0: 0.03, r1: 0.008 });
   }
-  // the curly moustache
-  const tache = [];
-  for (const sx of [-1, 1]) tache.push(add(head, new THREE.TorusGeometry(0.42, 0.14, 8, 18, PI * 1.25), beardM, [sx * 0.42, -0.32, 0.86], [0, sx > 0 ? PI : 0, -0.35]));
+  const beardMesh = hairMesh(beardStrands, hairU, { sway: 0.09, talk: 0.035 });
+  head.add(beardMesh);
+  // a curled moustache and bushy brows, also of fine strands
+  const tache = [-1, 1].map((sx) => {
+    const g = grp(head, [sx * 0.05, -0.27, 0.92]), st = [];
+    for (let i = 0; i < 28; i++) {
+      const q = rnd(), dy = (rnd() - 0.5) * 0.1, len = 0.85 + rnd() * 0.2, pts = [];
+      for (let j = 0; j < 12; j++) {
+        const f = (j / 11) * len;
+        const curl = f > 0.68 ? ((f - 0.68) / 0.32) ** 2 : 0;
+        pts.push(new THREE.Vector3(sx * (0.03 + q * 0.12 + 0.8 * f - curl * 0.12), dy - 0.2 * Math.sin(Math.min(f, 0.7) / 0.7 * PI * 0.5) + curl * 0.42, -0.55 * f * f + 0.02));
+      }
+      st.push({ pts, ph: rnd(), color: white(), r0: 0.04, r1: 0.012 });
+    }
+    g.add(hairMesh(st, hairU, { sway: 0.02, talk: 0.0 }));
+    return g;
+  });
+  const browSt = [];
+  for (const sx of [-1, 1])
+    for (let i = 0; i < 16; i++) {
+      const x0 = sx * (0.14 + rnd() * 0.36), pts = [];
+      for (let j = 0; j < 5; j++) {
+        const f = j / 4;
+        pts.push(new THREE.Vector3(x0 + sx * 0.2 * f, 0.47 + 0.1 * Math.sin(f * PI) + (rnd() - 0.5) * 0.03, 0.84 - Math.abs(x0) * 0.25 - 0.05 * f));
+      }
+      browSt.push({ pts, ph: rnd(), color: white(), r0: 0.035, r1: 0.012 });
+    }
+  head.add(hairMesh(browSt, hairU, { sway: 0.01, talk: 0 }));
   // a big tricorn with gold trim, a golden anchor and a red feather
   const hat = grp(head, [0, 0.72, -0.05], [-0.12, 0, 0]);
   add(hat, new THREE.CylinderGeometry(0.85, 1.0, 0.85, 24), black, [0, 0.4, 0]);
@@ -914,11 +1045,12 @@ function rauschebart() {
     anim(t, dt, talk) {
       body.position.y = Math.abs(Math.sin(t * 0.9)) * 0.06;
       body.rotation.z = Math.sin(t * 0.9) * 0.03;
-      head.rotation.y = Math.sin(t * 0.5) * 0.15;
+      head.rotation.y = Math.sin(t * 0.5) * 0.07;
       head.rotation.x = Math.sin(t * 0.7) * 0.04;
       mouthMesh.scale.y = talk ? 0.5 + 0.5 * Math.abs(Math.sin(t * 11)) : 0.35;
-      tache.forEach((m, s) => (m.rotation.z = -0.35 + (talk ? Math.sin(t * 11) * 0.1 : 0)));
-      beard.forEach((j, k) => k && (j.rotation.x = Math.sin(t * 0.9 - k * 0.5) * 0.035 + (talk ? Math.sin(t * 11) * 0.01 : 0)));
+      tache.forEach((m, s) => (m.rotation.z = (s ? 1 : -1) * (talk ? Math.sin(t * 11) * 0.08 : 0)));
+      hairU.uTime.value = t;
+      hairU.uTalk.value = talk ? 1 : 0;
       armL.rotation.z = 0.35 + 1.9 + Math.sin(t * 3) * 0.35; // waving
       armL.rotation.x = -0.2;
       hand.rotation.z = Math.sin(t * 6) * 0.3;
