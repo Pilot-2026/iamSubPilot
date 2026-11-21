@@ -1173,3 +1173,34 @@ body.touch #controls { height: 150px; }
   body.touch #joyKnob { width: 42px; height: 42px; left: 22px; top: 22px; }
   body.touch #vbtns { right: calc(108px + env(safe-area-inset-right, 0px)); }
 }
+
+/* ---------- mission list folds with one tap, radar grows with one tap ---------- */
+#missions { cursor: pointer; user-select: none; -webkit-user-select: none; transition: max-width 0.2s; }
+#missions .mtitle { display: flex; align-items: center; gap: 6px; }
+#missions .mtitle .mcount { color: var(--text, #e6fbff); font-weight: 800; letter-spacing: 0; }
+#missions .mtitle .mchev { margin-left: auto; font-size: 11px; color: var(--cyan, #38e8ff); transition: transform 0.2s; }
+#missions.collapsed .m { display: none; }
+#missions.collapsed .mtitle { margin-bottom: 0; }
+#missions.collapsed .mtitle .mchev { transform: rotate(-90deg); }
+#missions.collapsed #deepNav { margin-top: 4px; padding-top: 4px; }
+#radar { transition: width 0.22s ease, height 0.22s ease, right 0.22s ease, top 0.22s ease; cursor: pointer; }
+#radar.big { width: 240px; height: 240px; z-index: 3; }
+body:not(.touch) #radar.big { width: 280px; height: 280px; }
+@media (max-height: 500px) {
+  #missions .mtitle { display: flex; font-size: 10px; margin-bottom: 2px; }
+  #radar.big, body:not(.touch) #radar.big { width: 180px; height: 180px; }
+  #deepNav { font-size: 11px; gap: 6px; margin-top: 4px; padding-top: 4px; }
+  #deepNav .dn-arrow { width: 18px; height: 18px; font-size: 10px; }
+}
+/* phones upright: smaller panels at the top */
+@media (max-width: 500px) {
+  #missions { max-width: 190px; font-size: 10.5px; padding: 5px 8px; }
+  #missions .mtitle { font-size: 10px; margin-bottom: 2px; }
+  #missions .m { gap: 5px; margin: 2px 0; line-height: 1.25; }
+  #missions .m .box { flex-basis: 10px; height: 10px; border-width: 1.5px; border-radius: 3px; }
+  #deepNav { font-size: 11px; gap: 6px; margin-top: 4px; padding-top: 4px; }
+  #deepNav .dn-arrow { width: 18px; height: 18px; font-size: 10px; }
+  #radar { width: 84px; height: 84px; }
+  /* big radar: in the middle of the screen, below the panels at the top */
+  #radar.big { width: 230px; height: 230px; right: calc(50vw - 115px); top: calc(170px + var(--safe-t)); }
+}

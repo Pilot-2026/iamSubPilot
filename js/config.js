@@ -21,4 +21,4 @@ export const AI_ENDPOINT = null;
 export const MP_SITES = ['https://iamisi.netlify.app', 'https://iamsubpilot.netlify.app'];
 export const MP_SITE = MP_SITES[0];
 
-export const GAME_VERSION = '0.10.2';
+export const GAME_VERSION = '0.10.3';

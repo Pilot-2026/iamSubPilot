@@ -1725,7 +1725,10 @@ class Dive {
 
   renderMissions() {
     if (this.race) return;
-    $('#missionsList').innerHTML = `<div class="mtitle">${t('missions')}</div>` +
+    const nDone = this.missions.filter((m) => m.done).length;
+    $('#missions').title = t('missionsFold');
+    $('#radar').title = t('radarZoom');
+    $('#missionsList').innerHTML = `<div class="mtitle"><span>${t('missions')}</span><b class="mcount">${nDone}/${this.missions.length}</b><span class="mchev">▾</span></div>` +
       this.missions.map((m) => `<div class="m ${m.done ? 'done' : ''}"><span class="box"></span><span>${escapeHtml(missionText(m))}${m.byTeam ? ` <small class="by">· ${escapeHtml(m.byTeam)}</small>` : ''}</span></div>`).join('') +
       (this.team ? `<div class="m team-ch ${this.team.doneCount === CHALLENGES.length ? 'done' : ''}"><span class="box"></span><span>🤝 ${t('teamLine', { n: this.team.doneCount, total: CHALLENGES.length })}</span></div>` : '');
   }
@@ -3739,17 +3742,31 @@ function cheatPress() {
 }
 // on screen: exactly 5 taps on the mission list, then exactly 5 on the radar → Atlantis;
 // in Atlantis the other way round (5 × radar, then 5 × missions) → straight to the fable creature
-const seq = { s: '', last: 0 };
+const seq = { s: '', last: 0, snap: null, skipClick: false };
+// mission list: one tap folds it to a single line, the next tap opens it again (remembered on this device);
+// radar: one tap makes it big, the next small again. The secret tap sequence toggles them too, so it puts both
+// back the way they were before it started.
+const fold = { m: (() => { try { return localStorage.getItem('hadal.mfold') === '1'; } catch (e) { return false; } })(), r: false };
+function applyFold() {
+  document.getElementById('missions').classList.toggle('collapsed', fold.m);
+  document.getElementById('radar').classList.toggle('big', fold.r);
+  try { localStorage.setItem('hadal.mfold', fold.m ? '1' : '0'); } catch (e) { /* no storage */ }
+}
+applyFold();
 function seqPress(k) {
   if (!game || game.ended || game.race) return;
   const now = performance.now();
   if (now - seq.last > 2500) seq.s = '';
   seq.last = now;
   const target = game.atlantis ? 'rrrrrmmmmm' : 'mmmmmrrrrr';
+  if (!seq.s) seq.snap = { m: fold.m, r: fold.r };
   seq.s += k;
   if (!target.startsWith(seq.s)) seq.s = '';
   else if (seq.s === target) {
     seq.s = '';
+    if (seq.snap) Object.assign(fold, seq.snap);
+    seq.skipClick = true; // the click that follows this last tap must not toggle again
+    applyFold();
     if (game.atlantis) game.goFable();
     else game.cheatComplete();
   }
@@ -3758,6 +3775,17 @@ document.getElementById('missions').addEventListener('pointerdown', () => seqPre
 document.getElementById('radar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
   seqPress('r');
+});
+document.getElementById('missions').addEventListener('click', () => {
+  if (seq.skipClick) return void (seq.skipClick = false);
+  fold.m = !fold.m;
+  applyFold();
+});
+document.getElementById('radar').addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (seq.skipClick) return void (seq.skipClick = false);
+  fold.r = !fold.r;
+  applyFold();
 });
 document.addEventListener('click', (e) => {
   if (e.target && e.target.closest && e.target.closest('.legal .ver')) secretPress();
