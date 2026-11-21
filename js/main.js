@@ -113,15 +113,29 @@ function initRenderer() {
   const canvas = $('#c');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: !isTouch, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isTouch ? 1.5 : 2));
-  renderer.setSize(window.innerWidth, window.innerHeight);
   camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 900);
-  window.addEventListener('resize', () => {
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    if (aquarium) aquarium.resize(window.innerWidth, window.innerHeight);
-    fitIntroTitle();
-  });
+  fitView(true);
+  window.addEventListener('resize', () => fitView(true));
+  if (window.visualViewport) window.visualViewport.addEventListener('resize', () => fitView(true));
+}
+// The canvas is sized by CSS (fixed, 100 % × 100 %) and the drawing buffer follows its real size, checked every
+// frame: iPhone Safari does not always report a new window.innerHeight when its toolbar or the keyboard changes,
+// which left the 3D picture shorter than the screen.
+let viewW = 0, viewH = 0;
+const vw = () => viewW || window.innerWidth;
+const vh = () => viewH || window.innerHeight;
+function fitView(force) {
+  if (!renderer) return;
+  const c = renderer.domElement;
+  const w = c.clientWidth || window.innerWidth, h = c.clientHeight || window.innerHeight;
+  if (!force && w === viewW && h === viewH) return;
+  viewW = w;
+  viewH = h;
+  renderer.setSize(w, h, false);
+  camera.aspect = w / h;
+  camera.updateProjectionMatrix();
+  if (aquarium) aquarium.resize(w, h);
+  fitIntroTitle();
 }
 let aquarium = null;
 
@@ -152,7 +166,7 @@ function fitIntroTitle() {
   const top = el.querySelector('.intro-top');
   if (!bottom) return;
   const t0 = top ? top.getBoundingClientRect().bottom + 6 : 10;
-  aquarium.layout(t0, bottom.getBoundingClientRect().top - 8, window.innerWidth, window.innerHeight);
+  aquarium.layout(t0, bottom.getBoundingClientRect().top - 8, vw(), vh());
 }
 function showIntro(onDone) {
   introDone = onDone || introDone || (() => renderMenu());
@@ -228,7 +242,7 @@ let echoBusy = false;
 // tail pointing sideways, or above the head when there is no room at the sides
 function placeBubble(el, world, side = 0) {
   el.classList.remove('hidden');
-  const W = window.innerWidth, H = window.innerHeight;
+  const W = vw(), H = vh();
   let p = world.clone().project(camera);
   if (side) {
     const bw = el.offsetWidth, bh = el.offsetHeight;
@@ -2173,7 +2187,7 @@ class Dive {
       }
       if (ft.legendT > 75) return el.onclick();
       // beside the creature: big screens on the left half (below the missions), small screens at the top
-      const W = window.innerWidth, H = window.innerHeight, bw = el.offsetWidth, bh = el.offsetHeight;
+      const W = vw(), H = vh(), bw = el.offsetWidth, bh = el.offsetHeight;
       el.classList.remove('side-l', 'side-r', 'hidden');
       el.classList.add('notail');
       const edge = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--edge')) || 0;
@@ -3117,7 +3131,7 @@ class Dive {
   }
 
   updateOverlay() {
-    const w = window.innerWidth, h = window.innerHeight;
+    const w = vw(), h = vh();
     const project = (p) => {
       const v = p.clone().project(camera);
       return { x: (v.x * 0.5 + 0.5) * w, y: (-v.y * 0.5 + 0.5) * h, behind: v.z > 1 };
@@ -3968,6 +3982,7 @@ function snapAtlantis(g) {
 let last = performance.now();
 function loop(now) {
   requestAnimationFrame(loop);
+  fitView(false);
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (game) {
@@ -4006,7 +4021,7 @@ function bindCameraDrag() {
     const now = performance.now();
     {
       const p = game.sub.pos.clone().project(camera);
-      const sx = (p.x * 0.5 + 0.5) * window.innerWidth, sy = (-p.y * 0.5 + 0.5) * window.innerHeight;
+      const sx = (p.x * 0.5 + 0.5) * vw(), sy = (-p.y * 0.5 + 0.5) * vh();
       const onSub = p.z < 1 && Math.hypot(e.clientX - sx, e.clientY - sy) < Math.max(90, Math.min(window.innerWidth, window.innerHeight) * 0.16);
       camDrag.subTaps = onSub && now - (camDrag.subLast || 0) < 2000 ? (camDrag.subTaps || 0) + 1 : onSub ? 1 : 0;
       camDrag.subLast = now;
@@ -4017,7 +4032,7 @@ function bindCameraDrag() {
     }
     if (now - camDrag.lastTap < 340 && Math.hypot(e.clientX - camDrag.tapX, e.clientY - camDrag.tapY) < 40) {
       const p = game.sub.pos.clone().project(camera);
-      const sx = (p.x * 0.5 + 0.5) * window.innerWidth, sy = (-p.y * 0.5 + 0.5) * window.innerHeight;
+      const sx = (p.x * 0.5 + 0.5) * vw(), sy = (-p.y * 0.5 + 0.5) * vh();
       if (Math.hypot(e.clientX - sx, e.clientY - sy) < Math.max(110, Math.min(window.innerWidth, window.innerHeight) * 0.2)) resetView();
       camDrag.lastTap = 0;
     } else {
@@ -4104,7 +4119,7 @@ async function boot() {
   try {
     aquarium = new Aquarium();
     aquarium.pixelRatio = renderer.getPixelRatio();
-    aquarium.resize(window.innerWidth, window.innerHeight);
+    aquarium.resize(vw(), vh());
     aquarium.onLand = (i) => {
       if (audio.ctx && audio.ctx.state === 'running' && !$('#intro').classList.contains('hidden')) audio.pop(i);
     };

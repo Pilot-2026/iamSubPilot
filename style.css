@@ -1130,48 +1130,48 @@ table.lb tr.me td { font-weight: 800; background: rgba(255, 255, 255, 0.55); }
 /* ---------- compact touch controls: smaller buttons and joystick, so more of the sea stays visible ---------- */
 body.touch .cbtn, body.touch #vbtns .cbtn { width: 54px; height: 54px; font-size: 20px; border-radius: 15px; }
 body.touch .cbtn small { font-size: 9.5px; margin-top: 3px; white-space: nowrap; letter-spacing: -0.01em; }
-body.touch #abtns { grid-template-columns: repeat(4, 54px); gap: 7px; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: calc(14px + var(--safe-b)); }
+body.touch #abtns { grid-template-columns: repeat(4, 54px); gap: 7px; left: calc(72px + env(safe-area-inset-left, 0px)); bottom: calc(14px + var(--safe-b)); }
 body.touch #joystick { width: 120px; height: 120px; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(14px + var(--safe-b)); }
 body.touch #joyKnob { width: 54px; height: 54px; left: 30px; top: 30px; }
 body.touch #joyKnob svg { width: 40px; height: 40px; }
-body.touch #vbtns { flex-direction: column; gap: 8px; right: calc(146px + env(safe-area-inset-right, 0px)); bottom: calc(16px + var(--safe-b)); }
+/* up/down at the far left (left thumb), the action buttons next to them, the joystick on the right */
+body.touch #vbtns { flex-direction: column; gap: 8px; right: auto; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: calc(14px + var(--safe-b)); }
 body.touch #controls { height: 150px; }
 /* phones lying sideways */
 @media (max-height: 500px) {
   body.touch .cbtn, body.touch #vbtns .cbtn { width: 46px; height: 46px; font-size: 18px; border-radius: 13px; }
   body.touch .cbtn small { font-size: 8.5px; margin-top: 2px; }
-  body.touch #abtns { grid-template-columns: repeat(4, 46px); gap: 6px; bottom: calc(10px + var(--safe-b)); }
+  body.touch #abtns { grid-template-columns: repeat(4, 46px); gap: 6px; left: calc(64px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--safe-b)); }
   body.touch #joystick { width: 104px; height: 104px; bottom: calc(10px + var(--safe-b)); }
   body.touch #joyKnob { width: 48px; height: 48px; left: 25px; top: 25px; }
   body.touch #joyKnob svg { width: 34px; height: 34px; }
-  body.touch #vbtns { gap: 6px; right: calc(128px + env(safe-area-inset-right, 0px)); bottom: calc(12px + var(--safe-b)); }
+  body.touch #vbtns { gap: 6px; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--safe-b)); }
 }
 /* phones upright: everything in two low rows at the very bottom */
 @media (max-width: 500px) {
   body.touch .cbtn, body.touch #vbtns .cbtn { width: 44px; height: 44px; font-size: 17px; border-radius: 12px; }
   body.touch .cbtn small { font-size: 8.5px; margin-top: 2px; }
-  body.touch #abtns { grid-template-columns: repeat(4, 44px); gap: 6px; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--safe-b)); }
+  body.touch #abtns { grid-template-columns: repeat(4, 44px); gap: 6px; left: calc(60px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--safe-b)); }
   body.touch #joystick { width: 100px; height: 100px; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(10px + var(--safe-b)); }
   body.touch #joystick .ja { font-size: 11px; }
   body.touch #joyKnob { width: 46px; height: 46px; left: 24px; top: 24px; }
   body.touch #joyKnob svg { width: 32px; height: 32px; }
-  body.touch #vbtns { gap: 6px; right: calc(118px + env(safe-area-inset-right, 0px)); bottom: calc(10px + var(--safe-b)); }
+  body.touch #vbtns { gap: 6px; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--safe-b)); }
   body.touch #controls { height: 120px; }
-  body.touch #echo { bottom: calc(122px + var(--safe-b)); }
+  body.touch #echo { bottom: calc(156px + var(--safe-b)); } /* above the hall counter, which sits right above the controls */
   body.touch #grabHint { bottom: calc(178px + var(--safe-b)); }
   body.touch #warn { bottom: calc(212px + var(--safe-b)); }
   body.touch #team { bottom: calc(178px + var(--safe-b)); }
   body.touch #radio { bottom: calc(118px + var(--safe-b, 0px)); }
   body.touch #gauge { bottom: 132px; }
-  body.touch #hallCount { bottom: calc(118px + var(--safe-b, 0px)); }
+  body.touch #hallCount { top: auto; bottom: calc(118px + var(--safe-b, 0px)); white-space: nowrap; }
 }
 @media (max-width: 380px) {
   body.touch .cbtn, body.touch #vbtns .cbtn { width: 40px; height: 40px; font-size: 16px; }
   body.touch .cbtn small { font-size: 8px; }
-  body.touch #abtns { grid-template-columns: repeat(4, 40px); gap: 5px; }
+  body.touch #abtns { grid-template-columns: repeat(4, 40px); gap: 5px; left: calc(54px + env(safe-area-inset-left, 0px)); }
   body.touch #joystick { width: 92px; height: 92px; }
   body.touch #joyKnob { width: 42px; height: 42px; left: 22px; top: 22px; }
-  body.touch #vbtns { right: calc(108px + env(safe-area-inset-right, 0px)); }
 }
 
 /* ---------- mission list folds with one tap, radar grows with one tap ---------- */
