@@ -1175,7 +1175,7 @@ body.touch #controls { height: 150px; }
 }
 
 /* ---------- mission list folds with one tap, radar grows with one tap ---------- */
-#missions { cursor: pointer; user-select: none; -webkit-user-select: none; transition: max-width 0.2s; }
+#missions { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; transition: max-width 0.2s; }
 #missions .mtitle { display: flex; align-items: center; gap: 6px; }
 #missions .mtitle .mcount { color: var(--text, #e6fbff); font-weight: 800; letter-spacing: 0; }
 #missions .mtitle .mchev { margin-left: auto; font-size: 11px; color: var(--cyan, #38e8ff); transition: transform 0.2s; }

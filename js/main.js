@@ -1707,7 +1707,7 @@ class Dive {
     $('#tPhoto').textContent = t('btnPhoto');
     $('#tGrab').textContent = t('btnGrab');
     $('#tAsk').textContent = t('btnAsk');
-    $('#tSurface').textContent = t('btnSurface');
+    $('#tSurface').textContent = t('btnEnd');
     $('#tBoost').textContent = t('btnBoost');
     $('#bBoost').classList.remove('on');
     $('#tUp').textContent = t('btnUp');
@@ -3742,10 +3742,10 @@ function cheatPress() {
 }
 // on screen: exactly 5 taps on the mission list, then exactly 5 on the radar → Atlantis;
 // in Atlantis the other way round (5 × radar, then 5 × missions) → straight to the fable creature
-const seq = { s: '', last: 0, snap: null, skipClick: false };
-// mission list: one tap folds it to a single line, the next tap opens it again (remembered on this device);
-// radar: one tap makes it big, the next small again. The secret tap sequence toggles them too, so it puts both
-// back the way they were before it started.
+const seq = { s: '', last: 0, snap: null };
+// mission list: a single tap folds it to its title line, the next single tap opens it again (remembered on this
+// device); radar: a single tap makes it big, the next small again. Only a lone tap does that (decided ~0.45 s after
+// it) – quick series of taps leave both where they are, so the secret sequence (5 × list, 5 × radar) always hits.
 const fold = { m: (() => { try { return localStorage.getItem('hadal.mfold') === '1'; } catch (e) { return false; } })(), r: false };
 function applyFold() {
   document.getElementById('missions').classList.toggle('collapsed', fold.m);
@@ -3753,8 +3753,22 @@ function applyFold() {
   try { localStorage.setItem('hadal.mfold', fold.m ? '1' : '0'); } catch (e) { /* no storage */ }
 }
 applyFold();
+const burst = { m: { n: 0, tm: 0 }, r: { n: 0, tm: 0 } };
+function tapToggle(k) {
+  const b = burst[k];
+  b.n++;
+  clearTimeout(b.tm);
+  b.tm = setTimeout(() => {
+    const lone = b.n === 1;
+    b.n = 0;
+    if (lone) {
+      fold[k] = !fold[k];
+      applyFold();
+    }
+  }, 450);
+}
 function seqPress(k) {
-  if (!game || game.ended || game.race) return;
+  if (!game || game.ended || game.race) return false;
   const now = performance.now();
   if (now - seq.last > 2500) seq.s = '';
   seq.last = now;
@@ -3764,28 +3778,24 @@ function seqPress(k) {
   if (!target.startsWith(seq.s)) seq.s = '';
   else if (seq.s === target) {
     seq.s = '';
+    for (const b of Object.values(burst)) {
+      clearTimeout(b.tm);
+      b.n = 0;
+    }
     if (seq.snap) Object.assign(fold, seq.snap);
-    seq.skipClick = true; // the click that follows this last tap must not toggle again
     applyFold();
     if (game.atlantis) game.goFable();
     else game.cheatComplete();
+    return true; // the last tap of the sequence must not count as a lone tap
   }
+  return false;
 }
-document.getElementById('missions').addEventListener('pointerdown', () => seqPress('m'));
+document.getElementById('missions').addEventListener('pointerdown', () => {
+  if (!seqPress('m')) tapToggle('m');
+});
 document.getElementById('radar').addEventListener('pointerdown', (e) => {
   e.stopPropagation();
-  seqPress('r');
-});
-document.getElementById('missions').addEventListener('click', () => {
-  if (seq.skipClick) return void (seq.skipClick = false);
-  fold.m = !fold.m;
-  applyFold();
-});
-document.getElementById('radar').addEventListener('click', (e) => {
-  e.stopPropagation();
-  if (seq.skipClick) return void (seq.skipClick = false);
-  fold.r = !fold.r;
-  applyFold();
+  if (!seqPress('r')) tapToggle('r');
 });
 document.addEventListener('click', (e) => {
   if (e.target && e.target.closest && e.target.closest('.legal .ver')) secretPress();
@@ -3878,7 +3888,22 @@ input.on('sonar', () => game && game.actSonar());
 input.on('light', () => game && game.actLight());
 input.on('photo', () => game && game.actPhoto());
 input.on('grab', () => game && game.actGrab());
-input.on('surface', () => game && game.actSurface());
+input.on('surface', () => confirmEnd());
+// the End button (and key B) asks first – the pause menu's own surface/abort buttons don't
+function confirmEnd() {
+  if (!game || game.ended || game.ending || !game.canAct()) return;
+  if (!game.multi) game.paused = true;
+  input.enabled = false;
+  showModal(`<h1>${t('endAskTitle')}</h1>
+    <p>${t(game.race ? 'endAskRace' : 'endAskText')}</p>
+    <div class="row-end" style="gap:10px;flex-wrap:wrap"><button class="btn secondary" id="eNo">${t('endNo')}</button><button class="btn" id="eYes">${t('endYes')}</button></div>`, (root) => {
+    root.querySelector('#eNo').onclick = resume;
+    root.querySelector('#eYes').onclick = () => {
+      resume();
+      game.actSurface();
+    };
+  });
+}
 input.on('ask', () => game && !game.ended && openAsk());
 input.on('mute', cycleSound);
 input.on('boost', () => game && game.actBoost());
