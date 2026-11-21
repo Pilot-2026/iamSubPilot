@@ -21,9 +21,9 @@ Das Secret gehört **nie** ins GitHub-Repo – nur in Netlify (Schritt 3).
 ## 2. Eigene Netlify-Seite für iamisi
 
 1. <https://app.netlify.com> → **Add new site → Import an existing project → GitHub**.
-2. Repository **Pilot-2026/iamSubPilot** wählen.
+2. Repository **Pilot-2026/iamisi** wählen (früher iamSubPilot).
 3. Die Einstellungen kommen aus der Datei `netlify.toml` – einfach **Deploy** klicken.
-4. **Site configuration → Change site name** → `iamsubpilot` (dann heißt die Adresse `https://iamsubpilot.netlify.app`). Ist der Name schon vergeben, einen anderen wählen und Claude sagen.
+4. **Site configuration → Change site name** → `iamisi` (dann heißt die Adresse `https://iamisi.netlify.app`; früher `iamsubpilot` – das Spiel versucht beide Namen, siehe `js/api.js`). Ist der Name schon vergeben, einen anderen wählen und Claude sagen.
 
 ## 3. Schlüssel eintragen
 
@@ -36,14 +36,14 @@ Das Secret gehört **nie** ins GitHub-Repo – nur in Netlify (Schritt 3).
 
 ## 4. Prüfen
 
-- <https://iamsubpilot.netlify.app/api/rooms> zeigt `{"rooms":[],…}` → alles bereit.
+- <https://iamisi.netlify.app/api/rooms> zeigt `{"rooms":[],…}` → alles bereit.
 - Zeigt die Seite `"error":"not-configured"`, fehlt eine der drei Variablen (oder es wurde nach dem Eintragen nicht neu veröffentlicht).
 
-Danach nutzt das Spiel die LiveKit-Räume automatisch – auf GitHub Pages (<https://pilot-2026.github.io/iamSubPilot/>) und unter der Netlify-Adresse. Im Mehrspieler-Fenster verschwindet dann die Zeile „Verbindung“, weil sie nur für den Ersatzweg gebraucht wird.
+Danach nutzt das Spiel die LiveKit-Räume automatisch – auf GitHub Pages (<https://pilot-2026.github.io/iamisi/>) und unter der Netlify-Adresse. Im Mehrspieler-Fenster verschwindet dann die Zeile „Verbindung“, weil sie nur für den Ersatzweg gebraucht wird.
 
 ## Technik (für später)
 
 - `netlify/functions/join.mjs` – Raum eröffnen/betreten, gibt den LiveKit-Zugangsschlüssel aus (6 Stunden gültig)
 - `netlify/functions/rooms.mjs` – Liste der offenen Räume
 - `netlify/functions/meta.mjs` – der Gastgeber aktualisiert Modus, Graben und Status für die Raumliste
-- `js/config.js` → `MP_SITE` – Adresse der Netlify-Seite (für die Version auf GitHub Pages)
+- `js/config.js` → `MP_SITES` – Adressen der Netlify-Seite (neuer Name zuerst, alter als Ersatz; für die Version auf GitHub Pages)

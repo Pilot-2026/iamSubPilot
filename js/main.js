@@ -173,8 +173,10 @@ function showIntro(onDone) {
     </div>
     <div class="intro-bottom">
       <p class="intro-claim">${t('introClaim')}</p>
-      <p class="intro-dedic">${t('introDedication')}</p>
-      <p class="intro-by">${t('introBy', { author: '<a href="https://www.pilotFilm.at" target="_blank" rel="noopener">Andreas Schmölzer</a>' })}</p>
+      <div class="intro-dedic">
+        <p>${t('introDedication')}</p>
+        <p class="intro-by">${t('introBy', { author: '<a href="https://www.pilotFilm.at" target="_blank" rel="noopener">Andreas Schmölzer</a>' })}</p>
+      </div>
       <button class="btn big" id="iGo">${t('introGo')}</button>
       <div class="intro-hint" id="iHint">${audio.ctx && audio.ctx.state === 'running' ? '' : t('introSoundHint')}</div>
       <div class="intro-credit">${creditHtml()}</div>

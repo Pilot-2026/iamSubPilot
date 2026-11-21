@@ -3,14 +3,7 @@
 // Only progress is sent – never the age or anything personal. Without a connection the game simply keeps
 // everything on this device, as before.
 
-import { MP_SITE } from './config.js';
-
-const API = (() => {
-  const q = new URLSearchParams(location.search).get('mpapi');
-  if (q) return q.replace(/\/$/, '');
-  if (/\.netlify\.app$/.test(location.hostname)) return location.origin + '/api';
-  return MP_SITE ? MP_SITE.replace(/\/$/, '') + '/api' : null;
-})();
+import { hasApi, apiFetch } from './api.js';
 
 const UPG = ['hull', 'battery', 'lights', 'sonar'];
 export const nameKey = (n) => String(n || '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -36,19 +29,12 @@ export function mergeInto(p, d) {
   return p;
 }
 
-async function call(path, opts = {}, ms = 7000) {
-  if (!API) throw new Error('no-api');
-  const ctl = new AbortController();
-  const tm = setTimeout(() => ctl.abort(), ms);
-  try {
-    return await fetch(API + path, { ...opts, signal: ctl.signal, headers: { 'content-type': 'application/json' } });
-  } finally {
-    clearTimeout(tm);
-  }
+function call(path, opts = {}, ms = 7000) {
+  return apiFetch(path, { ...opts, headers: { 'content-type': 'application/json' } }, ms);
 }
 
 export const cloud = {
-  available: !!API,
+  available: hasApi,
   status: 'idle', // idle | ok | offline
   // load the cloud copy of a name: { found, data, updated } (null when offline)
   async pull(name) {

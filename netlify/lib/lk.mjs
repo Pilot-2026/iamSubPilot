@@ -1,6 +1,6 @@
 // Shared helpers for the iamisi online functions (rooms over LiveKit).
 // Keys come from the Netlify environment variables LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET
-// of the iamisi site (iamsubpilot.netlify.app) – its own LiveKit project, separate from every other game. The secret never leaves the server.
+// of the iamisi site (iamisi.netlify.app, formerly iamsubpilot.netlify.app) – its own LiveKit project, separate from every other game. The secret never leaves the server.
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 
 export const ROOM_PREFIX = 'sub-';
@@ -15,11 +15,11 @@ export function cfg() {
   return { url, key, secret, http: url.replace(/^ws/, 'http') };
 }
 
-// The game runs on GitHub Pages and on this Netlify site: allow those origins (and local tests)
+// The game runs on GitHub Pages and on this Netlify site (new and old name): allow those origins (and local tests)
 const ORIGINS = ['https://pilot-2026.github.io', 'http://127.0.0.1:8080', 'http://localhost:8080'];
 export function cors(req) {
   const o = req.headers.get('origin');
-  if (!o || !(ORIGINS.includes(o) || /^https:\/\/([a-z0-9-]+--)?iamsubpilot[a-z0-9-]*\.netlify\.app$/.test(o))) return {};
+  if (!o || !(ORIGINS.includes(o) || /^https:\/\/([a-z0-9-]+--)?(iamisi|iamsubpilot)\.netlify\.app$/.test(o))) return {};
   return { 'access-control-allow-origin': o, 'access-control-allow-methods': 'GET, POST, OPTIONS', 'access-control-allow-headers': 'content-type', 'access-control-max-age': '86400', vary: 'Origin' };
 }
 export const json = (req, body, status = 200) =>

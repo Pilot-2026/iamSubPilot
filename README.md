@@ -4,7 +4,7 @@ A 3D browser game about the deepest places on Earth – a game for Isabella, ins
 
 **A game by Andreas Schmölzer · [www.pilotFilm.at](https://www.pilotfilm.at)**
 
-▶ Play: <https://pilot-2026.github.io/iamSubPilot/>
+▶ Play: <https://pilot-2026.github.io/iamisi/> (also <https://iamisi.netlify.app>)
 
 ## How to play
 

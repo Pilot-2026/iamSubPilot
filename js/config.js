@@ -17,6 +17,8 @@ export const AI_ENDPOINT = null;
 //    own Netlify site (functions in netlify/functions, keys only in the Netlify environment variables).
 //    Served from Netlify the game uses its own address; on GitHub Pages it asks this site. If the site is not
 //    reachable, rooms fall back to direct browser-to-browser connections (PeerJS).
-export const MP_SITE = 'https://iamsubpilot.netlify.app';
+// the game's own Netlify site (online rooms + cloud profiles): new name first, the old one as a fallback (see api.js)
+export const MP_SITES = ['https://iamisi.netlify.app', 'https://iamsubpilot.netlify.app'];
+export const MP_SITE = MP_SITES[0];
 
-export const GAME_VERSION = '0.10.0';
+export const GAME_VERSION = '0.10.1';

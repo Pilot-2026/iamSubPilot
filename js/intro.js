@@ -10,11 +10,15 @@ import { buildSubModel, animateSubModel } from './sub.js';
 import { fishGeometry, fishMaterial, fishTime } from './schools.js';
 import { mulberry32, clamp, lerp } from './util.js';
 
-const TEXT_W = 20, TEXT_H = 6.5, TEXT_Y = 2.2; // TEXT_W: world width of the wordmark "iamisi" + roundel
+const TEXT_H = 6.5, TEXT_Y = 2.2;
+// world width of the wordmark "iamisi" + roundel – an estimate until the font is measured in buildTitle()
+let TEXT_W = 24;
+const K_PX = 20 / 1106; // world units per canvas pixel (letter size of "iam")
 // ?ogshot=1: a crowded, posed aquarium for the link preview picture (assets/og-image.jpg)
 const OG = new URLSearchParams(location.search).get('ogshot') === '1';
 const WORD = 'iamisi';
 const N_IAM = 3; // "iam" yellow with black outline, "isi" navy
+const ISI = 1.5; // "isi" (and the roundel after it) 50 % bigger than "iam"
 const FONT = '"Source Sans 3", "Myriad Pro", "Segoe UI", system-ui, sans-serif';
 const F = 300; // font size on the letter canvases (px)
 
@@ -25,7 +29,8 @@ const easeOutBack = (x) => {
 };
 
 // One canvas per letter, drawn exactly like the HTML wordmark (and a soft light halo so it reads on dark water).
-function letterCanvas(ch, iam, adv) {
+function letterCanvas(ch, iam, adv, fs = F) {
+  const F = fs;
   const pad = Math.round(F * 0.28);
   const c = document.createElement('canvas');
   c.width = Math.ceil(adv + pad * 2);
@@ -362,9 +367,15 @@ export class Aquarium {
 
   buildTitle() {
     const meas = document.createElement('canvas').getContext('2d');
-    meas.font = `800 ${F}px ${FONT}`;
-    const total = meas.measureText(WORD).width + F * (0.14 + 0.86);
-    const k = TEXT_W / total; // world units per canvas pixel
+    const FI = F * ISI; // font size of "isi"
+    const widthAt = (txt, fs) => {
+      meas.font = `800 ${fs}px ${FONT}`;
+      return meas.measureText(txt).width;
+    };
+    const wIam = widthAt(WORD.slice(0, N_IAM), F);
+    const total = wIam + widthAt(WORD.slice(N_IAM), FI) + FI * (0.14 + 0.86);
+    const k = K_PX; // world units per canvas pixel
+    TEXT_W = total * k;
     this.titleK = k;
     const rng = mulberry32(77);
     const mk = (tex, w, h, geo, keep = 0) => {
@@ -379,35 +390,46 @@ export class Aquarium {
       return new THREE.Mesh(geo || new THREE.PlaneGeometry(w, h, 6, 3), mat);
     };
     const x0 = -TEXT_W / 2;
+    const baseY = TEXT_Y - 0.33 * F * k; // common baseline (the letter canvas centre sits 0.33 × its font size above it)
     [...WORD].forEach((ch, i) => {
-      const left = meas.measureText(WORD.slice(0, i)).width;
-      const adv = meas.measureText(WORD.slice(0, i + 1)).width - left;
-      const cv = letterCanvas(ch, i < N_IAM, adv);
+      const iam = i < N_IAM;
+      const fs = iam ? F : FI;
+      // advance of this letter inside its part of the word, then shifted behind "iam"
+      const part = iam ? WORD.slice(0, N_IAM) : WORD.slice(N_IAM);
+      const j = iam ? i : i - N_IAM;
+      const left = (iam ? 0 : wIam) + widthAt(part.slice(0, j), fs);
+      const adv = widthAt(part.slice(0, j + 1), fs) - widthAt(part.slice(0, j), fs);
+      const cv = letterCanvas(ch, iam, adv, fs);
       const tex = new THREE.CanvasTexture(cv);
       tex.colorSpace = THREE.SRGBColorSpace;
       tex.anisotropy = 4;
-      const pad = Math.round(F * 0.28);
-      const m = mk(tex, cv.width * k, cv.height * k, null, i < N_IAM ? 0 : 1);
-      // canvas centre = letter box centre (+ the vertical offset of the baseline)
+      const pad = Math.round(fs * 0.28);
+      const m = mk(tex, cv.width * k, cv.height * k, null, iam ? 0 : 1);
+      // canvas centre = letter box centre, raised so all letters share one baseline
       const cx = x0 + (left - pad + cv.width / 2) * k;
-      m.userData.home = new THREE.Vector3(cx, TEXT_Y, 0);
+      m.userData.home = new THREE.Vector3(cx, baseY + 0.33 * fs * k, 0);
       m.renderOrder = 5;
       this.text.add(m);
       this.letters.push(this.letterAnim(m, rng, i));
     });
-    // roundel as a little coin that spins into place
+    // roundel as a little coin that spins into place (as big as "isi")
     const rtex = new THREE.CanvasTexture(roundelCanvas());
     rtex.colorSpace = THREE.SRGBColorSpace;
-    const R = (F * 0.86 * k) / 2;
+    const R = (FI * 0.86 * k) / 2;
     const face = mk(rtex, 0, 0, new THREE.CircleGeometry(R, 48), 1);
     const coin = new THREE.Group();
     coin.add(face);
-    // baseline sits 0.33 F below the canvas centre; the roundel centre ~0.36 F above the baseline (like the CSS wordmark)
-    coin.userData.home = new THREE.Vector3(x0 + TEXT_W - R, TEXT_Y + (0.41 - 0.33) * F * k, 0.05);
+    // the roundel centre ~0.41 × the font size above the baseline (like the CSS wordmark)
+    coin.userData.home = new THREE.Vector3(x0 + TEXT_W - R, baseY + 0.41 * FI * k, 0.05);
     coin.renderOrder = 6;
     this.text.add(coin);
     this.coin = coin;
     this.coinAnim = { o: coin, delay: 0.12 * WORD.length + 0.35, dur: 1.5 };
+    // height and middle of the letter block (the dots of the big "isi" reach highest) for layout()
+    const top = baseY + 0.86 * FI * k, bot = baseY - 0.08 * F * k; // the roundel reaches highest
+    this.titleH = top - bot;
+    this.titleMid = (top + bot) / 2;
+    if (this.lastLayout) this.layout(...this.lastLayout);
     // bubbles that trail the flying letters
     const BN = 260;
     const bg = new THREE.BufferGeometry();
@@ -551,14 +573,15 @@ export class Aquarium {
 
   // Fit the title into the free band of the screen between topPx and bottomPx (above the text block).
   layout(topPx, bottomPx, w, h) {
+    this.lastLayout = [topPx, bottomPx, w, h];
     const tanV = Math.tan((this.camera.fov * Math.PI) / 360);
     const hfov = 2 * Math.atan(tanV * (w / h));
     const band = Math.max(60, bottomPx - topPx);
     const needW = (TEXT_W * (w < h ? 1.22 : 1.1)) / 2 / Math.tan(hfov / 2);
-    const needH = (4.8 * h) / (band * 2 * tanV);
+    const needH = (Math.max(4.8, (this.titleH || 0) * 1.2) * h) / (band * 2 * tanV);
     this.fitDist = Math.max(needW, needH, 20);
     const ndc = 1 - (2 * (topPx + bottomPx)) / 2 / h;
-    this.lookY = TEXT_Y - ndc * this.fitDist * tanV;
+    this.lookY = (this.titleMid || TEXT_Y) - ndc * this.fitDist * tanV;
   }
 
   update(dt) {

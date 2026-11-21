@@ -4,7 +4,8 @@
 // else peer-to-peer (WebRTC via PeerJS – the host's browser relays all messages).
 // For testing, ?local=1 uses tabs on the same device instead.
 
-import { FIREBASE_CONFIG, MP_SITE } from './config.js';
+import { FIREBASE_CONFIG } from './config.js';
+import { hasApi, apiFetch } from './api.js';
 import { randomCode } from './util.js';
 
 const LB_PREFIX = 'hadal.lb.';
@@ -18,13 +19,7 @@ const PEER_PREFIX = 'hadal-v1-';
 const ICE = { iceServers: [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] }], sdpSemantics: 'unified-plan' };
 // tests: own local signalling server (read once – the lobby removes the query string from the address)
 const PEER_SERVER = new URLSearchParams(location.search).get('peer');
-// room functions (LiveKit): own address on Netlify, else the Netlify site; ?mpapi=… for tests
-const MP_API = (() => {
-  const q = new URLSearchParams(location.search).get('mpapi');
-  if (q) return q.replace(/\/$/, '');
-  if (/\.netlify\.app$/.test(location.hostname)) return location.origin + '/api';
-  return MP_SITE ? MP_SITE.replace(/\/$/, '') + '/api' : null;
-})();
+// room functions (LiveKit): own address on Netlify, else the Netlify site (old or new name, see api.js)
 const enc = new TextEncoder(), dec = new TextDecoder();
 const codeFromErr = (e) => {
   const m = /hadal-v1-([A-Z0-9]+)/.exec((e && e.message) || '');
@@ -60,7 +55,7 @@ export class Net {
   async init() {
     const params = new URLSearchParams(location.search);
     // ask the room server in the background (doesn't hold up the start)
-    if (MP_API && params.get('local') !== '1' && params.get('p2p') !== '1') this.lkCheck = this.probeLk();
+    if (hasApi && params.get('local') !== '1' && params.get('p2p') !== '1') this.lkCheck = this.probeLk();
     if (FIREBASE_CONFIG) {
       try {
         const fb = await import('./vendor/firebase.min.js');
@@ -114,10 +109,7 @@ export class Net {
 
   async probeLk() {
     try {
-      const ctl = new AbortController();
-      const to = setTimeout(() => ctl.abort(), 7000);
-      const r = await fetch(MP_API + '/rooms', { cache: 'no-store', signal: ctl.signal });
-      clearTimeout(to);
+      const r = await apiFetch('/rooms', { cache: 'no-store' }, 7000);
       const j = await r.json();
       return r.ok && Array.isArray(j.rooms);
     } catch (e) {
@@ -129,7 +121,7 @@ export class Net {
   async lkApi(path, body) {
     let r;
     try {
-      r = await fetch(MP_API + path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' });
+      r = await apiFetch(path, body ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) } : { cache: 'no-store' }, 15000);
     } catch (e) {
       throw new Error('timeout');
     }

@@ -1,4 +1,4 @@
-# iamSubPilot on Netlify (its own site, separate from every other game): the game files are served as they are,
+# iamisi on Netlify (its own site, separate from every other game): the game files are served as they are,
 # the functions in netlify/functions are the small server for online rooms (/api/join, /api/rooms, /api/meta).
 # The LiveKit keys are Netlify environment variables (LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET) – never in this repo.
 [build]

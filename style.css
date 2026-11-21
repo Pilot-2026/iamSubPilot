@@ -571,17 +571,18 @@ select option { background: var(--panel-solid); }
 .intro-bottom { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px; cursor: default; }
 .intro-claim { font-size: clamp(17px, 2.6vw, 26px); font-weight: 700; color: #e6fbff; margin: 0; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.7);
   animation: introIn 1.4s ease-out both 0.3s; }
-.intro-dedic { margin: 6px 0 2px; padding: 7px 16px; max-width: min(92vw, 760px); color: var(--navy, #000088); font-weight: 600; font-size: clamp(13px, 1.8vw, 17px);
+.intro-dedic { margin: 6px 0 8px; padding: 8px 18px; max-width: min(92vw, 760px); color: var(--navy, #000088); font-size: clamp(13px, 1.8vw, 17px);
   background: rgba(255, 237, 0, 0.6); border-radius: 14px; backdrop-filter: blur(5px) saturate(1.2); -webkit-backdrop-filter: blur(5px) saturate(1.2);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); animation: introIn 1.4s ease-out both 0.9s; }
-.intro-by { margin: 0 0 10px; color: #8fd8ee; font-size: clamp(12px, 1.6vw, 15px); letter-spacing: 0.06em; animation: introIn 1.4s ease-out both 1.3s; }
+.intro-dedic p { margin: 0; font-weight: 600; }
+.intro-dedic .intro-by { margin: 3px 0 0; color: var(--navy, #000088); font-weight: 400; font-size: 0.86em; letter-spacing: 0.03em; }
 .intro-bottom .btn { animation: introIn 1s ease-out both 1.8s, pulse 2.4s ease-in-out infinite 3s; }
 .intro-hint { color: #8fb3c7; font-size: 13px; min-height: 18px; margin-top: 4px; }
 @keyframes introIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(56, 232, 255, 0.5); } 50% { box-shadow: 0 0 0 12px rgba(56, 232, 255, 0); } }
 .logo-btn { background-color: transparent; border: 0; cursor: pointer; text-align: left; font-family: inherit; line-height: 1.05; }
 .logo-btn:hover { filter: brightness(1.2); }
-@media (max-height: 500px) { .intro-claim { font-size: 15px; } .intro-dedic { font-size: 12px; margin-top: 0; padding: 4px 12px; } .intro-by { margin-bottom: 4px; font-size: 11px; } .intro-hint { display: none; } .intro-bottom { gap: 2px; } .intro-bottom .btn.big { padding: 10px 26px; font-size: 17px; } }
+@media (max-height: 500px) { .intro-claim { font-size: 15px; } .intro-dedic { font-size: 12px; margin: 0 0 4px; padding: 4px 12px; } .intro-dedic .intro-by { font-size: 11px; } .intro-hint { display: none; } .intro-bottom { gap: 2px; } .intro-bottom .btn.big { padding: 10px 26px; font-size: 17px; } }
 
 /* ---------- underwater transition ---------- */
 #diveFx { position: fixed; inset: 0; pointer-events: none; z-index: 14; overflow: hidden; }
@@ -622,7 +623,8 @@ body.touch #skipHint { bottom: calc(50% - 20px); }
 .info-kicker { font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: #7fe9ff; }
 .info-go { font-weight: 700; color: #fff; }
 .info-src { font-size: 11px; color: #8fb3c7 !important; margin-top: 12px; }
-.info-src a, .intro-by a { color: #7fe9ff; }
+.info-src a, .info-src a { color: #7fe9ff; }
+.intro-by a { color: var(--navy, #000088); font-weight: 600; }
 .intro-by a { text-decoration: underline; text-underline-offset: 3px; }
 .intro-link { font-weight: 700; letter-spacing: 0.04em; }
 
@@ -721,10 +723,10 @@ body.touch #radio { top: auto; bottom: calc(196px + var(--safe-b, 0px)); }
 }
 
 /* wordmark: "iam" 100 % yellow with a black outline, "isi" in the navy of the roundel, roundel at the end */
-.wm { margin: 0; font-family: var(--font-logo); font-weight: 800; line-height: 1; letter-spacing: -0.01em; white-space: nowrap; display: inline-flex; align-items: center; }
+.wm { margin: 0; font-family: var(--font-logo); font-weight: 800; line-height: 1; letter-spacing: -0.01em; white-space: nowrap; display: inline-flex; align-items: baseline; }
 .wm-iam { color: #ffff00; -webkit-text-stroke: 0.11em #000; paint-order: stroke fill; }
-.wm-sub { color: var(--navy); }
-.wm-badge { display: inline-block; flex: none; width: 0.86em; height: 0.86em; margin-left: 0.14em; background: url(assets/roundel.svg) center / contain no-repeat; }
+.wm-sub { color: var(--navy); font-size: 1.5em; } /* "isi" 50 % bigger than "iam" */
+.wm-badge { display: inline-block; flex: none; width: 1.29em; height: 1.29em; margin-left: 0.21em; align-self: flex-end; margin-bottom: 0.02em; background: url(assets/roundel.svg) center / contain no-repeat; }
 
 /* loading screen */
 #loading { background: radial-gradient(ellipse at 50% 30%, #0d4a6e, #03142a 70%); }
