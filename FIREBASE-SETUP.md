@@ -1,6 +1,6 @@
 # Firebase einrichten (Besucherstatistik + Bestenliste online)
 
-Ohne Firebase läuft iamSubPilot trotzdem: Mehrspieler geht direkt von Browser zu Browser (PeerJS), die Bestenliste und die Statistik (5 × die Taste 9 drücken oder 5 × auf die Versionsnummer tippen) zeigen dann aber nur das eigene Gerät. Mit diesen Schritten bekommt das Spiel ein **eigenes, neues Firebase-Projekt** – getrennt vom Segelflugspiel.
+Ohne Firebase läuft iamisi trotzdem: Mehrspieler geht direkt von Browser zu Browser (PeerJS), die Bestenliste und die Statistik (5 × die Taste 9 drücken oder 5 × auf die Versionsnummer tippen) zeigen dann aber nur das eigene Gerät. Mit diesen Schritten bekommt das Spiel ein **eigenes, neues Firebase-Projekt** – getrennt vom Segelflugspiel.
 
 Für die **Statistik** reichen die Schritte 1, 3, 5 und 6. Schritt 2 (anonyme Anmeldung) braucht nur die Online-Bestenliste. Schritt 4 ist optional.
 

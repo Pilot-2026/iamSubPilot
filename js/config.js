@@ -1,4 +1,4 @@
-// iamSubPilot – configuration
+// iamisi – configuration
 //
 // 1) Online features (leaderboard, multiplayer) need a Firebase project.
 //    Paste the web config from the Firebase console here (see FIREBASE-SETUP.md).
@@ -19,4 +19,4 @@ export const AI_ENDPOINT = null;
 //    reachable, rooms fall back to direct browser-to-browser connections (PeerJS).
 export const MP_SITE = 'https://iamsubpilot.netlify.app';
 
-export const GAME_VERSION = '0.9.9';
+export const GAME_VERSION = '0.10.0';

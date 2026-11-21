@@ -1,6 +1,6 @@
-// Shared helpers for the iamSubPilot online functions (rooms over LiveKit).
+// Shared helpers for the iamisi online functions (rooms over LiveKit).
 // Keys come from the Netlify environment variables LIVEKIT_URL, LIVEKIT_API_KEY and LIVEKIT_API_SECRET
-// of the iamSubPilot site – its own LiveKit project, separate from every other game. The secret never leaves the server.
+// of the iamisi site (iamsubpilot.netlify.app) – its own LiveKit project, separate from every other game. The secret never leaves the server.
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 
 export const ROOM_PREFIX = 'sub-';

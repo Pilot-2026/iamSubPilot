@@ -1,12 +1,12 @@
-# iamSubPilot – notes for working on this repo
+# iamisi – notes for working on this repo
 
-(Formerly called HADAL. Internal names such as the `hadal.*` localStorage keys and the PeerJS prefix `hadal-v1-` stay as they are, so saved progress and rooms keep working.)
+(Formerly iamSubPilot, before that HADAL. The name: "isi" stands for Isabella and sounds like the English "easy" – light, carefree; this is explained in the info text after the title screen (`infoP2`). Internal names such as the `hadal.*` localStorage keys and the PeerJS prefix `hadal-v1-` stay as they are, so saved progress and rooms keep working; the GitHub repo `Pilot-2026/iamSubPilot`, its Pages URL and the Netlify site `iamsubpilot.netlify.app` (LiveKit + cloud functions, `MP_SITE`) also keep the old name.)
 
 Browser game (three.js, plain ES modules, no build step), hosted on GitHub Pages from `main`.
 Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his other games (own repo, own Firebase project). Touch controls: joystick + up/down on the right, action buttons on the left.
 
 ## Structure
-- `index.html`, `style.css` – shell, HUD markup, styles (mobile + desktop; on extremely wide screens ≥ 2.6:1 the whole HUD sits in a centred 2.6 × height area – `--edge`, `#hud` with transform); menus and dialogs are yellow glass (`--sun-glass`), wordmark `.wm` ("iam" #ffff00 with black outline, "SubPilot" #000088, roundel `assets/roundel.svg`)
+- `index.html`, `style.css` – shell, HUD markup, styles (mobile + desktop; on extremely wide screens ≥ 2.6:1 the whole HUD sits in a centred 2.6 × height area – `--edge`, `#hud` with transform); menus and dialogs are yellow glass (`--sun-glass`), wordmark `.wm` ("iam" #ffff00 with black outline, "isi" #000088, roundel `assets/roundel.svg`); the title screen dedication (`.intro-dedic`) sits in a transparent yellow box
 - `privacy.html` – privacy policy (DE + EN); imprint is https://www.pilotfilm.at/impressum
 - `assets/` – roundel, logos and portrait for the footer bar (identical to iamPilot's), `fonts/` – Source Sans 3 (self-hosted, no Google Fonts)
 - Team data is state, not just events: player fields `md` (finished missions, `missionKey`), `ph` (own photos), `col` (own finds `[item id, kind]`), `atl`; all scoped to one dive by `dv` (= the dive's seed, reset at every dive start) – teammates and latecomers take everything over, nothing from an earlier dive in the same room counts
@@ -16,7 +16,7 @@ Owner: Andreas Schmölzer (pilotFilm). Must stay completely separate from his ot
 - `js/sub.js` – movement capped at 500 km/h horizontally even with boost, strong headlight (spot 150, range 70–110); eight original sub designs (`SUB_MODELS`: isabella (mermaid sub, no. 1, built from `js/merfolk.js`, laughing face, no claw: grabs with her right hand – `info.hand` → `updateHandGrab`, the find floats into her palm), hummel, wolfshark (2nd in the picker, name plates "WOLFSHARK"), puffer, narwhal, octopus, rocket, ufo; merged parts via `js/parts.js`), movement; `RemoteSub` for teammates (model sent as player field `sub`)
 - `js/launch.js` – launch from the ship (HMS Andrew): A-frame, chains, splash, underwater transition (skippable); `Recovery` = the reverse when surfacing (crane lifts the sub back on deck, then results)
 - `js/schools.js` – instanced fish schools (decorative, upper ocean + twilight glow shoals)
-- `js/intro.js` – title screen / menu background aquarium (the wordmark assembles itself letter by letter: one plane per letter + roundel coin, water shader, animals, subs; `?ogshot=1` = crowded posed scene used to shoot the link preview `assets/og-image.jpg`, 1200×630, keep it under 300 KB for WhatsApp; og/twitter meta tags in `index.html`)
+- `js/intro.js` – title screen / menu background aquarium (the wordmark "iamisi" assembles itself letter by letter: one plane per letter + roundel coin, `TEXT_W` = its world width, water shader, animals, subs; `?ogshot=1` = crowded posed scene used to shoot the link preview `assets/og-image.jpg`, 1200×630, keep it under 300 KB for WhatsApp; og/twitter meta tags in `index.html`)
 - `js/creatures.js` – fantasy creature models, spawning, behaviour, photo/grab targeting
 - `js/models.js` + `js/detail.js` – detailed real animals (incl. 10 shark species from one `buildShark()` config) and seafloor objects (lofted, vertex-painted bodies, fins, eyes); keep the userData animation hooks (fluke, tail, wings, flips, fins, bell, eyes, ears, cape, glow, strobe)
 - `js/merfolk.js` – mermaid figure (`buildMerFigure` + `animMer`: segmented tail, fluke, fins, arms with strokes and waving, hair chains, blinking) in two palettes (ISABELLA sub / mermaid of Atlantis) and Neptune (`buildNeptune` + `animNeptune`: beard, crown, cape, merman tail, glowing trident). Neptune and the Atlantis mermaid are secret: only in Atlantis, never on the title screen

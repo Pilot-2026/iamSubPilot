@@ -1,4 +1,4 @@
-// iamSubPilot radio ("Funk"): push-to-talk voice between the divers of a room.
+// iamisi radio ("Funk"): push-to-talk voice between the divers of a room.
 // Its own channel, nothing shared with any other game. In LiveKit rooms the voice goes through the game's own
 // LiveKit project (one audio track per diver, silent unless the radio button is held); in peer-to-peer rooms
 // it travels directly between the browsers (WebRTC media calls over PeerJS). Voice is never stored.

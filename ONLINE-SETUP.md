@@ -1,6 +1,6 @@
 # Online-Räume einrichten (LiveKit + Netlify) – wie bei iamPilot, aber komplett getrennt
 
-Damit Mehrspieler in **jedem** Netz klappt (auch iPhone und Tesla im Mobilfunk), laufen die Räume über LiveKit – genau wie beim Segelflugspiel iamPilot. iamSubPilot bekommt dafür ein **eigenes LiveKit-Projekt** und eine **eigene Netlify-Seite**. Nichts wird mit iamPilot geteilt.
+Damit Mehrspieler in **jedem** Netz klappt (auch iPhone und Tesla im Mobilfunk), laufen die Räume über LiveKit – genau wie beim Segelflugspiel iamPilot. iamisi bekommt dafür ein **eigenes LiveKit-Projekt** und eine **eigene Netlify-Seite**. Nichts wird mit iamPilot geteilt.
 
 Ohne diese Einrichtung läuft das Spiel trotzdem: Die Räume verbinden sich dann direkt von Browser zu Browser (im selben WLAN klappt das, zwischen Mobilfunknetzen oft nicht).
 
@@ -18,7 +18,7 @@ Dauer: etwa 10 Minuten. Kosten: Der kostenlose „Build“-Tarif von LiveKit und
 
 Das Secret gehört **nie** ins GitHub-Repo – nur in Netlify (Schritt 3).
 
-## 2. Eigene Netlify-Seite für iamSubPilot
+## 2. Eigene Netlify-Seite für iamisi
 
 1. <https://app.netlify.com> → **Add new site → Import an existing project → GitHub**.
 2. Repository **Pilot-2026/iamSubPilot** wählen.

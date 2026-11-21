@@ -1,8 +1,8 @@
 {
-  "name": "iamsubpilot",
-  "version": "0.9.9",
+  "name": "iamisi",
+  "version": "0.10.0",
   "private": true,
-  "description": "iamSubPilot – 3D deep-sea sub game. The game itself needs no build step; this file only lists what the Netlify functions (online rooms) need.",
+  "description": "iamisi – 3D deep-sea sub game. The game itself needs no build step; this file only lists what the Netlify functions (online rooms) need.",
   "type": "module",
   "dependencies": {
     "@netlify/blobs": "^10.7.13",

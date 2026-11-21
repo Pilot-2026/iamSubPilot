@@ -1,5 +1,5 @@
 // Title screen + menu background: a small "aquarium" with many real and
-// fantasy animals circling the wordmark "iamSubPilot" (it assembles itself
+// fantasy animals circling the wordmark "iamisi" (it assembles itself
 // letter by letter, water shader on the letters) and a fleet of subs
 // cruising around it with their lights on.
 
@@ -10,11 +10,11 @@ import { buildSubModel, animateSubModel } from './sub.js';
 import { fishGeometry, fishMaterial, fishTime } from './schools.js';
 import { mulberry32, clamp, lerp } from './util.js';
 
-const TEXT_W = 26, TEXT_H = 6.5, TEXT_Y = 2.2;
+const TEXT_W = 20, TEXT_H = 6.5, TEXT_Y = 2.2; // TEXT_W: world width of the wordmark "iamisi" + roundel
 // ?ogshot=1: a crowded, posed aquarium for the link preview picture (assets/og-image.jpg)
 const OG = new URLSearchParams(location.search).get('ogshot') === '1';
-const WORD = 'iamSubPilot';
-const N_IAM = 3; // "iam" yellow with black outline, "SubPilot" navy
+const WORD = 'iamisi';
+const N_IAM = 3; // "iam" yellow with black outline, "isi" navy
 const FONT = '"Source Sans 3", "Myriad Pro", "Segoe UI", system-ui, sans-serif';
 const F = 300; // font size on the letter canvases (px)
 
@@ -50,7 +50,7 @@ function letterCanvas(ch, iam, adv) {
     g.fillStyle = '#ffff00';
     g.fillText(ch, x, y);
   } else {
-    // "SubPilot": navy, no outline – lit warmly from behind so it stands out from the dark water
+    // "isi": navy, no outline – lit warmly from behind so it stands out from the dark water
     g.save();
     g.fillStyle = '#ffd84a';
     g.shadowColor = 'rgba(255,214,60,1)';
@@ -208,7 +208,7 @@ export class Aquarium {
     sun.position.set(0.3, 1, 0.4);
     this.scene.add(sun);
 
-    // the wordmark "iamSubPilot" + roundel, built from one plane per letter (assembles itself)
+    // the wordmark "iamisi" + roundel, built from one plane per letter (assembles itself)
     this.textU = {
       uTime: { value: 0 },
       uTextY: { value: TEXT_Y },

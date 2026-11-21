@@ -1,4 +1,4 @@
-// iamSubPilot – main game controller: menu, dives, results, multiplayer.
+// iamisi – main game controller: menu, dives, results, multiplayer.
 
 import * as THREE from './vendor/three.min.js';
 import { World, SCALE, axisZ } from './world.js';
@@ -452,7 +452,7 @@ function tierLabel() {
 
 // ======================= branding: wordmark + footer bar (same as in iamPilot) =======================
 function wordmarkHtml(tag = 'span', attrs = '') {
-  return `<${tag} class="wm" aria-label="iamSubPilot" ${attrs}><span class="wm-iam">iam</span><span class="wm-sub">SubPilot</span><span class="wm-badge"></span></${tag}>`;
+  return `<${tag} class="wm" aria-label="iamisi" ${attrs}><span class="wm-iam">iam</span><span class="wm-sub">isi</span><span class="wm-badge"></span></${tag}>`;
 }
 function socialHtml() {
   return `<div class="social" role="group" aria-label="Connect with Andreas Schmölzer on social media"><span class="social-t">${t('connect')} <span class="social-hug" aria-hidden="true">🤗</span></span><a class="so so-ig" href="https://www.instagram.com/schmoelzerandreas" target="_blank" rel="noopener" aria-label="Instagram: schmoelzerandreas" title="Instagram"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="5.2" fill="none" stroke="#fff" stroke-width="2.1"/><circle cx="12" cy="12" r="4.1" fill="none" stroke="#fff" stroke-width="2.1"/><circle cx="17.3" cy="6.7" r="1.35" fill="#fff"/></svg></a><a class="so so-fb" href="https://www.facebook.com/andreas.schmoelzer" target="_blank" rel="noopener" aria-label="Facebook: andreas.schmoelzer" title="Facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M13.6 21.5v-7.7h2.6l.4-3.1h-3V8.8c0-.9.3-1.5 1.5-1.5h1.6V4.5c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.3H7.9v3.1h2.6v7.7z"/></svg></a><a class="so so-tt" href="https://www.tiktok.com/@andreasschmoelzer" target="_blank" rel="noopener" aria-label="TikTok: @andreasschmoelzer" title="TikTok"><svg viewBox="0 0 24 24" aria-hidden="true"><g transform="translate(-0.7,-0.6)"><path fill="#25f4ee" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></g><g transform="translate(0.7,0.6)"><path fill="#fe2c55" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></g><path fill="#fff" d="M16.6 5.6a4.4 4.4 0 0 1-1.1-2.9h-3.2v12.6a2.7 2.7 0 1 1-1.9-2.6V9.4a5.9 5.9 0 1 0 5.1 5.9V9a7.5 7.5 0 0 0 4.4 1.4V7.2a4.4 4.4 0 0 1-3.3-1.6z"/></svg></a><a class="so so-yt" href="https://www.youtube.com/user/pilotFilmSchmoelzer" target="_blank" rel="noopener" aria-label="YouTube: pilotFilmSchmoelzer" title="YouTube"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M9.6 7.9v8.2l6.9-4.1z"/></svg></a><a class="so so-li" href="https://www.linkedin.com/in/andreasschmoelzer" target="_blank" rel="noopener" aria-label="LinkedIn: andreasschmoelzer" title="LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6.9" cy="6.6" r="1.75" fill="#fff"/><rect x="5.4" y="9.4" width="3" height="9.4" fill="#fff"/><path fill="#fff" d="M10.6 9.4h2.9v1.3c.4-.8 1.5-1.6 3.1-1.6 3.2 0 3.7 2 3.7 4.7v5h-3v-4.4c0-1.1 0-2.5-1.5-2.5s-1.8 1.2-1.8 2.4v4.5h-3z"/></svg></a></div>`;
@@ -623,6 +623,7 @@ function showInfo(onDone) {
     ['NOAA Ocean Exploration', 'https://oceanexplorer.noaa.gov/okeanos/explorations/ex2102/features/hadalzone/hadalzone.html'],
     ['WHOI', 'https://www.whoi.edu/know-your-ocean/ocean-topics/seafloor-below/ocean-trenches/'],
     ['University of New Hampshire', 'https://www.eurekalert.org/news-releases/1082877'],
+    ['Statistik Austria / BEV (WKO)', 'https://www.wko.at/statistik/bundesland/flaecheben.pdf'],
   ];
   showModal(`<div class="info-kicker">${t('infoKicker')}</div>
     <h1>${t('infoTitle')}</h1>
