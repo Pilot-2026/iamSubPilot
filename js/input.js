@@ -43,13 +43,14 @@ export class Input {
     const knob = root.querySelector('#joyKnob');
     let joyId = null;
     let cx = 0, cy = 0;
-    const R = 42;
+    let R = 42; // knob travel: about a third of the joystick's width (it is smaller on phones)
     const start = (e) => {
       const t = e.changedTouches ? e.changedTouches[0] : e;
       joyId = t.identifier ?? 'mouse';
       const r = joyEl.getBoundingClientRect();
       cx = r.left + r.width / 2;
       cy = r.top + r.height / 2;
+      R = Math.max(26, r.width * 0.32);
       move(e);
       e.preventDefault();
     };

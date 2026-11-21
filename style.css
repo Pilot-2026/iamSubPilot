@@ -575,14 +575,14 @@ select option { background: var(--panel-solid); }
   background: rgba(255, 237, 0, 0.6); border-radius: 14px; backdrop-filter: blur(5px) saturate(1.2); -webkit-backdrop-filter: blur(5px) saturate(1.2);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); animation: introIn 1.4s ease-out both 0.9s; }
 .intro-dedic p { margin: 0; font-weight: 600; }
-.intro-dedic .intro-by { margin: 3px 0 0; color: var(--navy, #000088); font-weight: 400; font-size: 0.86em; letter-spacing: 0.03em; }
+.intro-dedic .intro-by { margin: 3px 0 0; color: var(--navy, #000088); font-weight: 400; font-size: inherit; }
 .intro-bottom .btn { animation: introIn 1s ease-out both 1.8s, pulse 2.4s ease-in-out infinite 3s; }
 .intro-hint { color: #8fb3c7; font-size: 13px; min-height: 18px; margin-top: 4px; }
 @keyframes introIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(56, 232, 255, 0.5); } 50% { box-shadow: 0 0 0 12px rgba(56, 232, 255, 0); } }
 .logo-btn { background-color: transparent; border: 0; cursor: pointer; text-align: left; font-family: inherit; line-height: 1.05; }
 .logo-btn:hover { filter: brightness(1.2); }
-@media (max-height: 500px) { .intro-claim { font-size: 15px; } .intro-dedic { font-size: 12px; margin: 0 0 4px; padding: 4px 12px; } .intro-dedic .intro-by { font-size: 11px; } .intro-hint { display: none; } .intro-bottom { gap: 2px; } .intro-bottom .btn.big { padding: 10px 26px; font-size: 17px; } }
+@media (max-height: 500px) { .intro-claim { font-size: 15px; } .intro-dedic { font-size: 12px; margin: 0 0 4px; padding: 4px 12px; } .intro-hint { display: none; } .intro-bottom { gap: 2px; } .intro-bottom .btn.big { padding: 10px 26px; font-size: 17px; } }
 
 /* ---------- underwater transition ---------- */
 #diveFx { position: fixed; inset: 0; pointer-events: none; z-index: 14; overflow: hidden; }
@@ -1126,3 +1126,50 @@ table.lb tr.me td { font-weight: 800; background: rgba(255, 255, 255, 0.55); }
 .touch #fableBubble.legend { font-size: 14px; }
 
 .mp-online { display: inline-block; font-size: 13px; font-weight: 800; background: rgba(255, 255, 255, 0.7); color: #0a6b2a; border-radius: 99px; padding: 2px 10px; vertical-align: middle; margin-left: 6px; }
+
+/* ---------- compact touch controls: smaller buttons and joystick, so more of the sea stays visible ---------- */
+body.touch .cbtn, body.touch #vbtns .cbtn { width: 54px; height: 54px; font-size: 20px; border-radius: 15px; }
+body.touch .cbtn small { font-size: 9.5px; margin-top: 3px; white-space: nowrap; letter-spacing: -0.01em; }
+body.touch #abtns { grid-template-columns: repeat(4, 54px); gap: 7px; left: calc(10px + env(safe-area-inset-left, 0px)); bottom: calc(14px + var(--safe-b)); }
+body.touch #joystick { width: 120px; height: 120px; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(14px + var(--safe-b)); }
+body.touch #joyKnob { width: 54px; height: 54px; left: 30px; top: 30px; }
+body.touch #joyKnob svg { width: 40px; height: 40px; }
+body.touch #vbtns { flex-direction: column; gap: 8px; right: calc(146px + env(safe-area-inset-right, 0px)); bottom: calc(16px + var(--safe-b)); }
+body.touch #controls { height: 150px; }
+/* phones lying sideways */
+@media (max-height: 500px) {
+  body.touch .cbtn, body.touch #vbtns .cbtn { width: 46px; height: 46px; font-size: 18px; border-radius: 13px; }
+  body.touch .cbtn small { font-size: 8.5px; margin-top: 2px; }
+  body.touch #abtns { grid-template-columns: repeat(4, 46px); gap: 6px; bottom: calc(10px + var(--safe-b)); }
+  body.touch #joystick { width: 104px; height: 104px; bottom: calc(10px + var(--safe-b)); }
+  body.touch #joyKnob { width: 48px; height: 48px; left: 25px; top: 25px; }
+  body.touch #joyKnob svg { width: 34px; height: 34px; }
+  body.touch #vbtns { gap: 6px; right: calc(128px + env(safe-area-inset-right, 0px)); bottom: calc(12px + var(--safe-b)); }
+}
+/* phones upright: everything in two low rows at the very bottom */
+@media (max-width: 500px) {
+  body.touch .cbtn, body.touch #vbtns .cbtn { width: 44px; height: 44px; font-size: 17px; border-radius: 12px; }
+  body.touch .cbtn small { font-size: 8.5px; margin-top: 2px; }
+  body.touch #abtns { grid-template-columns: repeat(4, 44px); gap: 6px; left: calc(8px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--safe-b)); }
+  body.touch #joystick { width: 100px; height: 100px; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(10px + var(--safe-b)); }
+  body.touch #joystick .ja { font-size: 11px; }
+  body.touch #joyKnob { width: 46px; height: 46px; left: 24px; top: 24px; }
+  body.touch #joyKnob svg { width: 32px; height: 32px; }
+  body.touch #vbtns { gap: 6px; right: calc(118px + env(safe-area-inset-right, 0px)); bottom: calc(10px + var(--safe-b)); }
+  body.touch #controls { height: 120px; }
+  body.touch #echo { bottom: calc(122px + var(--safe-b)); }
+  body.touch #grabHint { bottom: calc(178px + var(--safe-b)); }
+  body.touch #warn { bottom: calc(212px + var(--safe-b)); }
+  body.touch #team { bottom: calc(178px + var(--safe-b)); }
+  body.touch #radio { bottom: calc(118px + var(--safe-b, 0px)); }
+  body.touch #gauge { bottom: 132px; }
+  body.touch #hallCount { bottom: calc(118px + var(--safe-b, 0px)); }
+}
+@media (max-width: 380px) {
+  body.touch .cbtn, body.touch #vbtns .cbtn { width: 40px; height: 40px; font-size: 16px; }
+  body.touch .cbtn small { font-size: 8px; }
+  body.touch #abtns { grid-template-columns: repeat(4, 40px); gap: 5px; }
+  body.touch #joystick { width: 92px; height: 92px; }
+  body.touch #joyKnob { width: 42px; height: 42px; left: 22px; top: 22px; }
+  body.touch #vbtns { right: calc(108px + env(safe-area-inset-right, 0px)); }
+}

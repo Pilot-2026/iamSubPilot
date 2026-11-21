@@ -1,6 +1,6 @@
 {
   "name": "iamisi",
-  "version": "0.10.1",
+  "version": "0.10.2",
   "private": true,
   "description": "iamisi – 3D deep-sea sub game. The game itself needs no build step; this file only lists what the Netlify functions (online rooms) need.",
   "type": "module",
